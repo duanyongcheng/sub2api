@@ -7,18 +7,18 @@
         <div v-for="row in rows.filter(item => Boolean(item.ignored) === ignored)" :key="row.category" class="rounded-xl bg-gray-50 p-3 dark:bg-dark-900/40">
           <button type="button" class="w-full text-left" :aria-expanded="expanded.has(row.category)" @click="toggle(row.category)">
             <span class="flex items-center justify-between gap-3 text-xs text-gray-600 dark:text-gray-300">
-              <span>{{ categoryLabel(row.category) }} <span v-if="ignored" class="text-gray-400">{{ t('channelMonitorV2.ignored') }}</span></span>
-              <span class="inline-flex items-center gap-1 tabular-nums">{{ formatMonitorPercent(row.rate) }}<Icon name="chevronDown" size="sm" :class="expanded.has(row.category) ? 'rotate-180' : ''" /></span>
+              <span class="font-medium" :class="ignored ? 'text-gray-500 dark:text-gray-400' : ''">{{ categoryLabel(row.category) }}</span>
+              <span class="inline-flex items-center gap-1 tabular-nums">{{ formatMonitorPercent(row.rate) }}<Icon name="chevronDown" size="sm" class="text-gray-400 transition-transform" :class="expanded.has(row.category) ? 'rotate-180' : ''" /></span>
             </span>
-            <span class="mt-2 block h-1.5 overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
-              <span class="block h-full rounded-full" :class="ignored ? 'ignored-bar bg-gray-400' : 'bg-rose-400'" :style="{ width: `${Math.max(0, Math.min(100, row.rate * 100))}%` }" />
+            <span class="mt-2 block h-1.5 overflow-hidden rounded-full bg-gray-200/70 dark:bg-dark-700">
+              <span class="block h-full rounded-full" :class="ignored ? 'ignored-bar bg-gray-400 dark:bg-dark-400' : 'bg-rose-400'" :style="{ width: barWidth(row.rate) }" />
             </span>
           </button>
           <div v-if="expanded.has(row.category)" class="mt-3 space-y-2 text-xs text-gray-500 dark:text-gray-400">
             <template v-if="admin && row.details?.length">
               <div v-for="(detail, index) in row.details" :key="index" class="rounded-lg border border-gray-200 p-2 dark:border-dark-700">
                 <p class="mb-1 flex flex-wrap gap-2">
-                  <span>{{ platformLabel(detail.platform || '') }}</span><span>{{ detail.model }}</span>
+                  <span>{{ detail.platform ? platformLabel(detail.platform) : '-' }}</span><span>{{ detail.model || '-' }}</span>
                   <span v-if="detail.status_code">{{ t('channelMonitorV2.errorDetail.http', { code: detail.status_code }) }}</span>
                   <span v-if="detail.upstream_status_code">{{ t('channelMonitorV2.errorDetail.upstream', { code: detail.upstream_status_code }) }}</span>
                   <span class="ml-auto">×{{ detail.count }}</span>
@@ -36,15 +36,20 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { MonitorErrorRow } from '@/api/channelMonitorV2'
 import Icon from '@/components/icons/Icon.vue'
 import { platformLabel } from '@/utils/platformColors'
 import { formatMonitorPercent } from './monitorFormat'
 
-defineProps<{ rows: MonitorErrorRow[]; admin: boolean }>()
+const props = defineProps<{ rows: MonitorErrorRow[]; admin: boolean }>()
 const { t, te } = useI18n()
+/** Bars compare categories with each other; the label keeps the absolute share. */
+const maxRate = computed(() => Math.max(0, ...props.rows.map(row => row.rate)))
+function barWidth(rate: number) {
+  return maxRate.value > 0 ? `${Math.max(2, Math.min(100, (rate / maxRate.value) * 100))}%` : '0%'
+}
 function categoryLabel(category: string) {
   const key = `channelMonitorV2.errorCategories.${category}`
   return te(key) ? t(key) : category

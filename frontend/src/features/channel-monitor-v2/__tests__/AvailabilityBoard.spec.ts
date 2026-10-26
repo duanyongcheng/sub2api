@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import AvailabilityBoard from '../AvailabilityBoard.vue'
 import AvailabilityTimeline from '../AvailabilityTimeline.vue'
 import AvailabilityErrors from '../AvailabilityErrors.vue'
-import { availabilityState, formatAvailability, monitorBucketStarts, monitorChildren } from '../monitorAvailability'
+import { availabilityState, formatAvailability, monitorBucketStarts, monitorChildLabel, monitorChildren } from '../monitorAvailability'
 import { coverage, health, metrics, row } from './availabilityFixtures'
 
 vi.mock('vue-i18n', async (importOriginal) => ({
@@ -60,6 +60,18 @@ describe('AvailabilityBoard', () => {
     expect(wrapper.findAll('article').map(card => card.attributes('data-platform'))).toEqual(['deepseek', 'kimi', 'future-provider'])
     wrapper.unmount()
   })
+  it('keeps overview counts on the API scope and tells no-match apart from no-data', async () => {
+    const wrapper = board()
+    const overview = () => wrapper.find('[data-testid="availability-overview"]').findAll('b').map(item => item.text())
+    expect(overview()).toEqual(['1', '0', '1', '1'])
+    await wrapper.setProps({ issuesOnly: true, search: 'no-such-provider' })
+    expect(overview()).toEqual(['1', '0', '1', '1'])
+    expect(wrapper.text()).toContain('channelMonitorV2.availability.noMatch')
+    await wrapper.setProps({ rows: [] })
+    expect(wrapper.text()).toContain('channelMonitorV2.empty.title')
+    expect(wrapper.text()).not.toContain('channelMonitorV2.availability.noMatch')
+    wrapper.unmount()
+  })
   it('colors average latency against its budget instead of reusing the P50 health state', async () => {
     const wrapper = board()
     const slowAverage = row()
@@ -71,7 +83,7 @@ describe('AvailabilityBoard', () => {
     }
     await wrapper.setProps({ rows: [slowAverage] })
     expect(wrapper.find('[title="channelMonitorV2.availability.avgTtft"]').classes()).toContain('text-rose-600')
-    expect(wrapper.find('article').classes()).toContain('!border-t-emerald-500')
+    expect(wrapper.find('article').attributes('data-state')).toBe('healthy')
     wrapper.unmount()
   })
   it('fills missing buckets with no-data and exposes keyboard-accessible private tooltips', async () => {
@@ -88,6 +100,40 @@ describe('AvailabilityBoard', () => {
     expect(wrapper.find('[role="tooltip"]').exists()).toBe(false)
     wrapper.unmount()
   })
+  it('keeps the strip a single tab stop and moves between buckets with arrow keys', async () => {
+    const wrapper = mount(AvailabilityTimeline, { props: { buckets: row().buckets, coverage }, attachTo: document.body })
+    const tabStops = () => wrapper.findAll('button').map(button => button.attributes('tabindex'))
+    expect(tabStops()).toEqual(['0', '-1', '-1'])
+    await wrapper.findAll('button')[0].trigger('keydown', { key: 'ArrowRight' })
+    expect(tabStops()).toEqual(['-1', '0', '-1'])
+    expect(document.activeElement).toBe(wrapper.findAll('button')[1].element)
+    await wrapper.findAll('button')[1].trigger('keydown', { key: 'End' })
+    expect(tabStops()).toEqual(['-1', '-1', '0'])
+    wrapper.unmount()
+  })
+  it('renders child strips as non-interactive images', () => {
+    const wrapper = mount(AvailabilityTimeline, { props: { buckets: row().buckets, coverage, compact: true } })
+    expect(wrapper.findAll('button')).toHaveLength(0)
+    expect(wrapper.attributes('role')).toBe('img')
+    expect(wrapper.findAll('span')).toHaveLength(3)
+    wrapper.unmount()
+  })
+  it('names children by the dimension the parent does not show and keeps "other" last', async () => {
+    const group = row()
+    const platformRow = row({ group_id: undefined, group_name: undefined })
+    const modelRow = row({ group_id: undefined, group_name: undefined, model: 'deepseek-chat' })
+    expect(monitorChildLabel(row({ model: 'deepseek-chat' }), group, 'Other')).toBe('deepseek-chat')
+    expect(monitorChildLabel({ ...platformRow, model: '__other__' }, platformRow, 'Other')).toBe('Other')
+    expect(monitorChildLabel(row({ model: 'deepseek-chat' }), modelRow, 'Other')).toBe('DeepSeek group')
+    const wrapper = mount(AvailabilityBoard, { props: {
+      rows: [group], coverage, layout: 'list', rangeLabel: '24h', loading: false,
+      children: [row({ model: '__other__' }), row({ model: 'deepseek-reasoner' }), row({ model: 'deepseek-chat' })],
+    } })
+    await wrapper.find('article button[aria-expanded]').trigger('click')
+    const names =wrapper.findAll('article > div:nth-child(2) > div').map(child => child.find('.truncate').text())
+    expect(names).toEqual(['deepseek-chat', 'deepseek-reasoner', 'channelMonitorV2.otherModels'])
+    wrapper.unmount()
+  })
   it('splits ignored errors and only exposes sample messages to admins', async () => {
     const wrapper = mount(AvailabilityErrors, { props: { admin: false, rows: [
       { category: 'timeout', count: 12, rate: 0.2, details: [{ message: 'admin-only', count: 12 }] },
@@ -99,6 +145,10 @@ describe('AvailabilityBoard', () => {
     expect(wrapper.text()).not.toContain('admin-only')
     await wrapper.setProps({ admin: true })
     expect(wrapper.text()).toContain('admin-only')
+    expect(wrapper.find('.border-gray-200 span').text()).toBe('-') // sample without platform, not "API"
+    // Bars compare categories: the largest share fills the track.
+    const bars = wrapper.findAll('[style*="width"]').map(bar => bar.attributes('style'))
+    expect(bars).toEqual(['width: 100%;', 'width: 25%;'])
     wrapper.unmount()
   })
 })

@@ -264,8 +264,10 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 640px) {
+  /* Group and model pickers share one row on phones instead of stacking full width. */
   .filter-menu {
-    min-width: 100%;
+    flex: 1 1 7rem;
+    min-width: 0;
   }
 }
 </style>

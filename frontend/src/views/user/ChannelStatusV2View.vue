@@ -134,13 +134,12 @@
             {{ t('channelMonitorV2.clearFilters') }}
           </button>
 
-          <span class="mx-0.5 hidden h-5 w-px shrink-0 bg-gray-200 dark:bg-dark-700 md:block" aria-hidden="true"></span>
-
+          <div class="flex flex-wrap items-center gap-1.5 sm:gap-2 lg:ml-auto">
           <Select
             v-model="matrixGroupBy"
             :options="matrixGroupOptions"
             :placeholder="t('channelMonitorV2.groupBy.label')"
-            class="monitor-toolbar-select w-[7.5rem] shrink-0 sm:w-[8.5rem]"
+            class="monitor-toolbar-select w-[8.5rem] shrink-0 sm:w-[9.5rem]"
           />
 
           <div
@@ -186,16 +185,36 @@
               {{ option.label }}
             </button>
           </div>
+          </div>
         </div>
-        <div class="flex flex-wrap items-center gap-2 border-t border-gray-100 px-5 py-3 dark:border-dark-700" :aria-label="t('channelMonitorV2.filters.platform')">
-          <button type="button" class="btn btn-sm rounded-full" :class="!filter.platforms.length ? 'btn-primary' : 'btn-ghost'" :aria-pressed="!filter.platforms.length" @click="filter.platforms = []">{{ t('channelMonitorV2.filters.allPlatforms') }}</button>
-          <button v-for="option in platformOptions" :key="option.value" type="button" class="btn btn-sm rounded-full" :class="filter.platforms.includes(option.value) ? 'btn-primary' : 'btn-ghost'" :aria-pressed="filter.platforms.includes(option.value)" @click="togglePlatform(option.value)">{{ option.label }}</button>
-          <button v-if="embedded && isAdmin" type="button" class="btn btn-ghost btn-sm ml-auto" @click="emit('settings')">{{ t('channelMonitorV2.availability.manageProviders') }}</button>
-        </div>
-        <div v-if="isBoardView" class="flex flex-wrap items-center gap-3 border-t border-gray-100 px-5 py-3 dark:border-dark-700">
-          <input v-model="search" type="search" class="input min-w-0 basis-full sm:flex-1 sm:basis-auto sm:max-w-sm" :placeholder="t('channelMonitorV2.availability.search')" :aria-label="t('channelMonitorV2.availability.search')" />
-          <Select v-model="sort" class="w-44" :options="sortOptions" :aria-label="t('channelMonitorV2.availability.sort')" />
-          <button type="button" class="btn btn-sm" :class="issuesOnly ? 'btn-primary' : 'btn-secondary'" :aria-pressed="issuesOnly" @click="issuesOnly = !issuesOnly">{{ t('channelMonitorV2.availability.issuesOnly') }}</button>
+        <div
+          class="flex flex-wrap items-center gap-1.5 border-t border-gray-100 px-4 py-3 dark:border-dark-700 sm:gap-2 sm:px-5"
+          role="group"
+          :aria-label="t('channelMonitorV2.filters.platform')"
+        >
+          <span class="mr-1 text-xs text-gray-400 dark:text-dark-400">{{ t('channelMonitorV2.filters.platform') }}</span>
+          <button
+            type="button"
+            class="platform-chip"
+            :class="!filter.platforms.length ? 'platform-chip-active' : ''"
+            :aria-pressed="!filter.platforms.length"
+            @click="filter.platforms = []"
+          >{{ t('channelMonitorV2.filters.allPlatforms') }}</button>
+          <button
+            v-for="option in platformOptions"
+            :key="option.value"
+            type="button"
+            class="platform-chip"
+            :class="filter.platforms.includes(option.value) ? 'platform-chip-active' : ''"
+            :aria-pressed="filter.platforms.includes(option.value)"
+            @click="togglePlatform(option.value)"
+          ><i class="h-2 w-2 rounded-full" :style="{ backgroundColor: platformAccentColor(option.value) }" />{{ option.label }}</button>
+          <button
+            v-if="embedded && isAdmin"
+            type="button"
+            class="ml-auto inline-flex h-7 items-center gap-1.5 rounded-full px-2.5 text-xs font-medium text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-dark-700 dark:hover:text-white"
+            @click="emit('settings')"
+          ><Icon name="cog" size="xs" />{{ t('channelMonitorV2.availability.manageProviders') }}</button>
         </div>
       </section>
 
@@ -261,10 +280,13 @@
           :coverage="matrix.coverage"
           :layout="trendView === 'list' ? 'list' : 'cards'"
           :range-label="ranges.find(option => option.value === filter.range)?.label || filter.range"
-          :search="search"
-          :sort="sort"
-          :issues-only="issuesOnly"
-          :loading="loading || refreshing"
+          v-model:search="search"
+          v-model:sort="sort"
+          v-model:issues-only="issuesOnly"
+          :loading="loading"
+          :aria-busy="refreshing"
+          class="transition-opacity"
+          :class="refreshing ? 'opacity-70' : ''"
         />
         <MonitorTrendChart
           v-else-if="trendView === 'line'"
@@ -429,7 +451,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute, useRouter, type LocationQuery } from 'vue-router'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import Icon from '@/components/icons/Icon.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
@@ -442,7 +464,7 @@ import RelayPulseMatrix from '@/features/channel-monitor-v2/RelayPulseMatrix.vue
 import AvailabilityBoard from '@/features/channel-monitor-v2/AvailabilityBoard.vue'
 import AvailabilityErrors from '@/features/channel-monitor-v2/AvailabilityErrors.vue'
 import { formatAvailability } from '@/features/channel-monitor-v2/monitorAvailability'
-import { platformLabel } from '@/utils/platformColors'
+import { platformAccentColor, platformLabel } from '@/utils/platformColors'
 import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
 import { extractApiErrorMessage } from '@/utils/apiError'
@@ -477,10 +499,12 @@ type Tab = 'models' | 'errors' | 'users'
 type HealthMode = 'overall' | 'success' | 'ttft' | 'cache'
 type TrendView = 'cards' | 'list' | 'pulse' | 'line'
 
-withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false })
+const props = withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false })
 const emit = defineEmits<{ settings: [] }>()
 const route = useRoute()
 const router = useRouter()
+// Embedded in the admin page: view state stays local and never touches the host URL.
+const initialQuery: LocationQuery = props.embedded ? {} : route.query
 const authStore = useAuthStore()
 const appStore = useAppStore()
 const { t, locale } = useI18n()
@@ -520,20 +544,19 @@ const healthModeOptions = computed(() => [
 ])
 
 const filter = ref<MonitorFilter>({
-  range: parseRange(route.query.range),
-  platforms: csv(route.query.platform),
-  groupIds: csv(route.query.group).map(Number).filter(Boolean),
-  models: csv(route.query.model),
+  range: parseRange(initialQuery.range),
+  platforms: csv(initialQuery.platform),
+  groupIds: csv(initialQuery.group).map(Number).filter(Boolean),
+  models: csv(initialQuery.model),
 })
-const activeTab = ref<Tab>(parseTab(route.query.tab, showUserRanking.value))
-const matrixGroupBy = ref<MonitorMatrixGroupBy>(parseMatrixGroupBy(route.query.group_by))
-const healthMode = ref<HealthMode>(parseHealthMode(route.query.health_mode))
-const trendView = ref<TrendView>(parseTrendView(route.query.trend_view))
+const activeTab = ref<Tab>(parseTab(initialQuery.tab, showUserRanking.value))
+const matrixGroupBy = ref<MonitorMatrixGroupBy>(parseMatrixGroupBy(initialQuery.group_by))
+const healthMode = ref<HealthMode>(parseHealthMode(initialQuery.health_mode))
+const trendView = ref<TrendView>(parseTrendView(initialQuery.trend_view))
 const isBoardView = computed(() => trendView.value === 'cards' || trendView.value === 'list')
 const search = ref('')
 const sort = ref('severity')
 const issuesOnly = ref(false)
-const sortOptions = computed(() => ['severity', 'name', 'avail-asc', 'avail-desc'].map(value => ({ value, label: t(`channelMonitorV2.availability.sorts.${value}`) })))
 const childMatrix = ref<MonitorMatrixResponse | null>(null)
 const dimensions = ref<MonitorDimensions>({ platforms: [], groups: [], models: [] })
 const snapshot = ref<MonitorSnapshot | null>(null)
@@ -572,7 +595,7 @@ const groupOptions = computed(() =>
     )
     .map((item) => ({
       value: String(item.id),
-      label: item.platform ? `${item.platform} / ${item.name || `#${item.id}`}` : item.name || `#${item.id}`,
+      label: item.platform ? `${platformLabel(item.platform)} / ${item.name || `#${item.id}`}` : item.name || `#${item.id}`,
     }))
 )
 const modelOptions = computed(() =>
@@ -583,13 +606,13 @@ const modelOptions = computed(() =>
         !item.platform ||
         selectedPlatforms.value.has(item.platform),
     )
-    .map((item) => ({
-      value: item.value,
-      label:
-        item.platform && !item.label.includes(item.platform)
-          ? `${item.platform} / ${item.label}`
-          : item.label,
-    }))
+    .map((item) => {
+      const platform = item.platform ? platformLabel(item.platform) : ''
+      // Skip the prefix when the model name already names its provider (deepseek-chat, Kimi-K2).
+      const named = !item.platform ||
+        [item.platform, platform].some((name) => item.label.toLowerCase().includes(name.toLowerCase()))
+      return { value: item.value, label: named ? item.label : `${platform} / ${item.label}` }
+    })
 )
 const selectedGroupIds = computed({
   get: () => filter.value.groupIds.map(String),
@@ -661,7 +684,7 @@ function parseMatrixGroupBy(value: unknown): MonitorMatrixGroupBy {
 }
 function parseTab(value: unknown, allowUsers: boolean): Tab {
   const allowed: Tab[] = allowUsers ? ['models', 'errors', 'users'] : ['models', 'errors']
-  return allowed.includes(value as Tab) ? (value as Tab) : 'errors'
+  return allowed.includes(value as Tab) ? (value as Tab) : 'models'
 }
 function parseHealthMode(value: unknown): HealthMode {
   const allowed: HealthMode[] = ['overall', 'success', 'ttft', 'cache']
@@ -671,6 +694,7 @@ function parseTrendView(value: unknown): TrendView {
   return ['cards', 'list', 'pulse', 'line'].includes(String(value)) ? value as TrendView : 'cards'
 }
 function syncQuery() {
+  if (props.embedded) return
   void router.replace({
     query: {
       ...route.query,
@@ -936,6 +960,19 @@ onBeforeUnmount(() => {
 .health-unknown  { background: #9ca3af; }
 .matrix-select {
   min-width: 10rem;
+}
+/* Match FilterMultiSelect compact height in the toolbar. */
+.monitor-toolbar-select :deep(.select-trigger) {
+  @apply h-8 rounded-lg px-2.5 py-1 text-xs;
+}
+.platform-chip {
+  @apply inline-flex h-7 items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 text-xs font-medium text-gray-600 transition-colors;
+  @apply hover:border-gray-300 hover:text-gray-900;
+  @apply dark:border-dark-600 dark:bg-dark-800 dark:text-gray-300 dark:hover:border-dark-500 dark:hover:text-white;
+}
+.platform-chip-active {
+  @apply border-primary-500 bg-primary-50 text-primary-700 hover:border-primary-500 hover:text-primary-700;
+  @apply dark:border-primary-400/60 dark:bg-primary-500/10 dark:text-primary-300 dark:hover:text-primary-200;
 }
 details > summary::-webkit-details-marker {
   display: none;
