@@ -1049,6 +1049,20 @@ func (s *APIKeyService) IncrementUsage(ctx context.Context, keyID int64) error {
 // - 标准类型分组：公开的（非专属）或用户被明确允许的
 // - 订阅类型分组：用户有有效订阅的
 func (s *APIKeyService) GetAvailableGroups(ctx context.Context, userID int64) ([]Group, error) {
+	return s.getAvailableGroups(ctx, userID, s.groupRepo.ListActive)
+}
+
+// GetAvailableGroupsForKey uses a lightweight projection without changing the
+// existing page API's fields or statistics. Both paths share permission checks.
+func (s *APIKeyService) GetAvailableGroupsForKey(ctx context.Context, userID int64) ([]Group, error) {
+	repo, ok := s.groupRepo.(GroupSelectionRepository)
+	if !ok {
+		return nil, fmt.Errorf("group repository does not support lightweight selection")
+	}
+	return s.getAvailableGroups(ctx, userID, repo.ListActiveForSelection)
+}
+
+func (s *APIKeyService) getAvailableGroups(ctx context.Context, userID int64, listGroups func(context.Context) ([]Group, error)) ([]Group, error) {
 	// 获取用户信息
 	user, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
@@ -1056,7 +1070,7 @@ func (s *APIKeyService) GetAvailableGroups(ctx context.Context, userID int64) ([
 	}
 
 	// 获取所有活跃分组
-	allGroups, err := s.groupRepo.ListActive(ctx)
+	allGroups, err := listGroups(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("list active groups: %w", err)
 	}

@@ -13,7 +13,9 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/handler"
 	servermiddleware "github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
+	"github.com/alicebob/miniredis/v2"
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
 )
 
@@ -75,7 +77,7 @@ func (r keyGroupRouteGroupRepo) GetByID(_ context.Context, id int64) (*service.G
 	return nil, service.ErrGroupNotFound
 }
 
-func (r keyGroupRouteGroupRepo) ListActive(context.Context) ([]service.Group, error) {
+func (r keyGroupRouteGroupRepo) ListActiveForSelection(context.Context) ([]service.Group, error) {
 	groups := make([]service.Group, 0)
 	for _, group := range r.groups {
 		if group.IsActive() {
@@ -131,7 +133,7 @@ func newKeyGroupRouteRouter(t *testing.T) (*gin.Engine, *keyGroupRouteRepo, *key
 		Balance: 10, RestrictPublicGroups: true, AllowedGroups: []int64{10, 12, 13}}
 	groups := []service.Group{
 		{ID: 10, Name: "Standard", Status: service.StatusActive, Platform: service.PlatformOpenAI, Hydrated: true},
-		{ID: 12, Name: "Pro", Status: service.StatusActive, Platform: service.PlatformOpenAI, IsExclusive: true, Hydrated: true},
+		{ID: 12, Name: "Pro", I18n: service.GroupI18n{"zh": {Name: "专业组"}}, Status: service.StatusActive, Platform: service.PlatformOpenAI, IsExclusive: true, Hydrated: true},
 		{ID: 13, Name: "Disabled", Status: "inactive"},
 		{ID: 14, Name: "Other", Status: service.StatusActive, IsExclusive: true},
 		{ID: 15, Name: "Subscription", Status: service.StatusActive, SubscriptionType: service.SubscriptionTypeSubscription},
@@ -147,9 +149,11 @@ func newKeyGroupRouteRouter(t *testing.T) (*gin.Engine, *keyGroupRouteRepo, *key
 	svc := service.NewAPIKeyService(repo, keyGroupRouteUserRepo{user: user}, keyGroupRouteGroupRepo{groups: groups}, keyGroupRouteSubRepo{}, nil, cache, cfg)
 	settingService := service.NewSettingService(keyGroupRouteSettings{}, cfg)
 	router := gin.New()
+	rdb := redis.NewClient(&redis.Options{Addr: miniredis.RunT(t).Addr()})
+	t.Cleanup(func() { _ = rdb.Close() })
 	RegisterGatewayRoutes(router, &handler.Handlers{
 		APIKey: handler.NewAPIKeyHandler(svc), Gateway: &handler.GatewayHandler{}, OpenAIGateway: &handler.OpenAIGatewayHandler{},
-	}, servermiddleware.NewAPIKeyAuthMiddleware(svc, nil, cfg), svc, nil, nil, settingService, nil, cfg)
+	}, servermiddleware.NewAPIKeyAuthMiddleware(svc, nil, cfg), svc, nil, nil, settingService, nil, cfg, servermiddleware.NewAPIKeySelfServiceRateLimiter(rdb))
 	router.GET("/test/current-group", gin.HandlerFunc(servermiddleware.NewAPIKeyAuthMiddleware(svc, nil, cfg)), func(c *gin.Context) {
 		key, ok := servermiddleware.GetAPIKeyFromContext(c)
 		require.True(t, ok)
@@ -262,6 +266,42 @@ func TestKeyGroupSelfServiceCanRecoverUnavailableCurrentGroup(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestKeyGroupSelfServiceRateLimitRoutes(t *testing.T) {
+	for _, tc := range []struct {
+		method, path string
+		limit        int
+	}{
+		{http.MethodGet, "/v1/key/groups", 30},
+		{http.MethodPut, "/v1/key/group", 10},
+	} {
+		t.Run(tc.method, func(t *testing.T) {
+			router, repo, _ := newKeyGroupRouteRouter(t)
+			for i := 0; i < tc.limit; i++ {
+				w := keyGroupRouteRequest(router, tc.method, tc.path, repo.key.Key, `{"group_id":12}`)
+				require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+			}
+			writes := len(repo.fields)
+			w := keyGroupRouteRequest(router, tc.method, tc.path, repo.key.Key, `{"group_id":12}`)
+			require.Equal(t, http.StatusTooManyRequests, w.Code, w.Body.String())
+			require.NotEmpty(t, w.Header().Get("Retry-After"))
+			require.Equal(t, writes, len(repo.fields))
+		})
+	}
+}
+
+func TestKeyGroupSelfServiceSelectionLocalizesNames(t *testing.T) {
+	router, repo, _ := newKeyGroupRouteRouter(t)
+	req := httptest.NewRequest(http.MethodGet, "/v1/key/groups", nil)
+	req.Header.Set("Authorization", "Bearer "+repo.key.Key)
+	req.Header.Set("Accept-Language", "zh-CN")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Contains(t, w.Body.String(), "专业组")
+	require.NotContains(t, w.Body.String(), "account_count")
+	require.NotContains(t, w.Body.String(), "rate_multiplier")
 }
 
 func TestKeyGroupSelfServiceStillEnforcesIdentity(t *testing.T) {

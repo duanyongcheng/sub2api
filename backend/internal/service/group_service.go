@@ -38,6 +38,12 @@ type GroupRepository interface {
 	UpdateSortOrders(ctx context.Context, updates []GroupSortOrderUpdate) error
 }
 
+// GroupSelectionRepository provides lightweight group metadata for key self-service.
+// It does not load account counts or routing/billing configuration.
+type GroupSelectionRepository interface {
+	ListActiveForSelection(ctx context.Context) ([]Group, error)
+}
+
 type GroupDuplicateRepository interface {
 	// FindByDuplicateOperationID performs the read-only recovery lookup used
 	// after an ambiguous idempotency-store failure.

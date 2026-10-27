@@ -28,15 +28,16 @@ func (h *APIKeyHandler) GetSelfAvailableGroups(c *gin.Context) {
 		response.Unauthorized(c, "API key not authenticated")
 		return
 	}
-	groups, err := h.apiKeyService.GetAvailableGroups(c.Request.Context(), apiKey.UserID)
+	groups, err := h.apiKeyService.GetAvailableGroupsForKey(c.Request.Context(), apiKey.UserID)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
 	out := make([]apiKeyAvailableGroup, 0, len(groups))
 	for i := range groups {
-		group := dto.GroupFromService(&groups[i]).Localized(c.GetHeader("Accept-Language"))
-		out = append(out, apiKeyAvailableGroup{ID: group.ID, Name: group.Name, Platform: group.Platform})
+		group := &groups[i]
+		name := group.I18n.LocalizeName(c.GetHeader("Accept-Language"), group.Name)
+		out = append(out, apiKeyAvailableGroup{ID: group.ID, Name: name, Platform: group.Platform})
 	}
 	response.Success(c, out)
 }

@@ -29,6 +29,7 @@ func RegisterGatewayRoutes(
 	settingService *service.SettingService,
 	compositeResolver *service.CompositeRouteResolver,
 	cfg *config.Config,
+	keySelfServiceLimiter *middleware.APIKeySelfServiceRateLimiter,
 ) {
 	bodyLimit := middleware.RequestBodyLimit(cfg.Gateway.MaxBodySize)
 	textBodyLimit := middleware.RequestBodyLimit(cfg.Gateway.TextMaxBodySize)
@@ -181,8 +182,8 @@ func RegisterGatewayRoutes(
 	keySelfService := r.Group("/v1/key")
 	keySelfService.Use(middleware.RequestBodyLimit(4096), clientRequestID, opsErrorLogger)
 	keySelfService.Use(middleware.APIKeySelfServiceAuth(apiKeyService, cfg))
-	keySelfService.GET("/groups", h.APIKey.GetSelfAvailableGroups)
-	keySelfService.PUT("/group", h.APIKey.SwitchSelfGroup)
+	keySelfService.GET("/groups", keySelfServiceLimiter.ListGroups(), h.APIKey.GetSelfAvailableGroups)
+	keySelfService.PUT("/group", keySelfServiceLimiter.SwitchGroup(), h.APIKey.SwitchSelfGroup)
 
 	// API网关（Claude API兼容）
 	gateway := r.Group("/v1")
