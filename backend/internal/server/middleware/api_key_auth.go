@@ -22,6 +22,12 @@ func NewAPIKeyAuthMiddleware(apiKeyService *service.APIKeyService, subscriptionS
 	return APIKeyAuthMiddleware(apiKeyAuthWithSubscription(apiKeyService, subscriptionService, cfg))
 }
 
+// APIKeySelfServiceAuth authenticates a key without requiring its current group
+// or balance. Expired/disabled keys, inactive users and IP restrictions still apply.
+func APIKeySelfServiceAuth(apiKeyService *service.APIKeyService, cfg *config.Config) gin.HandlerFunc {
+	return apiKeyAuth(apiKeyService, nil, cfg, true)
+}
+
 // apiKeyAuthWithSubscription API Key认证中间件（支持订阅验证）
 //
 // 中间件职责分为两层：
@@ -32,6 +38,10 @@ func NewAPIKeyAuthMiddleware(apiKeyService *service.APIKeyService, subscriptionS
 // usage 允许过期/配额耗尽的 Key 查询自身用量，billing 用于读取当前 Key 的倍率配置，
 // 异步生图查询允许已耗尽额度的 Key 拉取自身任务结果。
 func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscriptionService *service.SubscriptionService, cfg *config.Config) gin.HandlerFunc {
+	return apiKeyAuth(apiKeyService, subscriptionService, cfg, false)
+}
+
+func apiKeyAuth(apiKeyService *service.APIKeyService, subscriptionService *service.SubscriptionService, cfg *config.Config, selfService bool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// ── 1. 提取 API Key ──────────────────────────────────────────
 		if rejectInvalidAuthAbuse(c, apiKeyService) {
@@ -155,6 +165,23 @@ func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscripti
 		if !apiKey.User.IsActive() {
 			MarkIngressRejected(c, IngressRejectUserInactive)
 			AbortWithError(c, 401, "USER_INACTIVE", "User account is not active")
+			return
+		}
+		if selfService {
+			if apiKey.Status == service.StatusAPIKeyExpired || apiKey.IsExpired() {
+				AbortWithError(c, http.StatusForbidden, "API_KEY_EXPIRED", "api key 已过期")
+				return
+			}
+			ctx := context.WithValue(c.Request.Context(), ctxkey.UserID, apiKey.User.ID)
+			c.Request = c.Request.WithContext(ctx)
+			c.Set(string(ContextKeyAPIKey), apiKey)
+			c.Set(string(ContextKeyUser), AuthSubject{
+				UserID:      apiKey.User.ID,
+				Concurrency: apiKey.User.Concurrency,
+			})
+			c.Set(string(ContextKeyUserRole), apiKey.User.Role)
+			c.Header("Cache-Control", "no-store")
+			c.Next()
 			return
 		}
 		if abortIfAPIKeyGroupUnavailable(c, apiKey) {
