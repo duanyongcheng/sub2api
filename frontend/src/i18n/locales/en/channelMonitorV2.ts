@@ -21,6 +21,7 @@ export default {
       noMatch: 'No items match the current search or filter',
       coverage: '{count}/{total} buckets with enough samples', expandAll: 'Expand all', collapseAll: 'Collapse all',
       children: { models: '{count} model | {count} models', groups: '{count} group | {count} groups' },
+      overallMetrics: 'Overall metrics',
       openGroup: 'View availability details for {name}', viewDetails: 'View details', detailsTitle: '{name} · Availability details',
       history: '{range} history', itemCount: 'Items', breakdown: 'Model / group', detailsEmpty: 'No detail data for this item',
       columns: { name: 'Name', status: 'Status', availability: 'Availability', timeline: '{range} status' },

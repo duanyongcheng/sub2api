@@ -61,16 +61,39 @@
         <p class="mt-1 text-sm text-gray-500">{{ t('channelMonitorV2.empty.description') }}</p>
       </template>
     </div>
-    <div v-else-if="layout === 'cards'" class="grid items-start gap-4 sm:grid-cols-2 xl:grid-cols-3">
-      <AvailabilityCard
-        v-for="entry in entries"
-        :key="entry.key"
-        :entry="entry"
-        :coverage="coverage"
-        :total-buckets="bucketStarts.length"
-        :range-label="rangeLabel"
-        @details="selectedEntry = entry"
-      />
+    <div v-else-if="layout === 'cards'" class="space-y-5">
+      <section
+        v-for="section in providerSections"
+        :key="section.platform"
+        class="space-y-2.5"
+        data-testid="provider-section"
+        :data-provider="section.platform"
+        :aria-label="platformLabel(section.platform)"
+      >
+        <header class="flex items-center gap-2.5 px-1">
+          <span
+            class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-gray-200/80 bg-white/80 dark:border-dark-700 dark:bg-dark-800"
+            :style="{ color: platformAccentColor(section.platform) }"
+          >
+            <ProviderIcon :provider="section.platform" :size="21" />
+          </span>
+          <h2 class="text-base font-semibold text-gray-900 dark:text-white">{{ platformLabel(section.platform) }}</h2>
+          <span class="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-gray-100 px-2 text-xs font-semibold tabular-nums text-gray-600 dark:bg-dark-700 dark:text-gray-300">
+            {{ section.entries.length }}
+          </span>
+        </header>
+        <div class="grid items-start gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+          <AvailabilityCard
+            v-for="entry in section.entries"
+            :key="entry.key"
+            :entry="entry"
+            :coverage="coverage"
+            :total-buckets="bucketStarts.length"
+            :range-label="rangeLabel"
+            @details="selectedEntry = entry"
+          />
+        </div>
+      </section>
     </div>
     <div v-else class="card !rounded-2xl">
       <div
@@ -101,6 +124,7 @@
       :entry="selectedEntry"
       :coverage="coverage"
       :range-label="rangeLabel"
+      :total-buckets="bucketStarts.length"
       @close="selectedEntry = null"
     />
 
@@ -120,10 +144,11 @@ import { useI18n } from 'vue-i18n'
 import type { HealthState, MonitorCoverage, MonitorMatrixRow } from '@/api/channelMonitorV2'
 import Select from '@/components/common/Select.vue'
 import Icon from '@/components/icons/Icon.vue'
-import { platformLabel } from '@/utils/platformColors'
+import { platformAccentColor, platformLabel } from '@/utils/platformColors'
 import AvailabilityCard from './AvailabilityCard.vue'
 import AvailabilityGroupDetailsDialog from './AvailabilityGroupDetailsDialog.vue'
 import AvailabilityListRow from './AvailabilityListRow.vue'
+import ProviderIcon from '@/components/user/monitor/ProviderIcon.vue'
 import {
   AVAILABILITY_LIST_GRID, type AvailabilityEntry, availabilityState, availabilitySeverity, availabilityTone,
   availabilityValue, isAvailabilityIssue, monitorBucketStarts, monitorChildLabel, monitorChildren, monitorRowKey, monitorRowLabel,
@@ -181,6 +206,9 @@ const entries = computed(() => {
     return availabilitySeverity[availabilityState(a.row.health)] - availabilitySeverity[availabilityState(b.row.health)] || nameOrder()
   })
 })
+const providerSections = computed(() => [...new Set(allEntries.value.map(entry => entry.row.platform))]
+  .map(platform => ({ platform, entries: entries.value.filter(entry => entry.row.platform === platform) }))
+  .filter(section => section.entries.length > 0))
 // Overview reflects the API scope; search/issues-only only filter the visible cards.
 const counts = computed(() => Object.fromEntries(states.map(state => [state, allEntries.value.filter(entry => availabilityState(entry.row.health) === state).length])) as Record<HealthState, number>)
 const expandable = computed(() => entries.value.filter(entry => entry.children.length))

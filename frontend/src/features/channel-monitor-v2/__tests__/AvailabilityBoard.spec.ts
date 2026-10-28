@@ -37,6 +37,8 @@ describe('availability data contracts', () => {
 describe('AvailabilityBoard', () => {
   it('shows provider aggregates and opens model availability details from its group card', async () => {
     const wrapper = board()
+    expect(wrapper.findAll('[data-testid="provider-section"]').map(section => section.attributes('data-provider'))).toEqual(['deepseek', 'kimi', 'future-provider'])
+    expect(wrapper.find('[data-provider="deepseek"] h2').text()).toBe('DeepSeek')
     const card = wrapper.find('[data-platform="deepseek"]')
     expect(card.text()).toContain('DeepSeek')
     expect(card.text()).toContain('99.00%')
@@ -46,6 +48,7 @@ describe('AvailabilityBoard', () => {
     await card.trigger('click')
     const dialog = wrapper.findComponent({ name: 'AvailabilityGroupDetailsDialog' })
     expect(dialog.props('show')).toBe(true)
+    expect(dialog.props('totalBuckets')).toBe(3)
     expect(dialog.props('entry').children.map((child: { model?: string }) => child.model)).toEqual(['deepseek-chat', 'deepseek-reasoner'])
     expect(wrapper.find('[data-platform="kimi"]').attributes('data-state')).toBe('critical')
     expect(wrapper.find('[data-platform="future-provider"] .availability-value').text()).toBe('—')
@@ -57,19 +60,23 @@ describe('AvailabilityBoard', () => {
       row: row(), key: 'deepseek:7', dataBuckets: 1,
       children: [row({ model: 'deepseek-chat' }), row({ model: 'deepseek-reasoner', metrics: metrics(0.5), health: health('critical') })],
     }
-    const wrapper = mount(AvailabilityGroupDetailsDialog, { props: { show: true, entry, coverage, rangeLabel: '24h' }, global: { stubs: {
-      BaseDialog: { props: ['show', 'title'], template: '<div v-if="show" role="dialog"><h2>{{ title }}</h2><slot /></div>' },
+    const wrapper = mount(AvailabilityGroupDetailsDialog, { props: { show: true, entry, coverage, rangeLabel: '24h', totalBuckets: 3 }, global: { stubs: {
+      BaseDialog: { name: 'BaseDialog', props: ['show', 'title', 'closeOnClickOutside'], template: '<div v-if="show" role="dialog"><h2>{{ title }}</h2><slot /></div>' },
       AvailabilityTimeline: true,
     } } })
     expect(wrapper.find('[role="dialog"]').text()).toContain('deepseek-chat')
     expect(wrapper.find('[role="dialog"]').text()).toContain('deepseek-reasoner')
     expect(wrapper.find('[role="dialog"]').text()).toContain('50.00%')
+    expect(wrapper.find('[role="dialog"] [data-testid="group-summary"]').exists()).toBe(true)
+    expect(wrapper.findComponent({ name: 'BaseDialog' }).props('closeOnClickOutside')).toBe(true)
     expect(wrapper.find('[role="dialog"]').text()).toContain('metrics.cacheRate')
     wrapper.unmount()
   })
-  it('sorts issues first, searches children, toggles layouts and excludes no-data from issues', async () => {
+  it('sorts cards within provider sections, searches children, and keeps list sorting and issue filtering', async () => {
     const wrapper = board()
-    expect(wrapper.findAll('article')[0].attributes('data-platform')).toBe('kimi')
+    const cards = wrapper.findAll('article')
+    expect(cards[0].attributes('data-platform')).toBe('deepseek')
+    expect(cards[1].attributes('data-platform')).toBe('kimi')
     await wrapper.setProps({ search: 'reasoner' })
     expect(wrapper.findAll('article')).toHaveLength(1)
     expect(wrapper.find('article').attributes('data-platform')).toBe('deepseek')
