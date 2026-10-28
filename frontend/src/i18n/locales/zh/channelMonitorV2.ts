@@ -21,6 +21,8 @@ export default {
       noMatch: '没有符合搜索或筛选条件的项目',
       coverage: '样本充足 {count}/{total} 格', expandAll: '全部展开', collapseAll: '全部收起',
       children: { models: '{count} 个模型', groups: '{count} 个分组' },
+      openGroup: '查看{name}的可用率详情', viewDetails: '查看详情', detailsTitle: '{name} · 可用率详情',
+      history: '{range} 历史', itemCount: '子项数', breakdown: '模型 / 分组', detailsEmpty: '该项目暂无明细数据',
       columns: { name: '名称', status: '状态', availability: '可用率', timeline: '{range} 状态' },
       legend: '灰色表示无流量或样本不足；可用率按计入统计的真实请求计算，首字延迟独立展示。',
       manageProviders: '管理供应商', addMissingProviders: '一键补齐供应商',

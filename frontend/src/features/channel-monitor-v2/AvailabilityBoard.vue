@@ -39,7 +39,7 @@
           {{ t('channelMonitorV2.availability.issuesOnly') }}
         </button>
         <button
-          v-if="entries.some(entry => entry.children.length)"
+          v-if="layout === 'list' && entries.some(entry => entry.children.length)"
           type="button"
           class="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-dark-700 dark:hover:text-white"
           @click="toggleAll"
@@ -69,8 +69,7 @@
         :coverage="coverage"
         :total-buckets="bucketStarts.length"
         :range-label="rangeLabel"
-        :expanded="expanded.has(entry.key)"
-        @toggle="toggle(entry.key)"
+        @details="selectedEntry = entry"
       />
     </div>
     <div v-else class="card !rounded-2xl">
@@ -97,6 +96,14 @@
       </div>
     </div>
 
+    <AvailabilityGroupDetailsDialog
+      :show="selectedEntry != null"
+      :entry="selectedEntry"
+      :coverage="coverage"
+      :range-label="rangeLabel"
+      @close="selectedEntry = null"
+    />
+
     <div class="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-1 text-xs text-gray-500 dark:text-dark-400">
       <span v-for="state in states" :key="state" class="inline-flex items-center gap-1.5">
         <i class="h-2.5 w-2.5 rounded-[3px]" :class="availabilityTone[state].bar" />
@@ -115,6 +122,7 @@ import Select from '@/components/common/Select.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { platformLabel } from '@/utils/platformColors'
 import AvailabilityCard from './AvailabilityCard.vue'
+import AvailabilityGroupDetailsDialog from './AvailabilityGroupDetailsDialog.vue'
 import AvailabilityListRow from './AvailabilityListRow.vue'
 import {
   AVAILABILITY_LIST_GRID, type AvailabilityEntry, availabilityState, availabilitySeverity, availabilityTone,
@@ -134,6 +142,7 @@ const sort = defineModel<string>('sort', { default: 'severity' })
 const issuesOnly = defineModel<boolean>('issuesOnly', { default: false })
 const { t, locale } = useI18n()
 const expanded = ref(new Set<string>())
+const selectedEntry = ref<AvailabilityEntry | null>(null)
 const states: HealthState[] = ['healthy', 'warning', 'critical', 'unknown']
 const sortOptions = computed(() => ['severity', 'name', 'avail-asc', 'avail-desc'].map(value => ({
   value, label: t(`channelMonitorV2.availability.sorts.${value}`),

@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import AvailabilityBoard from '../AvailabilityBoard.vue'
 import AvailabilityTimeline from '../AvailabilityTimeline.vue'
 import AvailabilityErrors from '../AvailabilityErrors.vue'
+import AvailabilityGroupDetailsDialog from '../AvailabilityGroupDetailsDialog.vue'
 import { availabilityState, formatAvailability, monitorBucketStarts, monitorChildLabel, monitorChildren } from '../monitorAvailability'
 import { coverage, health, metrics, row } from './availabilityFixtures'
 
@@ -34,17 +35,36 @@ describe('availability data contracts', () => {
 })
 
 describe('AvailabilityBoard', () => {
-  it('shows providers, keeps weighted server aggregate headlines, and expands children', async () => {
+  it('shows provider aggregates and opens model availability details from its group card', async () => {
     const wrapper = board()
     const card = wrapper.find('[data-platform="deepseek"]')
     expect(card.text()).toContain('DeepSeek')
-    expect(card.find('.availability-value').text()).toBe('99.00%') // not the mean of child rates
-    await card.find('button[aria-expanded]').trigger('click')
-    expect(card.text()).toContain('deepseek-reasoner')
-    expect(card.text()).toContain('50.00%')
-    expect(wrapper.find('[data-platform="future-provider"]').text()).toContain('future-provider')
+    expect(card.text()).toContain('99.00%')
+    expect(card.text()).toContain('metrics.cacheRate')
+    expect(card.text()).toContain('250ms')
+    expect(card.findAll('button')).toHaveLength(0)
+    await card.trigger('click')
+    const dialog = wrapper.findComponent({ name: 'AvailabilityGroupDetailsDialog' })
+    expect(dialog.props('show')).toBe(true)
+    expect(dialog.props('entry').children.map((child: { model?: string }) => child.model)).toEqual(['deepseek-chat', 'deepseek-reasoner'])
+    expect(wrapper.find('[data-platform="kimi"]').attributes('data-state')).toBe('critical')
     expect(wrapper.find('[data-platform="future-provider"] .availability-value').text()).toBe('—')
     expect(wrapper.text()).not.toContain('RPM')
+    wrapper.unmount()
+  })
+  it('renders model-level availability metrics and history inside the group details dialog', () => {
+    const entry = {
+      row: row(), key: 'deepseek:7', dataBuckets: 1,
+      children: [row({ model: 'deepseek-chat' }), row({ model: 'deepseek-reasoner', metrics: metrics(0.5), health: health('critical') })],
+    }
+    const wrapper = mount(AvailabilityGroupDetailsDialog, { props: { show: true, entry, coverage, rangeLabel: '24h' }, global: { stubs: {
+      BaseDialog: { props: ['show', 'title'], template: '<div v-if="show" role="dialog"><h2>{{ title }}</h2><slot /></div>' },
+      AvailabilityTimeline: true,
+    } } })
+    expect(wrapper.find('[role="dialog"]').text()).toContain('deepseek-chat')
+    expect(wrapper.find('[role="dialog"]').text()).toContain('deepseek-reasoner')
+    expect(wrapper.find('[role="dialog"]').text()).toContain('50.00%')
+    expect(wrapper.find('[role="dialog"]').text()).toContain('metrics.cacheRate')
     wrapper.unmount()
   })
   it('sorts issues first, searches children, toggles layouts and excludes no-data from issues', async () => {

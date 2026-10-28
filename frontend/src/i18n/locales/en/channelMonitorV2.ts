@@ -21,6 +21,8 @@ export default {
       noMatch: 'No items match the current search or filter',
       coverage: '{count}/{total} buckets with enough samples', expandAll: 'Expand all', collapseAll: 'Collapse all',
       children: { models: '{count} model | {count} models', groups: '{count} group | {count} groups' },
+      openGroup: 'View availability details for {name}', viewDetails: 'View details', detailsTitle: '{name} · Availability details',
+      history: '{range} history', itemCount: 'Items', breakdown: 'Model / group', detailsEmpty: 'No detail data for this item',
       columns: { name: 'Name', status: 'Status', availability: 'Availability', timeline: '{range} status' },
       legend: 'Gray means no traffic or too few samples. Availability uses counted real requests; first-token latency is shown separately.',
       manageProviders: 'Manage providers', addMissingProviders: 'Add missing providers',
