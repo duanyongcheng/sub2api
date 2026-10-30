@@ -710,6 +710,29 @@ func (r *groupRepository) ListActive(ctx context.Context) ([]service.Group, erro
 	return outGroups, nil
 }
 
+// ListActiveForSelection deliberately avoids loadAccountCounts. Only self-service
+// group selection uses this projection; existing page queries keep ListActive.
+func (r *groupRepository) ListActiveForSelection(ctx context.Context) ([]service.Group, error) {
+	groups, err := r.client.Group.Query().
+		Where(group.StatusEQ(service.StatusActive)).
+		Select(group.FieldID, group.FieldName, group.FieldI18n, group.FieldPlatform,
+			group.FieldStatus, group.FieldIsExclusive, group.FieldSubscriptionType).
+		Order(dbent.Asc(group.FieldSortOrder), dbent.Asc(group.FieldID)).
+		All(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]service.Group, 0, len(groups))
+	for _, g := range groups {
+		// Partial metadata is not a hydrated gateway group.
+		out = append(out, service.Group{
+			ID: g.ID, Name: g.Name, I18n: g.I18n, Platform: g.Platform,
+			Status: g.Status, IsExclusive: g.IsExclusive, SubscriptionType: g.SubscriptionType,
+		})
+	}
+	return out, nil
+}
+
 func (r *groupRepository) ListActiveIDs(ctx context.Context) ([]int64, error) {
 	if r.sql != nil {
 		rows, err := r.sql.QueryContext(ctx, `

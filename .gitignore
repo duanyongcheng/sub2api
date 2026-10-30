@@ -140,8 +140,11 @@ docs/*
 !docs/ASYNC_IMAGE_TASKS.md
 !docs/BATCH_IMAGE_MVP.md
 !docs/COMPOSITE_GROUPS.md
+!docs/API_KEY_GROUP_SWITCH.md
 !docs/PLUGIN_DEVELOPMENT.md
+!docs/CUSTOM_FORK_RELEASE_WORKFLOW_CN.md
 !docs/channel-monitor-v2-safe-defaults.md
+!docs/channel-monitor-v2-availability.md
 !docs/codex-credits.md
 !docs/legal/
 !docs/legal/*.md

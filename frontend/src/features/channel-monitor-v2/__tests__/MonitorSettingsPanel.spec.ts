@@ -113,6 +113,25 @@ describe('MonitorSettingsPanel platform configuration', () => {
     reloaded.unmount()
   })
 
+  it('adds all missing providers without enabling disabled entries or changing model/group scope', async () => {
+    const original = config()
+    const wrapper = await panel(original)
+    const addAll = wrapper.findAll('button').find(item => item.text() === 'channelMonitorV2.availability.addMissingProviders')!
+    await addAll.trigger('click')
+    await button(wrapper, 'save').trigger('click')
+    await flushPromises()
+    const saved = mocks.updateConfig.mock.calls[0][0]
+    expect(saved.platforms).toEqual(expect.arrayContaining(original.platforms))
+    for (const provider of ['deepseek', 'kimi', 'zhipu', 'minimax']) {
+      expect(saved.platforms).toContainEqual({ platform: provider, enabled: true, models: [] })
+    }
+    expect(saved.platforms.filter((p: { platform: string }) => p.platform === 'openai')).toEqual([original.platforms[0]])
+    expect(saved.group_ids).toEqual([42])
+    expect(saved.ignored_error_categories).toEqual([])
+    expect(original.platforms).toHaveLength(2)
+    wrapper.unmount()
+  })
+
   it('can start with no configured platforms and rejects duplicate additions', async () => {
     const wrapper = await panel({ ...config(), platforms: [] })
     expect(button(wrapper, 'addPlatform').attributes('disabled')).toBeDefined()

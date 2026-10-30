@@ -106,6 +106,10 @@
             >
               {{ t('channelMonitorV2.settings.addPlatform') }}
             </button>
+            <button type="button" class="btn btn-secondary btn-sm" :disabled="saving" @click="addMissingPlatforms">
+              {{ t('channelMonitorV2.availability.addMissingProviders') }}
+            </button>
+            <p class="w-full text-xs text-gray-500">{{ t('channelMonitorV2.availability.providersHint') }}</p>
           </div>
         </div>
         <div class="divide-y divide-gray-100 dark:divide-dark-700">
@@ -283,6 +287,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Select from '@/components/common/Select.vue'
 import { CONCRETE_PLATFORM_OPTIONS } from '@/constants/platforms'
+import { platformLabel } from '@/utils/platformColors'
 import Toggle from '@/components/common/Toggle.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { useAppStore } from '@/stores/app'
@@ -310,6 +315,12 @@ const availablePlatforms = computed(() =>
     (option) => !draft.value?.platforms.some((platform) => platform.platform === option.value)
   )
 )
+
+function addMissingPlatforms() {
+  if (!draft.value) return
+  draft.value.platforms.push(...availablePlatforms.value.map(option => ({ platform: option.value, enabled: true, models: [] })))
+  selectedPlatform.value = ''
+}
 
 function addPlatform() {
   if (!draft.value || !availablePlatforms.value.some((option) => option.value === selectedPlatform.value)) return
@@ -408,24 +419,6 @@ function toggleIgnoredCategory(category: string) {
 function categoryLabel(category: string) {
   const key = `channelMonitorV2.errorCategories.${category}`
   return te(key) ? t(key) : category
-}
-
-function platformLabel(value: string) {
-  return (
-    {
-      anthropic: 'Claude',
-      openai: 'OpenAI',
-      grok: 'Grok',
-      kiro: 'Kiro',
-      gemini: 'Gemini',
-      antigravity: 'Antigravity',
-      kimi: 'Kimi',
-      zhipu: 'Zhipu GLM',
-      deepseek: 'DeepSeek',
-      minimax: 'MiniMax',
-      composite: 'Composite',
-    } as Record<string, string>
-  )[value] || value
 }
 
 function normalizeConfig(value: MonitorConfig): MonitorConfig {
