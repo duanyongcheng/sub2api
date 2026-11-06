@@ -716,7 +716,8 @@ func (r *groupRepository) ListActiveForSelection(ctx context.Context) ([]service
 	groups, err := r.client.Group.Query().
 		Where(group.StatusEQ(service.StatusActive)).
 		Select(group.FieldID, group.FieldName, group.FieldI18n, group.FieldPlatform,
-			group.FieldStatus, group.FieldIsExclusive, group.FieldSubscriptionType).
+			group.FieldStatus, group.FieldIsExclusive, group.FieldSubscriptionType,
+			group.FieldRateMultiplier).
 		Order(dbent.Asc(group.FieldSortOrder), dbent.Asc(group.FieldID)).
 		All(ctx)
 	if err != nil {
@@ -728,6 +729,7 @@ func (r *groupRepository) ListActiveForSelection(ctx context.Context) ([]service
 		out = append(out, service.Group{
 			ID: g.ID, Name: g.Name, I18n: g.I18n, Platform: g.Platform,
 			Status: g.Status, IsExclusive: g.IsExclusive, SubscriptionType: g.SubscriptionType,
+			RateMultiplier: g.RateMultiplier,
 		})
 	}
 	return out, nil

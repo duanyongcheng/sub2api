@@ -28,7 +28,8 @@ func (r *selectionGroupRepo) ListActiveForSelection(context.Context) ([]Group, e
 	out := make([]Group, 0, len(r.groups))
 	for _, group := range r.groups {
 		out = append(out, Group{ID: group.ID, Name: group.Name, Platform: group.Platform, I18n: group.I18n,
-			IsExclusive: group.IsExclusive, SubscriptionType: group.SubscriptionType, Status: group.Status})
+			IsExclusive: group.IsExclusive, SubscriptionType: group.SubscriptionType, Status: group.Status,
+			RateMultiplier: group.RateMultiplier})
 	}
 	return out, r.err
 }
@@ -76,6 +77,7 @@ func TestKeyGroupSelectionKeepsPageQueryAndPermissions(t *testing.T) {
 				require.Equal(t, wantIDs, ids)
 			}
 			require.Zero(t, keyGroups[0].AccountCount)
+			require.Equal(t, pageGroups[0].RateMultiplier, keyGroups[0].RateMultiplier)
 		})
 	}
 }
