@@ -39,7 +39,7 @@ type GroupRepository interface {
 }
 
 // GroupSelectionRepository provides lightweight group metadata for key self-service.
-// It does not load account counts or routing/billing configuration.
+// It loads the display multiplier but not account counts, routing, or other billing configuration.
 type GroupSelectionRepository interface {
 	ListActiveForSelection(ctx context.Context) ([]Group, error)
 }

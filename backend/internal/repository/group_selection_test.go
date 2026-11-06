@@ -36,23 +36,24 @@ func TestGroupSelectionProjectionDoesNotLoadAccountCounts(t *testing.T) {
 	repo := &groupRepository{client: client, sql: noGroupStatsExecutor{}}
 	var _ service.GroupSelectionRepository = repo
 	mock.ExpectQuery("selection").WithArgs(service.StatusActive).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "i18n", "platform", "status", "is_exclusive", "subscription_type"}).
-			AddRow(int64(12), "Pro", []byte(`{"zh":{"name":"专业组"}}`), "openai", "active", true, "subscription"))
+		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "i18n", "platform", "status", "is_exclusive", "subscription_type", "rate_multiplier"}).
+			AddRow(int64(12), "Pro", []byte(`{"zh":{"name":"专业组"}}`), "openai", "active", true, "subscription", 1.3))
 	groups, err := repo.ListActiveForSelection(context.Background())
 	require.NoError(t, err)
 	require.Len(t, groups, 1)
 	require.Equal(t, int64(12), groups[0].ID)
 	require.True(t, groups[0].IsExclusive)
 	require.True(t, groups[0].IsSubscriptionType())
+	require.Equal(t, 1.3, groups[0].RateMultiplier)
 	require.Equal(t, "专业组", groups[0].I18n.LocalizeName("zh-CN", groups[0].Name))
 	require.False(t, groups[0].Hydrated)
 	require.NoError(t, mock.ExpectationsWereMet())
 	projection, _, found := strings.Cut(query, " FROM ")
 	require.True(t, found)
-	for _, field := range []string{"id", "name", "i18n", "platform", "status", "is_exclusive", "subscription_type"} {
+	for _, field := range []string{"id", "name", "i18n", "platform", "status", "is_exclusive", "subscription_type", "rate_multiplier"} {
 		require.Contains(t, projection, `"groups"."`+field+`"`)
 	}
-	for _, excluded := range []string{"model_routing", "rate_multiplier", "profit_control_enabled", "accounts"} {
+	for _, excluded := range []string{"model_routing", "profit_control_enabled", "accounts"} {
 		require.NotContains(t, projection, excluded)
 	}
 	require.Contains(t, query, `"groups"."deleted_at" IS NULL`)
