@@ -234,6 +234,82 @@ describe('user UsageView', () => {
     expect(getAvailable).toHaveBeenCalled()
   })
 
+  it('uses precise 24-hour windows for initial requests, errors, pagination, refresh, and reset', async () => {
+    vi.useFakeTimers()
+    const now = new Date('2026-11-09T00:15:30.456+08:00')
+    vi.setSystemTime(now)
+    const wrapper = mountUsageView()
+    try {
+      await flushPromises()
+      const range = {
+        start_date: new Date(now.getTime() - 86_400_000).toISOString(),
+        end_date: now.toISOString(),
+      }
+      expect(query).toHaveBeenCalledWith(expect.objectContaining(range), expect.anything())
+      expect(getStats).toHaveBeenCalledWith(expect.objectContaining(range))
+      expect(getDashboardModels).toHaveBeenCalledWith(expect.objectContaining(range))
+      expect(getDashboardSnapshotV2).toHaveBeenCalledWith(expect.objectContaining({ ...range, granularity: 'hour' }))
+
+      const vm = wrapper.vm as any
+      vm.switchToErrors()
+      vm.handlePageChange(2)
+      await flushPromises()
+      expect(listMyErrorRequests).toHaveBeenCalledWith(expect.objectContaining(range))
+      expect(query).toHaveBeenLastCalledWith(expect.objectContaining({ ...range, page: 2 }), expect.anything())
+
+      const refreshAt = new Date(now.getTime() + 600_000)
+      vi.setSystemTime(refreshAt)
+      vm.granularity = 'day'
+      vm.refreshData()
+      await flushPromises()
+      const refreshedRange = {
+        start_date: new Date(refreshAt.getTime() - 86_400_000).toISOString(),
+        end_date: refreshAt.toISOString(),
+      }
+      expect(query).toHaveBeenLastCalledWith(expect.objectContaining(refreshedRange), expect.anything())
+      expect(getStats).toHaveBeenLastCalledWith(expect.objectContaining(refreshedRange))
+      expect(getDashboardModels).toHaveBeenLastCalledWith(expect.objectContaining(refreshedRange))
+      expect(getDashboardSnapshotV2).toHaveBeenLastCalledWith(expect.objectContaining({ ...refreshedRange, granularity: 'day' }))
+      expect(listMyErrorRequests).toHaveBeenLastCalledWith(expect.objectContaining(refreshedRange))
+      vm.handlePageChange(3)
+      await flushPromises()
+      expect(query).toHaveBeenLastCalledWith(expect.objectContaining({ ...refreshedRange, page: 3 }), expect.anything())
+
+      const resetAt = new Date(now.getTime() + 3_600_000)
+      vi.setSystemTime(resetAt)
+      vm.resetFilters()
+      await flushPromises()
+      const resetRange = {
+        start_date: new Date(resetAt.getTime() - 86_400_000).toISOString(),
+        end_date: resetAt.toISOString(),
+      }
+      expect(query).toHaveBeenLastCalledWith(expect.objectContaining({ ...resetRange, page: 1 }), expect.anything())
+      expect(getStats).toHaveBeenLastCalledWith(expect.objectContaining(resetRange))
+      expect(getDashboardSnapshotV2).toHaveBeenLastCalledWith(expect.objectContaining({ ...resetRange, granularity: 'hour' }))
+    } finally {
+      wrapper.unmount()
+      vi.useRealTimers()
+    }
+  })
+
+  it('retains a custom calendar range when refreshing later', async () => {
+    const wrapper = mountUsageView()
+    try {
+      await flushPromises()
+      const vm = wrapper.vm as any
+      const range = { start_date: '2026-11-01', end_date: '2026-11-02' }
+      vm.onDateRangeChange({ startDate: range.start_date, endDate: range.end_date, preset: null })
+      await flushPromises()
+      vm.refreshData()
+      await flushPromises()
+      expect(query).toHaveBeenLastCalledWith(expect.objectContaining(range), expect.anything())
+      expect(getStats).toHaveBeenLastCalledWith(expect.objectContaining(range))
+      expect(getDashboardSnapshotV2).toHaveBeenLastCalledWith(expect.objectContaining(range))
+    } finally {
+      wrapper.unmount()
+    }
+  })
+
   it('includes API keys after the first page in both record filters and queries by the selected key', async () => {
     const firstPageKeys = Array.from({ length: 100 }, (_, index) => ({
       id: index + 1,
@@ -391,6 +467,8 @@ describe('user UsageView', () => {
     expect(exportedBlob).not.toBeNull()
     expect(query).toHaveBeenCalledWith(expect.objectContaining({
       page_size: 100,
+      start_date: (wrapper.vm as any).startDate,
+      end_date: (wrapper.vm as any).endDate,
       sort_by: 'created_at',
       sort_order: 'desc',
       native_compaction_v2: true,

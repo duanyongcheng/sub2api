@@ -42,8 +42,8 @@
             <label class="date-picker-label">{{ t('dates.startDate') }}</label>
             <input
               type="date"
-              v-model="localStartDate"
-              :max="localEndDate || tomorrow()"
+              v-model="startDateInput"
+              :max="endDateInput || tomorrow()"
               class="date-picker-input"
               @change="onDateChange"
             />
@@ -55,8 +55,8 @@
             <label class="date-picker-label">{{ t('dates.endDate') }}</label>
             <input
               type="date"
-              v-model="localEndDate"
-              :min="localStartDate"
+              v-model="endDateInput"
+              :min="startDateInput"
               :max="tomorrow()"
               class="date-picker-input"
               @change="onDateChange"
@@ -79,6 +79,7 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'
+import { getLast24HoursRange, isLast24HoursRange } from '@/utils/dateRange'
 
 interface DatePreset {
   labelKey: string
@@ -106,7 +107,7 @@ const isOpen = ref(false)
 const containerRef = ref<HTMLElement | null>(null)
 const localStartDate = ref(props.startDate)
 const localEndDate = ref(props.endDate)
-const activePreset = ref<string | null>('last24Hours')
+const activePreset = ref<string | null>(null)
 
 const today = () => formatDateToString(new Date())
 
@@ -125,6 +126,18 @@ const formatDateToString = (date: Date): string => {
   const day = String(date.getDate()).padStart(2, '0')
   return `${year}-${month}-${day}`
 }
+
+const toDateInput = (value: string): string =>
+  value.includes('T') ? formatDateToString(new Date(value)) : value
+
+const startDateInput = computed({
+  get: () => toDateInput(localStartDate.value),
+  set: (value: string) => { localStartDate.value = value },
+})
+const endDateInput = computed({
+  get: () => toDateInput(localEndDate.value),
+  set: (value: string) => { localEndDate.value = value },
+})
 
 const presets: DatePreset[] = [
   {
@@ -148,14 +161,7 @@ const presets: DatePreset[] = [
   {
     labelKey: 'dates.last24Hours',
     value: 'last24Hours',
-    getRange: () => {
-      const end = new Date()
-      const start = new Date(end.getTime() - 24 * 60 * 60 * 1000)
-      return {
-        start: formatDateToString(start),
-        end: formatDateToString(end)
-      }
-    }
+    getRange: getLast24HoursRange
   },
   {
     labelKey: 'dates.last7Days',
@@ -228,7 +234,7 @@ const displayValue = computed(() => {
 })
 
 const formatDate = (dateStr: string): string => {
-  const date = new Date(dateStr + 'T00:00:00')
+  const date = new Date(dateStr.includes('T') ? dateStr : dateStr + 'T00:00:00')
   const dateLocale = locale.value === 'zh' ? 'zh-CN' : 'en-US'
   return date.toLocaleDateString(dateLocale, { month: 'short', day: 'numeric' })
 }
@@ -244,10 +250,14 @@ const selectPreset = (preset: DatePreset) => {
   activePreset.value = preset.value
 }
 
-const onDateChange = () => {
-  // Check if current dates match any preset
+const detectPreset = () => {
+  if (isLast24HoursRange(localStartDate.value, localEndDate.value)) {
+    activePreset.value = 'last24Hours'
+    return
+  }
   activePreset.value = null
   for (const preset of presets) {
+    if (preset.value === 'last24Hours') continue
     const range = preset.getRange()
     if (range.start === localStartDate.value && range.end === localEndDate.value) {
       activePreset.value = preset.value
@@ -256,11 +266,23 @@ const onDateChange = () => {
   }
 }
 
+const onDateChange = () => {
+  // Editing either date chooses complete calendar days for both boundaries.
+  localStartDate.value = startDateInput.value
+  localEndDate.value = endDateInput.value
+  detectPreset()
+}
+
 const toggle = () => {
   isOpen.value = !isOpen.value
 }
 
 const apply = () => {
+  if (activePreset.value === 'last24Hours') {
+    const range = getLast24HoursRange()
+    localStartDate.value = range.start
+    localEndDate.value = range.end
+  }
   emit('update:startDate', localStartDate.value)
   emit('update:endDate', localEndDate.value)
   emit('change', {
@@ -288,31 +310,23 @@ watch(isOpen, (open) => {
   if (open) return
   localStartDate.value = props.startDate
   localEndDate.value = props.endDate
-  onDateChange()
+  detectPreset()
 }, { flush: 'post' })
 
 // Sync local state with props
 watch(
-  () => props.startDate,
-  (val) => {
-    localStartDate.value = val
-    onDateChange()
-  }
-)
-
-watch(
-  () => props.endDate,
-  (val) => {
-    localEndDate.value = val
-    onDateChange()
-  }
+  () => [props.startDate, props.endDate] as const,
+  ([start, end]) => {
+    localStartDate.value = start
+    localEndDate.value = end
+    detectPreset()
+  },
+  { immediate: true }
 )
 
 onMounted(() => {
   document.addEventListener('click', handleClickOutside)
   document.addEventListener('keydown', handleEscape)
-  // Initialize active preset detection
-  onDateChange()
 })
 
 onUnmounted(() => {

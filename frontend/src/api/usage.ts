@@ -187,8 +187,8 @@ export async function getStats(
 
 /**
  * Get usage statistics for a date range
- * @param startDate - Start date (YYYY-MM-DD format)
- * @param endDate - End date (YYYY-MM-DD format)
+ * @param startDate - Inclusive start date (YYYY-MM-DD) or RFC3339 timestamp
+ * @param endDate - Inclusive calendar date (YYYY-MM-DD) or exclusive RFC3339 timestamp
  * @param apiKeyId - Optional API key ID filter
  * @returns Usage statistics
  */
@@ -214,8 +214,8 @@ export async function getStatsByDateRange(
 
 /**
  * Get usage by date range
- * @param startDate - Start date (YYYY-MM-DD format)
- * @param endDate - End date (YYYY-MM-DD format)
+ * @param startDate - Inclusive start date (YYYY-MM-DD) or RFC3339 timestamp
+ * @param endDate - Inclusive calendar date (YYYY-MM-DD) or exclusive RFC3339 timestamp
  * @param apiKeyId - Optional API key ID filter
  * @returns Usage logs within date range
  */
