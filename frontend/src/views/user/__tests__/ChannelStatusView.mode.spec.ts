@@ -11,8 +11,8 @@ vi.mock('@/utils/featureFlags', () => ({
 vi.mock('../ChannelStatusV1View.vue', () => ({
   default: defineComponent({ name: 'ChannelStatusV1View', setup: () => () => h('div', { 'data-testid': 'v1' }) }),
 }))
-vi.mock('../ChannelStatusV2View.vue', () => ({
-  default: defineComponent({ name: 'ChannelStatusV2View', setup: () => () => h('div', { 'data-testid': 'v2' }) }),
+vi.mock('../ServiceStatusView.vue', () => ({
+  default: defineComponent({ name: 'ServiceStatusView', setup: () => () => h('div', { 'data-testid': 'v2' }) }),
 }))
 
 import ChannelStatusView from '../ChannelStatusView.vue'
@@ -22,7 +22,7 @@ describe('ChannelStatusView mode switch', () => {
     isV1.mockReset()
   })
 
-  it('renders V2 when not in v1 mode', () => {
+  it('renders the V2 service status page when not in v1 mode', () => {
     isV1.mockReturnValue(false)
     const wrapper = mount(ChannelStatusView)
     expect(wrapper.find('[data-testid="v2"]').exists()).toBe(true)
