@@ -8,6 +8,8 @@
 >
 > **当前仓库从这里开始：** 第 2.2 节是核验快照，第 2.3 节是首次分支迁移建议（待用户确认），第 5.4～5.6 节是发布前必须补齐的门禁，第 13 节是分阶段落地清单。完成这些前置条件前，不应直接套用日常发布命令。上游通知与 AI 审核流程见第 3.4～3.6 节。
 
+> **当前版本策略补充：** 本 Fork 采用自己的 SemVer（例如 `v1.0.0`、`v1.0.1`、`v1.1.0`），upstream Tag 和 commit 记录在 [`docs/upstream-baseline.json`](./upstream-baseline.json)。版本号规则与发布示例以 [`docs/FORK_VERSIONING_CN.md`](./FORK_VERSIONING_CN.md) 为准；下文的 `custom.N` 示例属于历史候选方案，不应覆盖当前策略。
+
 ## 1. 总体原则
 
 生产环境必须能够回答以下问题：

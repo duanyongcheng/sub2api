@@ -24,7 +24,7 @@ services:
   # Sub2API Application
   # ===========================================================================
   sub2api:
-    image: weishaw/sub2api:latest
+    image: ${SUB2API_IMAGE:-ghcr.io/duanyongcheng/sub2api}:${SUB2API_VERSION:-1.0.0}
     container_name: sub2api
     restart: unless-stopped
     security_opt:

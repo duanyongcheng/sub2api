@@ -132,8 +132,8 @@ func newKeyGroupRouteRouter(t *testing.T) (*gin.Engine, *keyGroupRouteRepo, *key
 	user := &service.User{ID: 7, Status: service.StatusActive, Role: service.RoleUser,
 		Balance: 10, RestrictPublicGroups: true, AllowedGroups: []int64{10, 12, 13}}
 	groups := []service.Group{
-		{ID: 10, Name: "Standard", Status: service.StatusActive, Platform: service.PlatformOpenAI, Hydrated: true},
-		{ID: 12, Name: "Pro", I18n: service.GroupI18n{"zh": {Name: "专业组"}}, Status: service.StatusActive, Platform: service.PlatformOpenAI, IsExclusive: true, Hydrated: true},
+		{ID: 10, Name: "Standard", Status: service.StatusActive, Platform: service.PlatformOpenAI, RateMultiplier: 1, Hydrated: true},
+		{ID: 12, Name: "Pro", I18n: service.GroupI18n{"zh": {Name: "专业组"}}, Status: service.StatusActive, Platform: service.PlatformOpenAI, RateMultiplier: 1.3, IsExclusive: true, Hydrated: true},
 		{ID: 13, Name: "Disabled", Status: "inactive"},
 		{ID: 14, Name: "Other", Status: service.StatusActive, IsExclusive: true},
 		{ID: 15, Name: "Subscription", Status: service.StatusActive, SubscriptionType: service.SubscriptionTypeSubscription},
@@ -184,8 +184,8 @@ func TestKeyGroupSelfServiceSwitchAndCacheInvalidation(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 	require.Equal(t, "no-store", w.Header().Get("Cache-Control"))
 	require.JSONEq(t, `{"code":0,"message":"success","data":[
-		{"id":10,"name":"Standard","platform":"openai"},
-		{"id":12,"name":"Pro","platform":"openai"}]}`, w.Body.String())
+		{"id":10,"name":"Standard","platform":"openai","is_current":false,"rate_multiplier":1},
+		{"id":12,"name":"Pro","platform":"openai","is_current":false,"rate_multiplier":1.3}]}`, w.Body.String())
 	lookups := repo.authCalls
 
 	// Caller-supplied IDs/other fields cannot select another key or reset usage.
@@ -199,6 +199,12 @@ func TestKeyGroupSelfServiceSwitchAndCacheInvalidation(t *testing.T) {
 	require.Equal(t, 12.0, repo.key.Usage5h)
 	require.Equal(t, 1, cache.deletes)
 	require.Equal(t, lookups, repo.authCalls, "self-service auth should have used the warm cache")
+
+	w = keyGroupRouteRequest(router, http.MethodGet, "/v1/key/groups", repo.key.Key, "")
+	require.Equal(t, http.StatusOK, w.Code)
+	require.JSONEq(t, `{"code":0,"message":"success","data":[
+		{"id":10,"name":"Standard","platform":"openai","is_current":false,"rate_multiplier":1},
+		{"id":12,"name":"Pro","platform":"openai","is_current":true,"rate_multiplier":1.3}]}`, w.Body.String())
 
 	// The ordinary API key auth chain must reload and see the new group.
 	w = keyGroupRouteRequest(router, http.MethodGet, "/test/current-group", repo.key.Key, "")
@@ -301,7 +307,8 @@ func TestKeyGroupSelfServiceSelectionLocalizesNames(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 	require.Contains(t, w.Body.String(), "专业组")
 	require.NotContains(t, w.Body.String(), "account_count")
-	require.NotContains(t, w.Body.String(), "rate_multiplier")
+	require.Contains(t, w.Body.String(), `"rate_multiplier":1.3`)
+	require.Contains(t, w.Body.String(), `"is_current":false`)
 }
 
 func TestKeyGroupSelfServiceStillEnforcesIdentity(t *testing.T) {

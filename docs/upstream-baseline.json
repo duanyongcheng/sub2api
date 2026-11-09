@@ -1,0 +1,9 @@
+{
+  "upstream_repository": "Wei-Shaw/sub2api",
+  "upstream_tag": "v0.2.19",
+  "upstream_commit": "dece26153621959ccd7635814f4b2d08304e681a",
+  "fork_repository": "duanyongcheng/sub2api",
+  "fork_version": "1.0.0",
+  "integrated_into": "main",
+  "integrated_commit": "fdf382c718d319d87bf31fe2613a5ea77065f5e7"
+}

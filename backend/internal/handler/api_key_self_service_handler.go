@@ -15,9 +15,11 @@ type switchAPIKeyGroupRequest struct {
 }
 
 type apiKeyAvailableGroup struct {
-	ID       int64  `json:"id"`
-	Name     string `json:"name"`
-	Platform string `json:"platform"`
+	ID             int64   `json:"id"`
+	Name           string  `json:"name"`
+	Platform       string  `json:"platform"`
+	IsCurrent      bool    `json:"is_current"`
+	RateMultiplier float64 `json:"rate_multiplier"`
 }
 
 // GetSelfAvailableGroups lists the owning user's available groups for this key.
@@ -37,7 +39,14 @@ func (h *APIKeyHandler) GetSelfAvailableGroups(c *gin.Context) {
 	for i := range groups {
 		group := &groups[i]
 		name := group.I18n.LocalizeName(c.GetHeader("Accept-Language"), group.Name)
-		out = append(out, apiKeyAvailableGroup{ID: group.ID, Name: name, Platform: group.Platform})
+		isCurrent := apiKey.GroupID != nil && *apiKey.GroupID == group.ID
+		out = append(out, apiKeyAvailableGroup{
+			ID:             group.ID,
+			Name:           name,
+			Platform:       group.Platform,
+			IsCurrent:      isCurrent,
+			RateMultiplier: group.RateMultiplier,
+		})
 	}
 	response.Success(c, out)
 }
