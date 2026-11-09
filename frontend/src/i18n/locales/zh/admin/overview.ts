@@ -84,6 +84,28 @@ export default {
       platformBreakdown: '按平台拆分',
 
       overview: {
+        export: {
+          action: '导出报表',
+          hint: '导出当前时间范围的汇总、趋势、分组与模型四张表；口径写在表头，未知值写「数据不足」',
+          summarySheet: '汇总', trendSheet: '趋势', groupsSheet: '分组', modelsSheet: '模型',
+          header: {
+            item: '项目', value: '数值', basis: '口径',
+            period: '时间', requests: '请求数', inputTokens: '输入 Token', outputTokens: '输出 Token',
+            cacheRead: '缓存读 Token', cacheCreation: '缓存写 Token', totalTokens: 'Token 合计',
+            standardCost: '标准费用', actualCost: '实际费用',
+            group: '分组', groupId: '分组 ID', model: '模型',
+            accountCost: '上游成本', margin: '毛利',
+          },
+          row: {
+            period: '统计范围', requests: '请求数', standardRevenue: '标准费用', actualRevenue: '实际收入',
+            upstreamCost: '上游成本', grossMargin: '毛利', marginRate: '毛利率（%）',
+          },
+          basis: {
+            actualRevenue: '按分组倍率向客户实际扣费', standardRevenue: '按官方价折算，用于体现「省了多少」',
+            upstreamCost: '按账号倍率计算的上游成本', grossMargin: '毛利 = 实际收入 − 上游成本',
+            marginRate: '毛利率 = 毛利 ÷ 实际收入；收入为 0 时不计算',
+          },
+        },
         presetToday: '今日',
         presetLast7: '近 7 天',
         presetLast30: '近 30 天',

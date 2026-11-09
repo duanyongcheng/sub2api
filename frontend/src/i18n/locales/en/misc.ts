@@ -1,4 +1,15 @@
 export default {
+  reportExport: {
+    export: 'Export',
+    exporting: 'Preparing…',
+    exportHint: 'Export to a file with the same basis shown on the page',
+    format: { xlsx: 'Excel (.xlsx)', csv: 'CSV (.csv)' },
+    formatHint: { xlsx: 'Multiple sheets', csv: 'Single table, easy to diff' },
+    success: 'Export ready',
+    failed: 'Export failed, please retry',
+    empty: 'Nothing to export in this range',
+  },
+
 
   // Subscription Progress (Header component)
   subscriptionProgress: {

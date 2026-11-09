@@ -84,6 +84,28 @@ export default {
       platformBreakdown: 'Platform breakdown',
 
       overview: {
+        export: {
+          action: 'Export report',
+          hint: 'Exports summary, trend, groups and models for the current range; the basis sits in the header and unknown values read as “insufficient data”',
+          summarySheet: 'Summary', trendSheet: 'Trend', groupsSheet: 'Groups', modelsSheet: 'Models',
+          header: {
+            item: 'Item', value: 'Value', basis: 'Basis',
+            period: 'Period', requests: 'Requests', inputTokens: 'Input tokens', outputTokens: 'Output tokens',
+            cacheRead: 'Cache read tokens', cacheCreation: 'Cache write tokens', totalTokens: 'Total tokens',
+            standardCost: 'Standard cost', actualCost: 'Actual cost',
+            group: 'Group', groupId: 'Group ID', model: 'Model',
+            accountCost: 'Upstream cost', margin: 'Gross margin',
+          },
+          row: {
+            period: 'Range', requests: 'Requests', standardRevenue: 'Standard cost', actualRevenue: 'Net revenue',
+            upstreamCost: 'Upstream cost', grossMargin: 'Gross margin', marginRate: 'Margin rate (%)',
+          },
+          basis: {
+            actualRevenue: 'Billed to the customer at the group multiplier', standardRevenue: 'At official prices, to show how much was saved',
+            upstreamCost: 'Upstream cost at the account multiplier', grossMargin: 'Gross margin = net revenue − upstream cost',
+            marginRate: 'Margin rate = margin ÷ net revenue; not computed when revenue is 0',
+          },
+        },
         presetToday: 'Today',
         presetLast7: 'Last 7 days',
         presetLast30: 'Last 30 days',

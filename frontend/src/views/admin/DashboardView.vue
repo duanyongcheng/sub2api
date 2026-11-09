@@ -22,6 +22,13 @@
               {{ preset.label }}
             </button>
           </div>
+          <ReportExportMenu
+            :label="t('admin.dashboard.overview.export.action')"
+            :title="t('admin.dashboard.overview.export.hint')"
+            :busy="exporting"
+            data-testid="dashboard-export"
+            @export="exportReport"
+          />
           <button type="button" class="btn btn-secondary" :disabled="loading" @click="refresh">
             <Icon name="refresh" size="sm" :class="loading ? 'animate-spin' : ''" />
             {{ t('common.refresh') }}
@@ -185,6 +192,9 @@ import RevenueVsCost from '@/components/admin/dashboard/RevenueVsCost.vue'
 import TodoList from '@/components/admin/dashboard/TodoList.vue'
 import PlatformShare from '@/components/admin/dashboard/PlatformShare.vue'
 import TopUsersTrend from '@/components/admin/dashboard/TopUsersTrend.vue'
+import ReportExportMenu from '@/components/common/ReportExportMenu.vue'
+import { reportFileStem, downloadReport, type ExportFormat } from '@/utils/reportExport'
+import { buildDashboardWorkbook, type DashboardReportLabels } from '@/features/admin-dashboard/dashboardReport'
 import type { TodoTask } from '@/components/admin/dashboard/TodoList.types'
 import type { ActionStripItem } from '@/components/common/ActionStrip.vue'
 
@@ -449,6 +459,68 @@ function goToUserUsage(item: UserSpendingRankingItem) {
       end_date: endDate.value
     }
   })
+}
+
+/**
+ * 导出报表（原型 03）：导出当前时间范围的四种视图，口径写进表头。
+ * 未知值写「数据不足」而不是 0，避免离线看表时把缺失当成真实数字。
+ */
+const exporting = ref(false)
+async function exportReport(format: ExportFormat) {
+  if (exporting.value) return
+  if (!trendData.value.length && !groupStats.value.length && !modelStats.value.length) {
+    appStore.showWarning(t('reportExport.empty'))
+    return
+  }
+  exporting.value = true
+  try {
+    const p = (key: string) => t(`admin.dashboard.overview.export.${key}`)
+    const labels: DashboardReportLabels = {
+      summarySheet: p('summarySheet'), trendSheet: p('trendSheet'),
+      groupsSheet: p('groupsSheet'), modelsSheet: p('modelsSheet'),
+      header: {
+        item: p('header.item'), value: p('header.value'), basis: p('header.basis'),
+        period: p('header.period'), requests: p('header.requests'),
+        inputTokens: p('header.inputTokens'), outputTokens: p('header.outputTokens'),
+        cacheRead: p('header.cacheRead'), cacheCreation: p('header.cacheCreation'), totalTokens: p('header.totalTokens'),
+        standardCost: p('header.standardCost'), actualCost: p('header.actualCost'),
+        group: p('header.group'), groupId: p('header.groupId'), model: p('header.model'),
+        accountCost: p('header.accountCost'), margin: p('header.margin'), marginRate: p('row.marginRate'),
+      },
+      row: {
+        period: p('row.period'), requests: p('row.requests'),
+        standardRevenue: p('row.standardRevenue'), actualRevenue: p('row.actualRevenue'),
+        upstreamCost: p('row.upstreamCost'), grossMargin: p('row.grossMargin'), marginRate: p('row.marginRate'),
+      },
+      basis: {
+        actualRevenue: p('basis.actualRevenue'), standardRevenue: p('basis.standardRevenue'),
+        upstreamCost: p('basis.upstreamCost'), grossMargin: p('basis.grossMargin'), marginRate: p('basis.marginRate'),
+      },
+    }
+    const sheets = buildDashboardWorkbook({
+      startDate: startDate.value,
+      endDate: endDate.value,
+      unavailable: t('channelMonitorV2.operations.insufficientShort'),
+      totals: {
+        requests: rangeRequests.value,
+        standard: rangeTotals.value.standard,
+        actual: actualRevenue.value,
+        accountCost: accountCost.value,
+        margin: marginPercent.value,
+      },
+      trend: trendData.value,
+      groups: groupStats.value,
+      models: modelStats.value,
+      labels,
+    })
+    await downloadReport({ sheets, format, fileName: reportFileStem('dashboard', startDate.value, endDate.value) })
+    appStore.showSuccess(t('reportExport.success'))
+  } catch (error) {
+    console.error('Failed to export dashboard report:', error)
+    appStore.showError(t('reportExport.failed'))
+  } finally {
+    exporting.value = false
+  }
 }
 
 function refresh() {

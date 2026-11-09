@@ -5,11 +5,19 @@ import { createPinia, setActivePinia } from 'pinia'
 import type { DashboardStats } from '@/types'
 import DashboardView from '../DashboardView.vue'
 
-const { getSnapshotV2, getUserUsageTrend, getUserSpendingRanking } = vi.hoisted(() => ({
+const { getSnapshotV2, getUserUsageTrend, getUserSpendingRanking, downloadReport, showSuccess, showWarning } = vi.hoisted(() => ({
   getSnapshotV2: vi.fn(),
   getUserUsageTrend: vi.fn(),
-  getUserSpendingRanking: vi.fn()
+  getUserSpendingRanking: vi.fn(),
+  downloadReport: vi.fn(),
+  showSuccess: vi.fn(),
+  showWarning: vi.fn()
 }))
+
+vi.mock('@/utils/reportExport', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/utils/reportExport')>()
+  return { ...actual, downloadReport }
+})
 
 vi.mock('vue-chartjs', () => ({
   Line: { name: 'Line', props: ['data', 'options'], template: '<div class="line-chart" />' },
@@ -29,7 +37,9 @@ vi.mock('@/api/admin', () => ({
 
 vi.mock('@/stores/app', () => ({
   useAppStore: () => ({
-    showError: vi.fn()
+    showError: vi.fn(),
+    showSuccess,
+    showWarning
   })
 }))
 
@@ -186,5 +196,72 @@ describe('admin DashboardView', () => {
       // Group stats drive the margin table under the revenue chart.
       include_group_stats: true
     }))
+  })
+})
+
+describe('admin DashboardView report export', () => {
+  const mountView = () => mount(DashboardView, {
+    global: {
+      stubs: {
+        AppLayout: { template: '<div><slot /></div>' },
+        LoadingSpinner: true,
+        Icon: true,
+        Line: true
+      }
+    }
+  })
+
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    downloadReport.mockReset()
+    downloadReport.mockResolvedValue(undefined)
+    showSuccess.mockReset()
+    showWarning.mockReset()
+    getSnapshotV2.mockReset()
+    getUserUsageTrend.mockReset()
+    getUserSpendingRanking.mockReset()
+    getSnapshotV2.mockResolvedValue({
+      stats: createDashboardStats(),
+      trend: [{ date: '2026-01-01', requests: 10, input_tokens: 1, output_tokens: 2, cache_creation_tokens: 0, cache_read_tokens: 0, total_tokens: 3, cost: 1, actual_cost: 0.8 }],
+      models: [],
+      groups: [{ group_id: 7, group_name: 'Claude Pro', requests: 10, total_tokens: 3, cost: 1, actual_cost: 0.8, account_cost: 0.5 }]
+    })
+    getUserUsageTrend.mockResolvedValue({ trend: [], start_date: '', end_date: '', granularity: 'day' })
+    getUserSpendingRanking.mockResolvedValue({ ranking: [], total_actual_cost: 0, total_requests: 0, total_tokens: 0, start_date: '', end_date: '' })
+  })
+
+  it('exports the current range with the four expected sheets', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.get('[data-testid="report-export-trigger"]').trigger('click')
+    await wrapper.get('[data-export-format="xlsx"]').trigger('click')
+    await flushPromises()
+
+    expect(downloadReport).toHaveBeenCalledTimes(1)
+    const call = downloadReport.mock.calls[0][0]
+    expect(call.format).toBe('xlsx')
+    expect(call.fileName).toMatch(/^dashboard_\d{4}-\d{2}-\d{2}_to_\d{4}-\d{2}-\d{2}$/)
+    expect(call.sheets.map((sheet: { name: string }) => sheet.name)).toEqual([
+      'admin.dashboard.overview.export.summarySheet',
+      'admin.dashboard.overview.export.trendSheet',
+      'admin.dashboard.overview.export.groupsSheet',
+      'admin.dashboard.overview.export.modelsSheet',
+    ])
+    // The range on screen is the range exported.
+    const summary = call.sheets[0].rows
+    expect(summary[1][1]).toBe(`${call.fileName.split('_')[1]} ~ ${call.fileName.split('_')[3]}`)
+    expect(showSuccess).toHaveBeenCalledWith('reportExport.success')
+  })
+
+  it('refuses to export an empty range instead of writing a blank file', async () => {
+    getSnapshotV2.mockResolvedValue({ stats: createDashboardStats(), trend: [], models: [], groups: [] })
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.get('[data-testid="report-export-trigger"]').trigger('click')
+    await wrapper.get('[data-export-format="csv"]').trigger('click')
+    await flushPromises()
+
+    expect(downloadReport).not.toHaveBeenCalled()
+    expect(showWarning).toHaveBeenCalledWith('reportExport.empty')
   })
 })

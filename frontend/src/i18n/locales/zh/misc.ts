@@ -1,4 +1,15 @@
 export default {
+  reportExport: {
+    export: '导出',
+    exporting: '正在生成…',
+    exportHint: '导出为文件，口径与页面一致',
+    format: { xlsx: 'Excel（.xlsx）', csv: 'CSV（.csv）' },
+    formatHint: { xlsx: '多张工作表', csv: '单表，便于脚本比对' },
+    success: '导出完成',
+    failed: '导出失败，请重试',
+    empty: '当前范围没有可导出的数据',
+  },
+
 
   // Subscription Progress (Header component)
   subscriptionProgress: {

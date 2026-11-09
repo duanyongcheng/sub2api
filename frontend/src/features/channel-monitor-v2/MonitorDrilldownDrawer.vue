@@ -33,6 +33,14 @@
               <RouterLink v-if="actions.includes('ops')" :to="opsLocation" class="btn btn-secondary btn-sm" data-drill-action="ops">{{ t('channelMonitorV2.operations.actionOps') }}</RouterLink>
               <button v-if="actions.includes('ignore')" type="button" class="btn btn-secondary btn-sm" data-drill-action="ignore" @click="selectedOwner = 'client'; tab = 'errors'">{{ t('channelMonitorV2.operations.actionIgnore') }}</button>
               <button type="button" class="btn btn-ghost btn-sm" data-drill-action="copy" @click="copySamples">{{ copied ? t('channelMonitorV2.operations.copied') : t('channelMonitorV2.operations.actionCopy') }}</button>
+              <ReportExportMenu
+                :formats="['xlsx']"
+                :label="t('channelMonitorV2.operations.reportExport.action')"
+                :title="t('channelMonitorV2.operations.reportExport.hint')"
+                :busy="exporting"
+                data-drill-action="export"
+                @export="exportRecap"
+              />
             </div>
           </div>
           <MonitorAttributionPanel :rows="errors" :metrics="snapshot.metrics" :health="snapshot.health" @inspect="inspectOwner" />
@@ -78,7 +86,10 @@ import { operationsState } from './monitorOperations'
 import { formatAvailability } from './monitorAvailability'
 import { formatMonitorMs, formatMonitorPercent } from './monitorFormat'
 import { extractApiErrorMessage } from '@/utils/apiError'
-import { drilldownConclusion } from './monitorDrilldown'
+import { drilldownConclusion, type DrilldownConclusion } from './monitorDrilldown'
+import { buildDrilldownWorkbook, type DrilldownReportLabels } from './monitorReport'
+import ReportExportMenu from '@/components/common/ReportExportMenu.vue'
+import { downloadReport, reportFileStem, type ExportFormat } from '@/utils/reportExport'
 
 export interface MonitorDrilldownContext { filter: MonitorFilter; label: string; owner?: AttributionOwner }
 const props = defineProps<{ context: MonitorDrilldownContext | null }>()
@@ -100,9 +111,10 @@ const summary = computed(() => snapshot.value ? [
   { label: t('channelMonitorV2.metrics.ttftP50'), value: formatMonitorMs(snapshot.value.metrics.ttft.p50_ms) },
   { label: t('channelMonitorV2.operations.healthScore'), value: snapshot.value.health.score == null ? '—' : snapshot.value.health.score.toFixed(1) },
 ] : [])
-const conclusion = computed(() => snapshot.value
+const EMPTY_CONCLUSION: DrilldownConclusion = { owner: null, share: 0, category: null, categoryCount: 0, ignoredCount: 0, actions: [] }
+const conclusion = computed<DrilldownConclusion>(() => snapshot.value
   ? drilldownConclusion(errors.value, snapshot.value.metrics, snapshot.value.health)
-  : { owner: null, share: 0, category: null, categoryCount: 0, ignoredCount: 0, actions: [] as string[] })
+  : EMPTY_CONCLUSION)
 const actions = computed(() => conclusion.value.actions)
 const conclusionOwner = computed(() => conclusion.value.owner)
 const sampleShort = computed(() => Boolean(snapshot.value && snapshot.value.health.error_rate === 'unknown'))
@@ -139,6 +151,66 @@ async function copySamples() {
   } catch {
     copied.value = false
   }
+}
+/**
+ * 导出复盘（原型 13）：把抽屉里看到的结论原样带走，覆盖范围与样本不足的
+ * 说明一并写入，避免离线看表时把「尚未覆盖」当成 0%。
+ */
+const exporting = ref(false)
+async function exportRecap(format: ExportFormat) {
+  const context = props.context
+  if (!context || !snapshot.value || exporting.value) return
+  exporting.value = true
+  try {
+    const p = (key: string) => t(`channelMonitorV2.operations.reportExport.${key}`)
+    const labels: DrilldownReportLabels = {
+      sheet: p('sheet'), section: p('section'), item: p('item'), value: p('value'),
+      category: p('category'), count: p('count'), share: p('share'), shareOfOwner: p('shareOfOwner'),
+      owner: p('owner'), ignored: p('ignored'), yes: p('yes'), no: p('no'),
+      scope: p('scope'), window: p('window'), coverage: p('coverage'),
+      coverageComplete: p('coverageComplete'), coveragePartial: p('coveragePartial'),
+      dataThrough: p('dataThrough'), bucket: p('bucket'),
+      availability: p('availability'), requests: p('requests'), errors: p('errors'),
+      ttftP50: p('ttftP50'), ttftP95: p('ttftP95'), healthScore: p('healthScore'),
+      insufficient: p('insufficient'), conclusion: p('conclusion'), ignoredTotal: p('ignoredTotal'),
+      owners: {
+        upstream: t('channelMonitorV2.operations.owners.upstream'),
+        account: t('channelMonitorV2.operations.owners.account'),
+        client: t('channelMonitorV2.operations.owners.client'),
+        internal: t('channelMonitorV2.operations.owners.internal'),
+        unclassified: t('channelMonitorV2.operations.owners.unclassified'),
+      },
+    }
+    // Name the file after the window that was actually exported, not today.
+    const start = context.filter.start || snapshot.value.coverage.requested_start || ''
+    const end = context.filter.end || snapshot.value.coverage.data_through || ''
+    await downloadReport({
+      sheets: buildDrilldownWorkbook({
+        label: context.label,
+        start: context.filter.start || '',
+        end: context.filter.end || '',
+        snapshot: snapshot.value,
+        errors: errors.value,
+        conclusion: conclusion.value,
+        labels,
+      }),
+      format,
+      fileName: reportFileStem('channel-monitor', filePart(start), filePart(end)),
+    })
+  } catch (cause) {
+    console.error('Failed to export channel recap:', cause)
+  } finally {
+    exporting.value = false
+  }
+}
+
+/** `2026-11-08T14:00:00Z` → `2026-11-08_1400` so the window is readable in the file name. */
+function filePart(iso: string): string {
+  if (!iso) return 'unknown'
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return 'unknown'
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}_${pad(date.getHours())}${pad(date.getMinutes())}`
 }
 function inspectOwner(owner: AttributionOwner) { selectedOwner.value = owner; tab.value = 'errors' }
 function stateTone(state: HealthState) { return ({ healthy: 'ok', warning: 'warn', critical: 'bad', unknown: 'neutral' } as const)[state] }
