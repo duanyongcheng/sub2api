@@ -172,6 +172,7 @@ export default {
     todayTokens: '今日 Tokens',
     todayCacheCreation: '今日缓存创建',
     todayCacheRead: '今日缓存读取',
+    cacheHitRate: '缓存命中率',
     todayCost: '今日费用',
     rpmTpm: 'RPM / TPM',
     totalRequests: '累计请求',

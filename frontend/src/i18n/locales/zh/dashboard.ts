@@ -426,6 +426,7 @@ export default {
     title: '使用记录',
     description: '查看和分析您的 API 使用历史',
     costDetails: '费用明细',
+    cacheHitBadge: '缓存',
     tokenDetails: 'Token 明细',
     cacheTtlOverriddenHint: '缓存 TTL Override 已启用',
     cacheTtlOverriddenLabel: 'TTL 替换',

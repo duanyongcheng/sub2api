@@ -426,6 +426,7 @@ import Icon from '@/components/icons/Icon.vue'
 import { buildGatewayUrl } from '@/api/client'
 import { formatDateLocalInput } from '@/utils/format'
 import { sanitizeUrl } from '@/utils/url'
+import { cacheHitRate, formatCacheHitRate } from '@/utils/formatters'
 
 const { t, locale } = useI18n()
 const appStore = useAppStore()
@@ -790,6 +791,12 @@ const usageStatCells = computed<StatCell[]>(() => {
   const today = usage.today || {}
   const total = usage.total || {}
 
+  // 命中率单元格只在有缓存读取时出现，避免 0% 噪音
+  const hitRateCell = (tokens: DailyUsageRowSource): StatCell[] => {
+    const rate = cacheHitRate(tokens)
+    return rate == null ? [] : [{ label: t('keyUsage.cacheHitRate'), value: formatCacheHitRate(rate) }]
+  }
+
   return [
     { label: t('keyUsage.todayRequests'), value: fmtNum(today.requests) },
     { label: t('keyUsage.todayInputTokens'), value: fmtNum(today.input_tokens) },
@@ -797,6 +804,7 @@ const usageStatCells = computed<StatCell[]>(() => {
     { label: t('keyUsage.todayTokens'), value: fmtNum(today.total_tokens) },
     { label: t('keyUsage.todayCacheCreation'), value: fmtNum(today.cache_creation_tokens) },
     { label: t('keyUsage.todayCacheRead'), value: fmtNum(today.cache_read_tokens) },
+    ...hitRateCell(today),
     { label: t('keyUsage.todayCost'), value: usd(today.actual_cost) },
     { label: t('keyUsage.rpmTpm'), value: `${usage.rpm || 0} / ${usage.tpm || 0}` },
     { label: t('keyUsage.totalRequests'), value: fmtNum(total.requests) },
@@ -805,6 +813,7 @@ const usageStatCells = computed<StatCell[]>(() => {
     { label: t('keyUsage.totalTokensLabel'), value: fmtNum(total.total_tokens) },
     { label: t('keyUsage.totalCacheCreation'), value: fmtNum(total.cache_creation_tokens) },
     { label: t('keyUsage.totalCacheRead'), value: fmtNum(total.cache_read_tokens) },
+    ...hitRateCell(total),
     { label: t('keyUsage.totalCost'), value: usd(total.actual_cost) },
     { label: t('keyUsage.avgDuration'), value: usage.average_duration_ms ? `${Math.round(usage.average_duration_ms)} ms` : '-' },
   ]
@@ -812,6 +821,12 @@ const usageStatCells = computed<StatCell[]>(() => {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const modelStats = computed<any[]>(() => resultData.value?.model_stats || [])
+
+interface DailyUsageRowSource {
+  input_tokens?: number | null
+  cache_creation_tokens?: number | null
+  cache_read_tokens?: number | null
+}
 
 interface DailyUsageRow {
   date: string
