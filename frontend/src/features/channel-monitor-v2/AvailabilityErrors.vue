@@ -8,7 +8,7 @@
           <button type="button" class="w-full text-left" :aria-expanded="expanded.has(row.category)" @click="toggle(row.category)">
             <span class="flex items-center justify-between gap-3 text-xs text-gray-600 dark:text-gray-300">
               <span class="font-medium" :class="ignored ? 'text-gray-500 dark:text-gray-400' : ''">{{ categoryLabel(row.category) }}</span>
-              <span class="inline-flex items-center gap-1 tabular-nums">{{ formatMonitorPercent(row.rate) }}<Icon name="chevronDown" size="sm" class="text-gray-400 transition-transform" :class="expanded.has(row.category) ? 'rotate-180' : ''" /></span>
+              <span class="inline-flex items-center gap-1 tabular-nums"><span v-if="admin" class="mr-1 text-gray-400">×{{ row.count }}</span>{{ formatMonitorPercent(row.rate) }}<Icon name="chevronDown" size="sm" class="text-gray-400 transition-transform" :class="expanded.has(row.category) ? 'rotate-180' : ''" /></span>
             </span>
             <span class="mt-2 block h-1.5 overflow-hidden rounded-full bg-gray-200/70 dark:bg-dark-700">
               <span class="block h-full rounded-full" :class="ignored ? 'ignored-bar bg-gray-400 dark:bg-dark-400' : 'bg-rose-400'" :style="{ width: barWidth(row.rate) }" />

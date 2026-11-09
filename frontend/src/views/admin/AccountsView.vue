@@ -1,9 +1,19 @@
 <template>
   <AppLayout>
-    <TablePageLayout>
+    <TablePageLayout compact>
+      <template #actions>
+        <PageHeader :title="t('admin.accounts.pool.title')" :description="t('admin.accounts.pool.description')">
+          <template #actions>
+            <button type="button" class="btn btn-secondary" @click="openImportData"><Icon name="upload" size="sm" />{{ t('admin.accounts.dataImport') }}</button>
+            <button type="button" class="btn btn-primary" @click="showCreate = true"><Icon name="plus" size="sm" />{{ t('admin.accounts.createAccount') }}</button>
+          </template>
+        </PageHeader>
+      </template>
       <template #filters>
+        <AccountPoolSummary class="mb-3" :accounts="accounts" :total="pagination.total" :platform="params.platform" :now="upstreamBillingNow" :loading="loading" @platform-change="changePlatformTab" />
         <div class="flex flex-wrap-reverse items-start justify-between gap-3">
           <AccountTableFilters
+            hide-platform
             v-model:searchQuery="params.search"
             :filters="params"
             :groups="groups"
@@ -13,6 +23,7 @@
           />
           <AccountTableActions
             :loading="loading"
+            :show-create="false"
             @refresh="handleManualRefresh"
             @create="showCreate = true"
           >
@@ -197,6 +208,8 @@
           :columns="cols"
           :data="accounts"
           :loading="loading"
+          fixed-layout
+          :row-class="accountRowClass"
           row-key="id"
           :server-side-sort="true"
           @sort="handleSort"
@@ -241,7 +254,7 @@
                   </a>
                 </template>
               </HelpTooltip>
-              <span v-else class="font-medium text-gray-900 dark:text-white">{{ value }}</span>
+              <button v-else type="button" class="truncate text-left font-semibold text-ink hover:text-primary-700" :title="t('admin.accounts.pool.details')" @click="openAccountDetail(row)">{{ value }}</button>
               <span
                 v-if="accountDisplayEmail(row)"
                 class="text-xs text-gray-500 dark:text-gray-400 truncate max-w-[200px]"
@@ -249,6 +262,7 @@
               >
                 {{ accountDisplayEmail(row) }}
               </span>
+              <button v-if="accountHomepageUrl(row)" type="button" class="mt-1 self-start text-[11px] text-primary-700" @click="openAccountDetail(row)">{{ t('admin.accounts.pool.details') }}</button>
             </div>
           </template>
           <template #cell-notes="{ value }">
@@ -435,6 +449,7 @@
           </template>
           <template #cell-actions="{ row }">
             <div class="flex items-center gap-1">
+              <button type="button" class="btn btn-ghost btn-icon btn-sm" :title="t('admin.accounts.testConnection')" :aria-label="t('admin.accounts.testConnection')" @click="handleTest(row)"><Icon name="play" size="sm" /></button>
               <button @click="handleEdit(row)" class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400">
                 <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" /></svg>
                 <span class="text-xs">{{ t('common.edit') }}</span>
@@ -454,6 +469,7 @@
       </template>
       <template #pagination><Pagination v-if="pagination.total > 0" :page="pagination.page" :total="pagination.total" :page-size="pagination.page_size" @update:page="handlePageChange" @update:pageSize="handlePageSizeChange" /></template>
     </TablePageLayout>
+    <AccountDetailDrawer :show="showAccountDetail" :account="detailAccount" @close="showAccountDetail = false" @edit="showAccountDetail = false; handleEdit($event)" @test="showAccountDetail = false; handleTest($event)" @stats="showAccountDetail = false; handleViewStats($event)" @refresh="handleRefresh" @temp-unsched="showAccountDetail = false; handleShowTempUnsched($event)" />
     <CreateAccountModal :show="showCreate" :proxies="proxies" :groups="groups" @close="showCreate = false" @created="reload" />
     <EditAccountModal :show="showEdit" :account="edAcc" :proxies="proxies" :groups="groups" @close="showEdit = false" @updated="handleAccountUpdated" />
     <ReAuthAccountModal :show="showReAuth" :account="reAuthAcc" @close="closeReAuthModal" @reauthorized="handleAccountUpdated" />
@@ -493,6 +509,7 @@
 import { ref, reactive, computed, onMounted, onUnmounted, toRaw, watch } from 'vue'
 import { useIntervalFn } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import { adminAPI } from '@/api/admin'
@@ -504,6 +521,11 @@ import { useStepUp, isStepUpBlocked, isStepUpCancelled, stepUpBlockReason } from
 import TotpStepUpDialog from '@/components/auth/TotpStepUpDialog.vue'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
+import PageHeader from '@/components/common/PageHeader.vue'
+import AccountPoolSummary from '@/components/admin/account/AccountPoolSummary.vue'
+import AccountDetailDrawer from '@/components/admin/account/AccountDetailDrawer.vue'
+import { accountPoolState } from '@/components/admin/account/accountPoolState'
+import { accountMonitorContext } from '@/features/channel-monitor-v2/accountMonitorContext'
 import DataTable from '@/components/common/DataTable.vue'
 import HelpTooltip from '@/components/common/HelpTooltip.vue'
 import Pagination from '@/components/common/Pagination.vue'
@@ -543,6 +565,7 @@ import type { Account, AccountListItem, AccountPlatform, AccountSchedulerGroupSc
 const { t } = useI18n()
 const appStore = useAppStore()
 const authStore = useAuthStore()
+const accountRoute = useRoute()
 
 const proxies = ref<AccountProxy[]>([])
 const groups = ref<AdminGroup[]>([])
@@ -616,6 +639,8 @@ const creatingShadowAcc = ref<Account | null>(null)
 const reAuthAcc = ref<Account | null>(null)
 const testingAcc = ref<Account | null>(null)
 const statsAcc = ref<Account | null>(null)
+const showAccountDetail = ref(false)
+const detailAccount = ref<Account | null>(null)
 const showSchedulePanel = ref(false)
 const scheduleAcc = ref<Account | null>(null)
 const scheduleModelOptions = ref<SelectOption[]>([])
@@ -648,7 +673,7 @@ const accountToolsDropdownStyle = computed(() => ({
   width: `${accountToolsDropdownPosition.width}px`
 }))
 const hiddenColumns = reactive<Set<string>>(new Set())
-const DEFAULT_HIDDEN_COLUMNS = ['today_stats', 'proxy', 'notes', 'scheduler_score', 'rate_multiplier']
+const DEFAULT_HIDDEN_COLUMNS = ['id', 'today_stats', 'proxy', 'notes', 'scheduler_score', 'rate_multiplier', 'upstream_billing_rate', 'created_at', 'expires_at', 'last_used_at', 'groups']
 const HIDDEN_COLUMNS_KEY = 'account-hidden-columns'
 // One-time migration: hide scheduler score for existing admins too, because showing it opt-ins to heavy backend scoring.
 const HIDDEN_COLUMNS_VERSION_KEY = 'account-hidden-columns-version'
@@ -1115,6 +1140,7 @@ const {
     privacy_mode: '',
     group: '',
     search: '',
+    ...accountMonitorContext(accountRoute?.query),
     lite: '1',
     include_scheduler_score: shouldIncludeSchedulerScore() ? '1' : '0',
     sort_by: sortState.sort_by,
@@ -1338,6 +1364,17 @@ const debouncedReload = () => {
   baseDebouncedReload()
 }
 
+const changePlatformTab = (platform: string) => {
+  if (params.platform === platform) return
+  params.platform = platform
+  debouncedReload()
+}
+
+const accountRowClass = (account: AccountListItem) => {
+  const state = accountPoolState(account, upstreamBillingNow.value)
+  return state === 'error' ? 'bg-red-500/5' : state === 'degraded' ? 'bg-amber-500/5' : ''
+}
+
 const handlePageChange = (page: number) => {
   syncAccountListDerivedParams()
   hasPendingListSync.value = false
@@ -1409,6 +1446,7 @@ const isAnyModalOpen = computed(() => {
     showReAuth.value ||
     showTest.value ||
     showStats.value ||
+    showAccountDetail.value ||
     showSchedulePanel.value ||
     showErrorPassthrough.value ||
     showTLSFingerprintProfiles.value
@@ -1441,6 +1479,7 @@ const shouldReplaceAutoRefreshRow = (current: Account, next: Account) => {
 }
 
 const syncAccountRefs = (nextAccount: Account) => {
+  if (detailAccount.value?.id === nextAccount.id) detailAccount.value = { ...detailAccount.value, ...nextAccount, groups: nextAccount.groups ?? detailAccount.value.groups }
   if (edAcc.value?.id === nextAccount.id) edAcc.value = nextAccount
   if (reAuthAcc.value?.id === nextAccount.id) reAuthAcc.value = nextAccount
   if (tempUnschedAcc.value?.id === nextAccount.id) tempUnschedAcc.value = nextAccount
@@ -1848,7 +1887,14 @@ const allColumns = computed(() => {
     { key: 'notes', label: t('admin.accounts.columns.notes'), sortable: false },
     { key: 'actions', label: t('admin.accounts.columns.actions'), sortable: false }
   )
-  return c
+  const widths: Record<string, string> = {
+    select: '44px', name: '210px', id: '84px', platform_type: '150px', capacity: '110px',
+    status: '155px', schedulable: '76px', today_stats: '145px', groups: '180px', usage: '230px',
+    proxy: '180px', priority: '115px', scheduler_score: '170px', rate_multiplier: '115px',
+    upstream_billing_rate: '180px', last_used_at: '120px', created_at: '140px', expires_at: '150px',
+    notes: '180px', actions: '156px'
+  }
+  return c.map(column => ({ ...column, width: widths[column.key] }))
 })
 
 // Columns that can be toggled (exclude select, name, and actions)
@@ -1883,6 +1929,15 @@ const handleEdit = async (a: AccountListItem) => {
   if (!account) return
   edAcc.value = account
   showEdit.value = true
+}
+let accountDetailRequest = 0
+const openAccountDetail = async (account: AccountListItem) => {
+  if (accountDetailLoading.has(account.id)) return
+  const request = ++accountDetailRequest
+  const detail = await loadAccountDetails(account)
+  if (!detail || request !== accountDetailRequest) return
+  detailAccount.value = detail
+  showAccountDetail.value = true
 }
 const openMenu = (a: Account, e: MouseEvent) => {
   menu.acc = a

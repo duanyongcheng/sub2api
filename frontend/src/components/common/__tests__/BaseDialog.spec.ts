@@ -34,4 +34,16 @@ describe('BaseDialog', () => {
     expect(document.body.querySelector<HTMLElement>('.modal-body')?.scrollTop).toBe(0)
     wrapper.unmount()
   })
+
+  it.each([undefined, false, true])('uses the explicit scrim-close preference for drawers: %s', async preference => {
+    const wrapper = mount(BaseDialog, {
+      attachTo: document.body,
+      props: { show: true, title: 'Drawer', variant: 'drawer', ...(preference === undefined ? {} : { closeOnClickOutside: preference }) },
+      global: { stubs: { Icon: true } }
+    })
+    await nextTick()
+    document.body.querySelector<HTMLElement>('.modal-overlay')!.click()
+    expect(Boolean(wrapper.emitted('close'))).toBe(preference ?? true)
+    wrapper.unmount()
+  })
 })

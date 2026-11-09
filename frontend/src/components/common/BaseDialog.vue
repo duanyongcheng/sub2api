@@ -4,14 +4,20 @@
       <div
         v-if="show"
         class="modal-overlay"
+        :class="{ 'modal-overlay-drawer': variant === 'drawer' }"
         :style="zIndexStyle"
         :aria-labelledby="dialogId"
+        :aria-modal="true"
         role="dialog"
-        aria-modal="true"
         @click.self="handleClose"
       >
-        <!-- Modal panel -->
-        <div ref="dialogRef" :class="['modal-content', widthClasses]" @click.stop>
+        <!-- Modal panel / drawer panel -->
+        <div
+          ref="dialogRef"
+          :class="['modal-content', variant === 'drawer' ? 'modal-drawer' : widthClasses]"
+          :style="variant === 'drawer' ? { width: `min(100vw, ${drawerWidth})`, maxWidth: '100vw' } : undefined"
+          @click.stop
+        >
           <!-- Header -->
           <div class="modal-header">
             <h3 :id="dialogId" class="modal-title">
@@ -20,8 +26,8 @@
             <button
               v-if="showCloseButton"
               @click="emit('close')"
-              class="-mr-2 rounded-xl p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/30 focus-visible:ring-offset-2 dark:text-dark-500 dark:hover:bg-dark-700 dark:hover:text-dark-300 dark:focus-visible:ring-offset-dark-900"
-              aria-label="Close modal"
+              class="-mr-2 rounded-lg p-2 text-ink-3 transition-colors hover:bg-surface-3 hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/30"
+              aria-label="Close"
             >
               <Icon name="x" size="md" />
             </button>
@@ -61,10 +67,19 @@ let previousActiveElement: HTMLElement | null = null
 
 type DialogWidth = 'narrow' | 'normal' | 'wide' | 'extra-wide' | 'full'
 
+/**
+ * `dialog` is a centered modal. `drawer` slides in from the right and owns the
+ * full height — use it for read-mostly detail views (account, key, event) that
+ * used to be modals, so the underlying table stays visible.
+ */
+type DialogVariant = 'dialog' | 'drawer'
+
 interface Props {
   show: boolean
   title: string
   width?: DialogWidth
+  variant?: DialogVariant
+  drawerWidth?: string
   closeOnEscape?: boolean
   closeOnClickOutside?: boolean
   showCloseButton?: boolean
@@ -77,8 +92,10 @@ interface Emits {
 
 const props = withDefaults(defineProps<Props>(), {
   width: 'normal',
+  variant: 'dialog',
+  drawerWidth: '520px',
   closeOnEscape: true,
-  closeOnClickOutside: false,
+  closeOnClickOutside: undefined,
   showCloseButton: true,
   zIndex: 50
 })
@@ -104,8 +121,11 @@ const widthClasses = computed(() => {
   return widths[props.width]
 })
 
+// Drawers hug the viewport edge, so a scrim click should dismiss them by
+// default. Modals keep the opt-in behaviour (closeOnClickOutside) because a
+// stray click must not throw away a half-filled form.
 const handleClose = () => {
-  if (props.closeOnClickOutside) {
+  if (props.closeOnClickOutside ?? (props.variant === 'drawer')) {
     emit('close')
   }
 }

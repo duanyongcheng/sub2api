@@ -56,7 +56,7 @@ export default {
     enabled: '已启用',
     disabled: '已禁用',
 	    total: '总计',
-	    balance: '余额',
+    balance: '余额',
 	    availableBalance: '可用余额',
 	    frozenBalance: '冻结金额',
 	    totalBalance: '总余额',
@@ -214,6 +214,21 @@ export default {
     contentModeration: '内容审计',
     promptAudit: '提示词审计',
     auditLogs: '操作日志',
+
+    // Sidebar groups (redesign: 22 flat items -> 5 business groups)
+    groupWork: '工作',
+    groupService: '服务',
+    groupBilling: '账务',
+    groupOverview: '总览',
+    groupTraffic: '流量',
+    groupCustomers: '客户',
+    groupSystem: '系统',
+    ordersList: '订单列表',
+    redeemPromo: '兑换码 / 优惠码',
+    monthlyQuota: '本月额度',
+    balance: '账户余额',
+    globalSearch: '全局搜索：用户 / 账号 / 订单…',
+    globalSearchHint: '聚焦到当前页面的搜索框',
   },
 
   // Auth
@@ -303,6 +318,15 @@ export default {
     invitationCodeValidating: '正在验证邀请码...',
     invitationCodeInvalidCannotRegister: '邀请码无效，请检查后重试',
     oauthOrContinue: '或使用其他继续',
+    oauthOrEmailDivider: '或使用邮箱登录',
+    brandSubtitle: 'AI API Gateway',
+    brandHeadlineA: '把订阅额度，',
+    brandHeadlineB: '变成一把可调度的钥匙',
+    brandSubline:
+      '统一网关接入 Claude / OpenAI / Gemini / Grok，按分组定价、按额度结算，一个 Key 跑通全部 SDK。',
+    brandStat1: '统一接入平台',
+    brandStat2: '兼容 SDK',
+    brandStat3: '平均首 Token',
     linuxdo: {
       signIn: '使用 Linux.do 登录',
       orContinue: '或使用邮箱密码继续',

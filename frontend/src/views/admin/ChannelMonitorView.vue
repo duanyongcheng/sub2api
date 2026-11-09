@@ -58,7 +58,7 @@
         </div>
       </header>
 
-      <ChannelStatusV2View v-if="adminMonitorTab === 'availability' && !isV1Mode" embedded @settings="adminMonitorTab = 'v2'" />
+      <AdminMonitorBoard v-if="adminMonitorTab === 'availability' && !isV1Mode" @settings="adminMonitorTab = 'v2'" @probes="adminMonitorTab = 'legacy'" />
       <MonitorSettingsPanel v-else-if="adminMonitorTab === 'v2'" />
 
       <TablePageLayout v-else>
@@ -211,7 +211,7 @@ import MonitorActionsCell from '@/components/admin/monitor/MonitorActionsCell.vu
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 import { useChannelMonitorFormat } from '@/composables/useChannelMonitorFormat'
 import MonitorSettingsPanel from '@/features/channel-monitor-v2/MonitorSettingsPanel.vue'
-import ChannelStatusV2View from '@/views/user/ChannelStatusV2View.vue'
+import AdminMonitorBoard from '@/features/channel-monitor-v2/AdminMonitorBoard.vue'
 import { isChannelMonitorV1Mode } from '@/utils/featureFlags'
 
 const { t } = useI18n()

@@ -11,14 +11,14 @@
           {{ t('channelMonitorV2.chart.title') }}
         </h2>
         <p class="mt-0.5 text-xs text-gray-500 dark:text-dark-400">
-          {{ t('channelMonitorV2.chart.description') }}
+          {{ t(operations ? 'channelMonitorV2.operations.chartDescription' : 'channelMonitorV2.chart.description') }}
         </p>
       </div>
       <div class="flex w-full min-w-0 flex-wrap items-center justify-end gap-2 text-xs text-gray-500 dark:text-gray-400 sm:w-auto">
         <span class="flex shrink-0 items-center gap-1">
           <span class="h-2 w-2 rounded-full bg-red-500"></span>{{ t('channelMonitorV2.chart.errorLegend') }}
         </span>
-        <span class="flex shrink-0 items-center gap-1">
+        <span v-if="!operations" class="flex shrink-0 items-center gap-1">
           <span class="h-2 w-2 rounded-full bg-emerald-500"></span>{{ t('channelMonitorV2.chart.cacheLegend') }}
         </span>
         <span class="flex shrink-0 items-center gap-1">
@@ -92,6 +92,7 @@ const props = defineProps<{
   trend: Array<{ bucket_start: string; metrics: MonitorMetric; health: MonitorHealth }>
   coverage: MonitorCoverage | null
   loading?: boolean
+  operations?: boolean
 }>()
 
 const chartRef = ref<HTMLElement | null>(null)
@@ -122,9 +123,9 @@ const chartData = computed(() => {
       minute: '2-digit',
     }).format(new Date(p.bucket_start))
   )
-  const errorRates = smoothTrend(points.map((p) => (p.metrics.error_rate || 0) * 100))
+  const errorRates = props.operations ? points.map(p => p.health.error_rate === 'unknown' ? null : p.metrics.error_rate * 100) : smoothTrend(points.map((p) => (p.metrics.error_rate || 0) * 100))
   const cacheRates = smoothTrend(points.map((p) => (p.metrics.cache_rate || 0) * 100))
-  const ttftP50 = smoothTrend(points.map((p) => p.metrics.ttft?.p50_ms ?? null))
+  const ttftP50 = props.operations ? points.map(p => p.health.ttft === 'unknown' ? null : p.metrics.ttft?.p50_ms ?? null) : smoothTrend(points.map((p) => p.metrics.ttft?.p50_ms ?? null))
   return {
     labels,
     datasets: [
@@ -134,7 +135,7 @@ const chartData = computed(() => {
         borderColor: '#ef4444',
         backgroundColor: 'rgba(239, 67, 67, 0.10)',
         yAxisID: 'yPct',
-        tension: 0.4,
+        tension: props.operations ? 0 : 0.4,
         cubicInterpolationMode: 'monotone' as const,
         fill: 'origin' as const,
         pointRadius: 0,
@@ -148,7 +149,7 @@ const chartData = computed(() => {
         borderColor: '#10b981',
         backgroundColor: 'rgba(16, 185, 129, 0.08)',
         yAxisID: 'yPct',
-        tension: 0.4,
+        tension: props.operations ? 0 : 0.4,
         cubicInterpolationMode: 'monotone' as const,
         fill: false,
         pointRadius: 0,
@@ -162,16 +163,16 @@ const chartData = computed(() => {
         borderColor: '#0ea5e9',
         backgroundColor: 'rgba(14, 165, 233, 0.08)',
         yAxisID: 'yTtft',
-        tension: 0.4,
+        tension: props.operations ? 0 : 0.4,
         cubicInterpolationMode: 'monotone' as const,
         fill: false,
         pointRadius: 0,
         pointHoverRadius: 4,
         pointHitRadius: 10,
         borderWidth: 2,
-        spanGaps: true,
+        spanGaps: !props.operations,
       },
-    ],
+    ].filter(dataset => !props.operations || dataset.yAxisID === 'yTtft' || dataset.label !== t('channelMonitorV2.chart.cacheDataset')),
   }
 })
 

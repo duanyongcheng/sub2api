@@ -1,6 +1,33 @@
 <template>
   <AppLayout>
-    <TablePageLayout>
+    <PageHeader :title="t('admin.groups.workspace.title')" :description="t('admin.groups.workspace.description')" class="mb-4">
+      <template #actions>
+        <button type="button" class="btn btn-secondary btn-icon" :disabled="loading" :aria-label="t('common.refresh')" @click="loadGroups"><Icon name="refresh" size="sm" :class="{ 'animate-spin': loading }" /></button>
+        <button type="button" class="btn btn-secondary" :aria-pressed="groupView === 'table'" @click="groupView = groupView === 'table' ? 'workspace' : 'table'"><Icon name="grid" size="sm" />{{ t(groupView === 'table' ? 'admin.groups.workspace.configuration' : 'admin.groups.workspace.tableView') }}</button>
+        <button v-if="!authStore.isSimpleMode" type="button" class="btn btn-secondary" @click="openSortModal"><Icon name="arrowsUpDown" size="sm" />{{ t('admin.groups.sortOrder') }}</button>
+        <button type="button" class="btn btn-primary" data-tour="groups-create-btn" @click="openCreateModal"><Icon name="plus" size="sm" />{{ t('admin.groups.createGroup') }}</button>
+      </template>
+    </PageHeader>
+    <div class="grid items-start gap-4" :class="groupView === 'workspace' ? 'lg:grid-cols-[268px_minmax(0,1fr)]' : ''">
+      <aside v-if="groupView === 'workspace'" class="card min-w-0 p-3 lg:sticky lg:top-20" :aria-label="t('admin.groups.workspace.groupList')">
+        <div class="mb-3 flex items-center justify-between text-xs text-ink-3"><span>{{ t('admin.groups.workspace.totalGroups', { count: pagination.total }) }}</span><span v-if="loading">{{ t('common.loading') }}</span></div>
+        <input v-model="searchQuery" class="input mb-2" :placeholder="t('admin.groups.searchGroups')" :aria-label="t('admin.groups.searchGroups')" @input="handleSearch" />
+        <div class="mb-3 grid grid-cols-2 gap-2">
+          <Select v-model="filters.platform" :options="platformFilterOptions" :aria-label="t('admin.groups.allPlatforms')" @change="handleGroupFilterChange" />
+          <Select v-model="filters.status" :options="statusOptions" :aria-label="t('admin.groups.allStatus')" @change="handleGroupFilterChange" />
+        </div>
+        <div class="max-h-[55vh] space-y-1 overflow-y-auto">
+          <button v-for="group in groups" :key="group.id" type="button" class="flex w-full items-start gap-2 rounded-field border px-3 py-3 text-left transition-colors" :class="editingGroup?.id === group.id && showEditModal ? 'border-primary-500/30 bg-primary-50' : 'border-transparent hover:bg-surface-2'" :aria-pressed="editingGroup?.id === group.id && showEditModal" :data-group-id="group.id" @click="requestSelectGroup(group)">
+            <PlatformIcon :platform="group.platform" size="sm" class="mt-0.5 shrink-0" />
+            <span class="min-w-0 flex-1"><span class="block truncate text-[13px] font-semibold text-ink">{{ group.name }}</span><span class="mt-1 block text-[11px] text-ink-3">{{ platformLabel(group.platform) }} · ×{{ group.rate_multiplier }} · {{ group.account_count ?? 0 }}</span></span>
+            <StatusPill :tone="group.status === 'active' ? 'ok' : 'neutral'" :dot="false">{{ t(`admin.accounts.status.${group.status}`) }}</StatusPill>
+          </button>
+          <p v-if="!loading && !groups.length" class="py-8 text-center text-xs text-ink-3">{{ t('admin.groups.workspace.noMatchingGroups') }}</p>
+        </div>
+        <div v-if="pagination.pages > 1" class="mt-3 flex items-center justify-between border-t border-edge pt-3 text-xs text-ink-3"><button type="button" class="btn btn-secondary btn-icon btn-sm" :disabled="pagination.page <= 1" :aria-label="t('pagination.previous')" @click="handlePageChange(pagination.page - 1)"><Icon name="chevronLeft" size="sm" /></button><span>{{ pagination.page }} / {{ pagination.pages }}</span><button type="button" class="btn btn-secondary btn-icon btn-sm" :disabled="pagination.page >= pagination.pages" :aria-label="t('pagination.next')" @click="handlePageChange(pagination.page + 1)"><Icon name="chevronRight" size="sm" /></button></div>
+      </aside>
+      <div class="min-w-0 space-y-4">
+    <TablePageLayout v-show="groupView === 'table'">
       <template #filters>
         <div
           class="flex flex-col justify-between gap-4 lg:flex-row lg:items-start"
@@ -105,7 +132,6 @@
             <button
               @click="openCreateModal"
               class="btn btn-primary"
-              data-tour="groups-create-btn"
             >
               <Icon name="plus" size="md" class="mr-2" />
               {{ t("admin.groups.createGroup") }}
@@ -382,7 +408,7 @@
           <template #cell-actions="{ row }">
             <div class="flex items-center gap-1">
               <button
-                @click="handleEdit(row)"
+                @click="requestSelectGroup(row)"
                 class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400"
               >
                 <Icon name="edit" size="sm" />
@@ -475,19 +501,38 @@
       </template>
     </TablePageLayout>
 
+    <section v-if="editingGroup && showEditModal" class="card space-y-4 p-5">
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div class="min-w-0"><h3 class="text-lg font-semibold text-ink">{{ editingGroup.name }}</h3><p v-if="editingGroup.description" class="mt-1 whitespace-normal text-xs text-ink-3">{{ editingGroup.description }}</p></div>
+        <div class="flex flex-wrap gap-2">
+          <button v-if="!authStore.isSimpleMode" type="button" class="btn btn-secondary btn-sm" :disabled="duplicatingGroupIds.has(editingGroup.id)" @click="handleDuplicate(editingGroup)"><Icon name="copy" size="sm" />{{ t('admin.groups.duplicate') }}</button>
+          <button v-if="!authStore.isSimpleMode" type="button" class="btn btn-secondary btn-sm" @click="handleRateMultipliers(editingGroup)">{{ t('admin.groups.rateMultipliers') }}</button>
+          <button v-if="!authStore.isSimpleMode" type="button" class="btn btn-secondary btn-sm" @click="handleRPMOverrides(editingGroup)">{{ t('admin.groups.rpmOverrides') }}</button>
+          <button type="button" class="btn btn-ghost btn-icon btn-sm text-red-600" :aria-label="t('admin.groups.deleteGroup')" @click="handleDelete(editingGroup)"><Icon name="trash" size="sm" /></button>
+        </div>
+      </div>
+      <GroupEconomicsSummary v-if="!authStore.isSimpleMode" :group="editingGroup" :draft-rate="Number(editForm.rate_multiplier)" />
+    </section>
+    <div v-if="!showCreateModal && !showEditModal && groupView === 'workspace'" class="card px-5 py-16 text-center text-sm text-ink-3">{{ t('admin.groups.workspace.selectGroup') }}</div>
+
     <!-- Create Group Modal -->
-    <BaseDialog
+    <GroupEditorPanel
       :show="showCreateModal"
       :title="t('admin.groups.createGroup')"
-      width="wide"
-      @close="closeCreateModal"
+      @close="requestCloseEditor"
     >
       <form
         id="create-group-form"
         @submit.prevent="handleCreateGroup"
+        @invalid.capture="revealInvalidGroupField($event, 'create')"
         class="space-y-5"
       >
-        <div>
+        <GroupConfigTabs v-model="createConfigTab" :simple="authStore.isSimpleMode" :available-tabs="configurationTabs(createForm.platform, createForm.subscription_type)" />
+        <div v-if="createConfigTab === 'routes' && createForm.platform === 'composite'" class="rounded-field border border-edge p-4">
+          <p class="mb-3 text-sm text-ink-2">{{ t('admin.groups.workspace.compositeHint') }}</p>
+          <button type="button" class="btn btn-secondary" @click="createConfigTab = 'basic'">{{ t('admin.groups.workspace.saveFirst') }}</button>
+        </div>
+        <div v-show="createConfigTab === 'basic'" data-group-section="basic">
           <GroupI18nField
             v-model="createForm.name"
             v-model:i18n="createForm.i18n"
@@ -498,7 +543,7 @@
             data-tour="group-form-name"
           />
         </div>
-        <div>
+        <div v-show="createConfigTab === 'basic'" data-group-section="basic">
           <GroupI18nField
             v-model="createForm.description"
             v-model:i18n="createForm.i18n"
@@ -509,7 +554,7 @@
             :placeholder="t('admin.groups.optionalDescription')"
           />
         </div>
-        <div>
+        <div v-show="createConfigTab === 'basic'" data-group-section="basic">
           <label class="input-label">{{
             t("admin.groups.form.platform")
           }}</label>
@@ -522,7 +567,7 @@
           <p class="input-hint">{{ t("admin.groups.platformHint") }}</p>
         </div>
         <!-- 从分组复制账号 -->
-        <div v-if="!authStore.isSimpleMode && copyAccountsGroupOptions.length > 0">
+        <div v-show="createConfigTab === 'basic'" data-group-section="basic" v-if="!authStore.isSimpleMode && copyAccountsGroupOptions.length > 0">
           <div class="mb-1.5 flex items-center gap-1">
             <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
               {{ t("admin.groups.copyAccounts.title") }}
@@ -611,7 +656,7 @@
           <p class="input-hint">{{ t("admin.groups.copyAccounts.hint") }}</p>
         </div>
         <template v-if="!authStore.isSimpleMode">
-        <div>
+        <div v-show="createConfigTab === 'rates'" data-group-section="rates">
           <label class="input-label">{{
             t("admin.groups.form.rateMultiplier")
           }}</label>
@@ -626,7 +671,7 @@
           />
           <p class="input-hint">{{ t("admin.groups.rateMultiplierHint") }}</p>
         </div>
-        <div>
+        <div v-show="createConfigTab === 'rates'" data-group-section="rates">
           <label class="input-label">{{ t("admin.groups.form.rpmLimit") }}</label>
           <input
             v-model.number="createForm.rpm_limit"
@@ -638,7 +683,7 @@
           />
           <p class="input-hint">{{ t("admin.groups.form.rpmLimitHint") }}</p>
         </div>
-        <ReasoningEffortPolicyFields
+        <ReasoningEffortPolicyFields v-show="createConfigTab === 'reasoning'" data-group-section="reasoning"
           v-if="supportsReasoningEffortPolicyPlatform(createForm.platform)"
           ref="createReasoningEffortPolicyRef"
           id-prefix="create-group-reasoning"
@@ -647,7 +692,7 @@
           v-model:over-limit="createForm.max_reasoning_effort_over_limit"
           v-model:mappings="createForm.reasoning_effort_mappings"
         />
-        <div
+        <div v-show="createConfigTab === 'basic'" data-group-section="basic"
           v-if="createForm.subscription_type !== 'subscription'"
           data-tour="group-form-exclusive"
         >
@@ -707,7 +752,7 @@
         </div>
 
         <!-- Subscription Configuration -->
-        <div class="mt-4 border-t pt-4">
+        <div v-show="createConfigTab === 'subscription'" data-group-section="subscription" class="mt-4 border-t pt-4">
           <div>
             <label class="input-label">{{
               t("admin.groups.subscription.type")
@@ -768,7 +813,7 @@
           </div>
         </div>
 
-        <div class="border-t pt-4">
+        <div v-show="createConfigTab === 'models'" data-group-section="models" class="border-t pt-4">
           <div class="mb-3 flex items-center justify-between gap-3">
             <div>
               <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -890,7 +935,7 @@
         </div>
 
         <!-- 图片生成计费配置 -->
-        <div
+        <div v-show="createConfigTab === 'media'" data-group-section="media"
           v-if="supportsImagePricingPlatform(createForm.platform)"
           class="border-t pt-4"
         >
@@ -1056,7 +1101,7 @@
         </div>
 
         <!-- 视频生成计费配置（仅 Grok 平台） -->
-        <div
+        <div v-show="createConfigTab === 'media'" data-group-section="media"
           v-if="supportsVideoPricingPlatform(createForm.platform)"
           class="border-t pt-4"
         >
@@ -1187,7 +1232,7 @@
         </div>
 
         <!-- 高峰时段倍率配置（仅订阅类型分组） -->
-        <div v-if="createForm.subscription_type === 'subscription'" class="border-t pt-4">
+        <div v-show="createConfigTab === 'rates'" data-group-section="rates" v-if="createForm.subscription_type === 'subscription'" class="border-t pt-4">
           <div class="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2">
             <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
               <input
@@ -1234,7 +1279,7 @@
         </div>
 
         <!-- 分组利润控制（五个平台 token 请求） -->
-        <div v-if="isProfitControlPlatform(createForm.platform)" class="border-t pt-4">
+        <div v-show="createConfigTab === 'profit'" data-group-section="profit" v-if="isProfitControlPlatform(createForm.platform)" class="border-t pt-4">
           <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
             <input
               v-model="createForm.profit_control_enabled"
@@ -1284,7 +1329,7 @@
         </div>
 
         <!-- 支持的模型系列（仅 antigravity 平台） -->
-        <div v-if="createForm.platform === 'antigravity'" class="border-t pt-4">
+        <div v-show="createConfigTab === 'models'" data-group-section="models" v-if="createForm.platform === 'antigravity'" class="border-t pt-4">
           <div class="mb-1.5 flex items-center gap-1">
             <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
               {{ t("admin.groups.supportedScopes.title") }}
@@ -1358,7 +1403,7 @@
         </div>
 
         <!-- MCP XML 协议注入（仅 antigravity 平台） -->
-        <div v-if="createForm.platform === 'antigravity'" class="border-t pt-4">
+        <div v-show="createConfigTab === 'scheduling'" data-group-section="scheduling" v-if="createForm.platform === 'antigravity'" class="border-t pt-4">
           <div class="mb-1.5 flex items-center gap-1">
             <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
               {{ t("admin.groups.mcpXml.title") }}
@@ -1399,7 +1444,7 @@
         </div>
 
         <!-- Claude Code 客户端限制（仅 anthropic 平台） -->
-        <div v-if="createForm.platform === 'anthropic'" class="border-t pt-4">
+        <div v-show="createConfigTab === 'scheduling'" data-group-section="scheduling" v-if="createForm.platform === 'anthropic'" class="border-t pt-4">
           <div class="mb-1.5 flex items-center gap-1">
             <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
               {{ t("admin.groups.claudeCode.title") }}
@@ -1455,7 +1500,7 @@
         </div>
 
         <!-- Codex 网页搜索按次计费（仅 openai 平台） -->
-        <div
+        <div v-show="createConfigTab === 'pricing'" data-group-section="pricing"
           v-if="createForm.platform === 'openai'"
           class="border-t border-gray-200 dark:border-dark-400 pt-4 mt-4"
         >
@@ -1490,7 +1535,7 @@
         </div>
 
 
-        <div class="border-t border-gray-200 pt-4 mt-4 dark:border-dark-400">
+        <div v-show="createConfigTab === 'pricing'" data-group-section="pricing" class="border-t border-gray-200 pt-4 mt-4 dark:border-dark-400">
           <div class="flex flex-wrap items-start justify-between gap-3">
             <div class="min-w-0 flex-1">
               <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t("admin.groups.modelPricing.title") }}</h4>
@@ -1505,12 +1550,12 @@
             <span><span class="block text-sm text-gray-700 dark:text-gray-300">{{ t("admin.groups.modelPricing.longContext") }}</span><span class="block text-xs text-gray-500">{{ t("admin.groups.modelPricing.longContextHint") }}</span></span>
           </label>
           <div class="mt-3 space-y-2">
-            <PricingEntryCard v-for="(entry, index) in createForm.model_pricing" :key="index" :entry="entry" :platform="createForm.platform" hide-token-intervals @update="createForm.model_pricing[index] = $event" @remove="createForm.model_pricing.splice(index, 1)" />
+            <GroupPricingTable v-model="createForm.model_pricing" :platform="createForm.platform" />
           </div>
         </div>
 
         <!-- Grok Voice 显式定价（仅 grok 平台） -->
-        <div
+        <div v-show="createConfigTab === 'pricing'" data-group-section="pricing"
           v-if="createForm.platform === 'grok'"
           class="border-t border-gray-200 dark:border-dark-400 pt-4 mt-4"
         >
@@ -1572,7 +1617,7 @@
           </div>
         </div>
         <!-- OpenAI Fast 开关（OpenAI 与 Composite 平台） -->
-        <div
+        <div v-show="createConfigTab === 'scheduling'" data-group-section="scheduling"
           v-if="supportsGroupOpenAIFast(createForm.platform)"
           class="border-t border-gray-200 dark:border-dark-400 pt-4 mt-4"
         >
@@ -1608,7 +1653,7 @@
         </div>
 
         <!-- Codex Live 开关（OpenAI 与 Composite 平台） -->
-        <div
+        <div v-show="createConfigTab === 'scheduling'" data-group-section="scheduling"
           v-if="supportsLivePlatform(createForm.platform)"
           class="border-t border-gray-200 dark:border-dark-400 pt-4 mt-4"
         >
@@ -1630,7 +1675,7 @@
         </div>
 
         <!-- OpenAI Messages 调度配置（OpenAI 与 Composite 平台） -->
-        <div
+        <div v-show="createConfigTab === 'scheduling'" data-group-section="scheduling"
           v-if="supportsMessagesDispatchPlatform(createForm.platform)"
           class="border-t border-gray-200 dark:border-dark-400 pt-4 mt-4"
         >
@@ -1842,7 +1887,7 @@
         </div>
 
         <!-- 账号过滤控制 (OpenAI/Antigravity/Anthropic/Gemini) -->
-        <div
+        <div v-show="createConfigTab === 'scheduling'" data-group-section="scheduling"
           v-if="
             ['openai', 'antigravity', 'anthropic', 'gemini'].includes(
               createForm.platform,
@@ -1890,7 +1935,7 @@
         </div>
 
         <!-- 无效请求兜底（仅 anthropic/antigravity 平台，且非订阅分组） -->
-        <div
+        <div v-show="createConfigTab === 'routes'" data-group-section="routes"
           v-if="
             ['anthropic', 'antigravity'].includes(createForm.platform) &&
             createForm.subscription_type !== 'subscription'
@@ -1911,7 +1956,7 @@
         </div>
 
         <!-- 模型路由配置（仅 anthropic 平台） -->
-        <div v-if="createForm.platform === 'anthropic'" class="border-t pt-4">
+        <div v-show="createConfigTab === 'routes'" data-group-section="routes" v-if="createForm.platform === 'anthropic'" class="border-t pt-4">
           <div class="mb-1.5 flex items-center gap-1">
             <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
               {{ t("admin.groups.modelRouting.title") }}
@@ -2088,7 +2133,7 @@
       <template #footer>
         <div class="flex justify-end gap-3 pt-4">
           <button
-            @click="closeCreateModal"
+            @click="requestCloseEditor"
             type="button"
             class="btn btn-secondary"
           >
@@ -2125,22 +2170,27 @@
           </button>
         </div>
       </template>
-    </BaseDialog>
+    </GroupEditorPanel>
 
     <!-- Edit Group Modal -->
-    <BaseDialog
+    <GroupEditorPanel
       :show="showEditModal"
       :title="t('admin.groups.editGroup')"
-      width="wide"
-      @close="closeEditModal"
+      @close="requestCloseEditor"
     >
       <form
         v-if="editingGroup"
         id="edit-group-form"
         @submit.prevent="handleUpdateGroup"
+        @invalid.capture="revealInvalidGroupField($event, 'edit')"
         class="space-y-5"
       >
-        <div>
+        <GroupConfigTabs v-model="editConfigTab" :simple="authStore.isSimpleMode" :available-tabs="configurationTabs(editForm.platform, editForm.subscription_type)" />
+        <div v-if="editConfigTab === 'routes' && editForm.platform === 'composite'" class="rounded-field border border-edge p-4">
+          <p class="mb-3 text-sm text-ink-2">{{ t('admin.groups.workspace.compositeHint') }}</p>
+          <button type="button" class="btn btn-secondary" @click="handleCompositeRoutes(editingGroup!)">{{ t('admin.groups.compositeRoutes.action') }}</button>
+        </div>
+        <div v-show="editConfigTab === 'basic'" data-group-section="basic">
           <GroupI18nField
             v-model="editForm.name"
             v-model:i18n="editForm.i18n"
@@ -2150,7 +2200,7 @@
             data-tour="edit-group-form-name"
           />
         </div>
-        <div>
+        <div v-show="editConfigTab === 'basic'" data-group-section="basic">
           <GroupI18nField
             v-model="editForm.description"
             v-model:i18n="editForm.i18n"
@@ -2160,7 +2210,7 @@
             rows="3"
           />
         </div>
-        <div>
+        <div v-show="editConfigTab === 'basic'" data-group-section="basic">
           <label class="input-label">{{
             t("admin.groups.form.platform")
           }}</label>
@@ -2174,7 +2224,7 @@
         </div>
         <template v-if="!authStore.isSimpleMode">
         <!-- 从分组复制账号（编辑时） -->
-        <div v-if="copyAccountsGroupOptionsForEdit.length > 0">
+        <div v-show="editConfigTab === 'basic'" data-group-section="basic" v-if="copyAccountsGroupOptionsForEdit.length > 0">
           <div class="mb-1.5 flex items-center gap-1">
             <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
               {{ t("admin.groups.copyAccounts.title") }}
@@ -2264,7 +2314,7 @@
             {{ t("admin.groups.copyAccounts.hintEdit") }}
           </p>
         </div>
-        <div>
+        <div v-show="editConfigTab === 'rates'" data-group-section="rates">
           <label class="input-label">{{
             t("admin.groups.form.rateMultiplier")
           }}</label>
@@ -2278,7 +2328,7 @@
             data-tour="group-form-multiplier"
           />
         </div>
-        <div>
+        <div v-show="editConfigTab === 'rates'" data-group-section="rates">
           <label class="input-label">{{ t("admin.groups.form.rpmLimit") }}</label>
           <input
             v-model.number="editForm.rpm_limit"
@@ -2290,7 +2340,7 @@
           />
           <p class="input-hint">{{ t("admin.groups.form.rpmLimitHint") }}</p>
         </div>
-        <ReasoningEffortPolicyFields
+        <ReasoningEffortPolicyFields v-show="editConfigTab === 'reasoning'" data-group-section="reasoning"
           v-if="supportsReasoningEffortPolicyPlatform(editForm.platform)"
           ref="editReasoningEffortPolicyRef"
           id-prefix="edit-group-reasoning"
@@ -2299,7 +2349,7 @@
           v-model:over-limit="editForm.max_reasoning_effort_over_limit"
           v-model:mappings="editForm.reasoning_effort_mappings"
         />
-        <div v-if="editForm.subscription_type !== 'subscription'">
+        <div v-show="editConfigTab === 'basic'" data-group-section="basic" v-if="editForm.subscription_type !== 'subscription'">
           <div class="mb-1.5 flex items-center gap-1">
             <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
               {{ t("admin.groups.form.exclusive") }}
@@ -2354,13 +2404,13 @@
             </span>
           </div>
         </div>
-        <div>
+        <div v-show="editConfigTab === 'basic'" data-group-section="basic">
           <label class="input-label">{{ t("admin.groups.form.status") }}</label>
           <Select v-model="editForm.status" :options="editStatusOptions" />
         </div>
 
         <!-- Subscription Configuration -->
-        <div class="mt-4 border-t pt-4">
+        <div v-show="editConfigTab === 'subscription'" data-group-section="subscription" class="mt-4 border-t pt-4">
           <div>
             <label class="input-label">{{
               t("admin.groups.subscription.type")
@@ -2422,7 +2472,7 @@
           </div>
         </div>
 
-        <div class="border-t pt-4">
+        <div v-show="editConfigTab === 'models'" data-group-section="models" class="border-t pt-4">
           <div class="mb-3 flex items-center justify-between gap-3">
             <div>
               <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -2544,7 +2594,7 @@
         </div>
 
         <!-- 图片生成计费配置 -->
-        <div
+        <div v-show="editConfigTab === 'media'" data-group-section="media"
           v-if="supportsImagePricingPlatform(editForm.platform)"
           class="border-t pt-4"
         >
@@ -2710,7 +2760,7 @@
         </div>
 
         <!-- 视频生成计费配置（仅 Grok 平台） -->
-        <div
+        <div v-show="editConfigTab === 'media'" data-group-section="media"
           v-if="supportsVideoPricingPlatform(editForm.platform)"
           class="border-t pt-4"
         >
@@ -2841,7 +2891,7 @@
         </div>
 
         <!-- 高峰时段倍率配置（仅订阅类型分组） -->
-        <div v-if="editForm.subscription_type === 'subscription'" class="border-t pt-4">
+        <div v-show="editConfigTab === 'rates'" data-group-section="rates" v-if="editForm.subscription_type === 'subscription'" class="border-t pt-4">
           <div class="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2">
             <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
               <input
@@ -2888,7 +2938,7 @@
         </div>
 
         <!-- 分组利润控制（五个平台 token 请求） -->
-        <div v-if="isProfitControlPlatform(editForm.platform)" class="border-t pt-4">
+        <div v-show="editConfigTab === 'profit'" data-group-section="profit" v-if="isProfitControlPlatform(editForm.platform)" class="border-t pt-4">
           <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
             <input
               v-model="editForm.profit_control_enabled"
@@ -2938,7 +2988,7 @@
         </div>
 
         <!-- 支持的模型系列（仅 antigravity 平台） -->
-        <div v-if="editForm.platform === 'antigravity'" class="border-t pt-4">
+        <div v-show="editConfigTab === 'models'" data-group-section="models" v-if="editForm.platform === 'antigravity'" class="border-t pt-4">
           <div class="mb-1.5 flex items-center gap-1">
             <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
               {{ t("admin.groups.supportedScopes.title") }}
@@ -3012,7 +3062,7 @@
         </div>
 
         <!-- MCP XML 协议注入（仅 antigravity 平台） -->
-        <div v-if="editForm.platform === 'antigravity'" class="border-t pt-4">
+        <div v-show="editConfigTab === 'scheduling'" data-group-section="scheduling" v-if="editForm.platform === 'antigravity'" class="border-t pt-4">
           <div class="mb-1.5 flex items-center gap-1">
             <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
               {{ t("admin.groups.mcpXml.title") }}
@@ -3053,7 +3103,7 @@
         </div>
 
         <!-- Claude Code 客户端限制（仅 anthropic 平台） -->
-        <div v-if="editForm.platform === 'anthropic'" class="border-t pt-4">
+        <div v-show="editConfigTab === 'scheduling'" data-group-section="scheduling" v-if="editForm.platform === 'anthropic'" class="border-t pt-4">
           <div class="mb-1.5 flex items-center gap-1">
             <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
               {{ t("admin.groups.claudeCode.title") }}
@@ -3109,7 +3159,7 @@
         </div>
 
         <!-- Codex 网页搜索按次计费（仅 openai 平台） -->
-        <div
+        <div v-show="editConfigTab === 'pricing'" data-group-section="pricing"
           v-if="editForm.platform === 'openai'"
           class="border-t border-gray-200 dark:border-dark-400 pt-4 mt-4"
         >
@@ -3144,7 +3194,7 @@
         </div>
 
         <!-- 固定账号获取 Codex Model Manifest（仅 openai 平台，仅编辑对话框） -->
-        <CodexManifestAccountsField
+        <CodexManifestAccountsField v-show="editConfigTab === 'models'" data-group-section="models"
           v-if="editForm.platform === 'openai' && editingGroup"
           ref="editCodexManifestRef"
           :group-id="editingGroup.id"
@@ -3154,7 +3204,7 @@
         />
 
 
-        <div class="border-t border-gray-200 pt-4 mt-4 dark:border-dark-400">
+        <div v-show="editConfigTab === 'pricing'" data-group-section="pricing" class="border-t border-gray-200 pt-4 mt-4 dark:border-dark-400">
           <div class="flex flex-wrap items-start justify-between gap-3">
             <div class="min-w-0 flex-1">
               <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t("admin.groups.modelPricing.title") }}</h4>
@@ -3169,12 +3219,12 @@
             <span><span class="block text-sm text-gray-700 dark:text-gray-300">{{ t("admin.groups.modelPricing.longContext") }}</span><span class="block text-xs text-gray-500">{{ t("admin.groups.modelPricing.longContextHint") }}</span></span>
           </label>
           <div class="mt-3 space-y-2">
-            <PricingEntryCard v-for="(entry, index) in editForm.model_pricing" :key="index" :entry="entry" :platform="editForm.platform" hide-token-intervals @update="editForm.model_pricing[index] = $event" @remove="editForm.model_pricing.splice(index, 1)" />
+            <GroupPricingTable v-model="editForm.model_pricing" :platform="editForm.platform" :group-id="editingGroup?.id" :active="editConfigTab === 'pricing'" :key="editingGroup?.id" />
           </div>
         </div>
 
         <!-- Grok Voice 显式定价（仅 grok 平台） -->
-        <div
+        <div v-show="editConfigTab === 'pricing'" data-group-section="pricing"
           v-if="editForm.platform === 'grok'"
           class="border-t border-gray-200 dark:border-dark-400 pt-4 mt-4"
         >
@@ -3236,7 +3286,7 @@
           </div>
         </div>
         <!-- OpenAI Fast 开关（OpenAI 与 Composite 平台） -->
-        <div
+        <div v-show="editConfigTab === 'scheduling'" data-group-section="scheduling"
           v-if="supportsGroupOpenAIFast(editForm.platform)"
           class="border-t border-gray-200 dark:border-dark-400 pt-4 mt-4"
         >
@@ -3272,7 +3322,7 @@
         </div>
 
         <!-- Codex Live 开关（OpenAI 与 Composite 平台） -->
-        <div
+        <div v-show="editConfigTab === 'scheduling'" data-group-section="scheduling"
           v-if="supportsLivePlatform(editForm.platform)"
           class="border-t border-gray-200 dark:border-dark-400 pt-4 mt-4"
         >
@@ -3294,7 +3344,7 @@
         </div>
 
         <!-- OpenAI Messages 调度配置（OpenAI 与 Composite 平台） -->
-        <div
+        <div v-show="editConfigTab === 'scheduling'" data-group-section="scheduling"
           v-if="supportsMessagesDispatchPlatform(editForm.platform)"
           class="border-t border-gray-200 dark:border-dark-400 pt-4 mt-4"
         >
@@ -3505,7 +3555,7 @@
         </div>
 
         <!-- 账号过滤控制 (OpenAI/Antigravity/Anthropic/Gemini) -->
-        <div
+        <div v-show="editConfigTab === 'scheduling'" data-group-section="scheduling"
           v-if="
             ['openai', 'antigravity', 'anthropic', 'gemini'].includes(
               editForm.platform,
@@ -3553,7 +3603,7 @@
         </div>
 
         <!-- 无效请求兜底（仅 anthropic/antigravity 平台，且非订阅分组） -->
-        <div
+        <div v-show="editConfigTab === 'routes'" data-group-section="routes"
           v-if="
             ['anthropic', 'antigravity'].includes(editForm.platform) &&
             editForm.subscription_type !== 'subscription'
@@ -3574,7 +3624,7 @@
         </div>
 
         <!-- 模型路由配置（仅 anthropic 平台） -->
-        <div v-if="editForm.platform === 'anthropic'" class="border-t pt-4">
+        <div v-show="editConfigTab === 'routes'" data-group-section="routes" v-if="editForm.platform === 'anthropic'" class="border-t pt-4">
           <div class="mb-1.5 flex items-center gap-1">
             <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
               {{ t("admin.groups.modelRouting.title") }}
@@ -3749,9 +3799,11 @@
       </form>
 
       <template #footer>
-        <div class="flex justify-end gap-3 pt-4">
+        <div class="flex flex-wrap items-center justify-end gap-3">
+          <span class="mr-auto text-xs text-ink-3">{{ t('admin.groups.workspace.saveHint') }}</span>
+          <button type="button" class="btn btn-ghost" :disabled="submitting || !hasUnsavedGroupChanges" @click="requestEditorAction({ type: 'select', group: editingGroup! })">{{ t('admin.groups.workspace.reset') }}</button>
           <button
-            @click="closeEditModal"
+            @click="requestCloseEditor"
             type="button"
             class="btn btn-secondary"
           >
@@ -3788,7 +3840,12 @@
           </button>
         </div>
       </template>
-    </BaseDialog>
+    </GroupEditorPanel>
+
+      </div>
+    </div>
+
+    <ConfirmDialog :show="pendingEditorAction !== null" :title="t('admin.groups.workspace.unsavedTitle')" :message="t('admin.groups.workspace.unsavedMessage')" :confirm-text="t('admin.groups.workspace.discardChanges')" @confirm="confirmEditorAction" @cancel="cancelEditorAction" />
 
     <!-- Delete Confirmation Dialog -->
     <ConfirmDialog
@@ -4293,7 +4350,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onUnmounted, watch } from "vue";
+import { ref, reactive, computed, onMounted, onUnmounted, watch, nextTick, inject } from "vue";
+import { onBeforeRouteLeave, matchedRouteKey } from "vue-router";
 import { useI18n } from "vue-i18n";
 import { useAppStore } from "@/stores/app";
 import { useAuthStore } from "@/stores/auth";
@@ -4317,6 +4375,12 @@ import {
 } from "@/constants/platforms";
 import type { Column } from "@/components/common/types";
 import AppLayout from "@/components/layout/AppLayout.vue";
+import PageHeader from "@/components/common/PageHeader.vue";
+import StatusPill from "@/components/common/StatusPill.vue";
+import GroupEditorPanel from "@/components/admin/group/GroupEditorPanel.vue";
+import GroupConfigTabs, { type GroupConfigTab } from "@/components/admin/group/GroupConfigTabs.vue";
+import GroupEconomicsSummary from "@/components/admin/group/GroupEconomicsSummary.vue";
+import GroupPricingTable from "@/components/admin/group/GroupPricingTable.vue";
 import TablePageLayout from "@/components/layout/TablePageLayout.vue";
 import DataTable from "@/components/common/DataTable.vue";
 import Pagination from "@/components/common/Pagination.vue";
@@ -4334,7 +4398,6 @@ import GroupRPMOverridesModal from "@/components/admin/group/GroupRPMOverridesMo
 import GroupCapacityBadge from "@/components/common/GroupCapacityBadge.vue";
 import ReasoningEffortPolicyFields from "@/components/admin/group/ReasoningEffortPolicyFields.vue";
 import CodexManifestAccountsField from "@/components/admin/group/CodexManifestAccountsField.vue";
-import PricingEntryCard from "@/components/admin/channel/PricingEntryCard.vue";
 import type { PricingFormEntry } from "@/components/admin/channel/types";
 import {
   apiIntervalsToForm,
@@ -4411,6 +4474,17 @@ import {
 
 const supportsLivePlatform = (platform: string): boolean =>
   platform === "openai" || platform === "composite";
+
+const configurationTabs = (platform: GroupPlatform, subscriptionType: SubscriptionType): GroupConfigTab[] => {
+  const tabs: GroupConfigTab[] = ["basic", "pricing", "models", "rates"];
+  if (platform === "anthropic" || platform === "composite" || (platform === "antigravity" && subscriptionType !== "subscription")) tabs.push("routes");
+  if (supportsImagePricingPlatform(platform) || supportsVideoPricingPlatform(platform)) tabs.push("media");
+  tabs.push("subscription");
+  if (supportsReasoningEffortPolicyPlatform(platform)) tabs.push("reasoning");
+  if (["anthropic", "antigravity", "openai", "composite", "gemini"].includes(platform)) tabs.push("scheduling");
+  if (isProfitControlPlatform(platform)) tabs.push("profit");
+  return tabs;
+};
 
 const emptyGroupPricing = (): PricingFormEntry => ({
   models: [],
@@ -4854,6 +4928,14 @@ let abortController: AbortController | null = null;
 
 const showCreateModal = ref(false);
 const showEditModal = ref(false);
+const groupView = ref<"workspace" | "table">("workspace");
+const createConfigTab = ref<GroupConfigTab>("basic");
+const editConfigTab = ref<GroupConfigTab>("basic");
+const selectedGroupId = ref<number | null>(null);
+const savedEditorSnapshot = ref("");
+type EditorAction = { type: "select"; group: AdminGroup } | { type: "create" | "close" } | { type: "leave"; resolve: (value: boolean) => void };
+const pendingEditorAction = ref<EditorAction | null>(null);
+let groupEditorRequestSeq = 0;
 const showDeleteDialog = ref(false);
 const pendingLiveForm = ref<"create" | "edit" | null>(null);
 const showUnsupportedLiveConfirm = computed(
@@ -5414,6 +5496,87 @@ const editForm = reactive({
   reasoning_effort_mappings: [] as ReasoningEffortMappingRow[],
 });
 
+const editorSnapshot = computed(() => JSON.stringify(showCreateModal.value ? {
+  form: createForm,
+  allowlist: buildModelAllowlistConfig(createModelAllowlistState),
+  routing: createModelRoutingRules.value,
+} : {
+  form: editForm,
+  allowlist: buildModelAllowlistConfig(editModelAllowlistState),
+  routing: editModelRoutingRules.value,
+  manifest: editCodexManifestConfig.value,
+}));
+const hasUnsavedGroupChanges = computed(() =>
+  (showCreateModal.value || showEditModal.value) && savedEditorSnapshot.value !== "" && editorSnapshot.value !== savedEditorSnapshot.value,
+);
+
+const performEditorAction = async (action: EditorAction) => {
+  savedEditorSnapshot.value = "";
+  if (action.type === "select") {
+    groupView.value = "workspace";
+    closeCreateModal();
+    await handleEdit(action.group);
+  } else if (action.type === "create") {
+    const requestSeq = ++groupEditorRequestSeq;
+    closeEditModal();
+    createConfigTab.value = "basic";
+    await loadModelAllowlistCandidates("create", 0, createForm.platform);
+    if (requestSeq !== groupEditorRequestSeq) return;
+    showCreateModal.value = true;
+    await nextTick();
+    savedEditorSnapshot.value = editorSnapshot.value;
+  } else if (action.type === "leave") {
+    action.resolve(true);
+  } else {
+    groupEditorRequestSeq++;
+    closeCreateModal();
+    closeEditModal();
+  }
+};
+const requestEditorAction = (action: EditorAction) => {
+  if (hasUnsavedGroupChanges.value) pendingEditorAction.value = action;
+  else void performEditorAction(action);
+};
+const requestSelectGroup = (group: AdminGroup) => {
+  if (showEditModal.value && editingGroup.value?.id === group.id) return;
+  requestEditorAction({ type: "select", group });
+};
+const requestCloseEditor = () => requestEditorAction({ type: "close" });
+const confirmEditorAction = () => {
+  const action = pendingEditorAction.value;
+  pendingEditorAction.value = null;
+  if (action) void performEditorAction(action);
+};
+const cancelEditorAction = () => {
+  if (pendingEditorAction.value?.type === "leave") pendingEditorAction.value.resolve(false);
+  pendingEditorAction.value = null;
+};
+if (inject(matchedRouteKey, null)) {
+  onBeforeRouteLeave(() => {
+    if (!hasUnsavedGroupChanges.value) return true;
+    cancelEditorAction();
+    return new Promise<boolean>((resolve) => { pendingEditorAction.value = { type: "leave", resolve }; });
+  });
+}
+const handleGroupFilterChange = () => {
+  pagination.page = 1;
+  void loadGroups();
+};
+const guardUnsavedGroupChanges = (event: BeforeUnloadEvent) => {
+  if (!hasUnsavedGroupChanges.value) return;
+  event.preventDefault();
+  event.returnValue = "";
+};
+const revealInvalidGroupField = (event: Event, mode: "create" | "edit") => {
+  event.preventDefault();
+  const section = (event.target as HTMLElement).closest<HTMLElement>("[data-group-section]");
+  if (!section) return;
+  const tab = section.dataset.groupSection as GroupConfigTab;
+  if (mode === "create") createConfigTab.value = tab;
+  else editConfigTab.value = tab;
+  void nextTick(() => (event.target as HTMLElement).focus());
+};
+
 type ImagePricingFormState = {
   platform: GroupPlatform;
   allow_image_generation: boolean;
@@ -5667,6 +5830,9 @@ const loadGroups = async () => {
     groups.value = response.items;
     pagination.total = response.total;
     pagination.pages = response.pages;
+    if (!showEditModal.value && !showCreateModal.value && groupView.value === "workspace" && response.items.length) {
+      void handleEdit(response.items.find(group => group.id === selectedGroupId.value) ?? response.items[0]);
+    }
     if (hasVisibleUsageSummaryConsumer.value) {
       loadUsageSummary();
     } else {
@@ -5803,8 +5969,7 @@ const handleSort = (key: string, order: 'asc' | 'desc') => {
 };
 
 const openCreateModal = () => {
-  showCreateModal.value = true;
-  loadModelAllowlistCandidates("create", 0, createForm.platform);
+  requestEditorAction({ type: "create" });
 };
 
 const closeCreateModal = () => {
@@ -5929,6 +6094,7 @@ const validateGroupReasoningMultipliers = (pricing: PricingFormEntry[]): boolean
 
 const handleCreateGroup = async () => {
   if (!createForm.name.trim()) {
+    createConfigTab.value = "basic";
     appStore.showError(t("admin.groups.nameRequired"));
     return;
   }
@@ -5937,18 +6103,21 @@ const handleCreateGroup = async () => {
     createReasoningEffortPolicyRef.value &&
     !createReasoningEffortPolicyRef.value.validate()
   ) {
+    createConfigTab.value = "reasoning";
     return;
   }
   if (!validateProfitControlForm(createForm)) {
+    createConfigTab.value = "profit";
     return;
   }
-  if (!validateGroupReasoningMultipliers(createForm.model_pricing)) return;
+  if (!validateGroupReasoningMultipliers(createForm.model_pricing)) { createConfigTab.value = "pricing"; return; }
   // 模型白名单：开启且没有任何条目时阻止提交，与后端 400 对齐。
   if (
     createModelAllowlistState.enabled &&
     createModelAllowlistSelectedCount.value === 0
   ) {
     appStore.showError(t("admin.groups.modelAllowlist.emptySelectionError"));
+    createConfigTab.value = "models";
     return;
   }
   submitting.value = true;
@@ -6096,6 +6265,11 @@ const handleCreateGroup = async () => {
 };
 
 const handleEdit = async (group: AdminGroup) => {
+  const requestSeq = ++groupEditorRequestSeq;
+  showEditModal.value = false;
+  selectedGroupId.value = group.id;
+  savedEditorSnapshot.value = "";
+  editConfigTab.value = "basic";
   editingGroup.value = group;
   editForm.name = group.name;
   editForm.description = group.description || "";
@@ -6216,11 +6390,16 @@ const handleEdit = async (group: AdminGroup) => {
       });
   }
   // 加载模型路由规则（异步加载账号名称）
-  editModelRoutingRules.value = await convertApiFormatToRoutingRules(
+  const routingRules = await convertApiFormatToRoutingRules(
     group.model_routing,
   );
-  loadModelAllowlistCandidates("edit", group.id, group.platform);
+  if (requestSeq !== groupEditorRequestSeq) return;
+  editModelRoutingRules.value = routingRules;
+  await loadModelAllowlistCandidates("edit", group.id, group.platform);
+  if (requestSeq !== groupEditorRequestSeq) return;
   showEditModal.value = true;
+  await nextTick();
+  if (requestSeq === groupEditorRequestSeq) savedEditorSnapshot.value = editorSnapshot.value;
 };
 
 const closeEditModal = () => {
@@ -6269,6 +6448,7 @@ const closeEditModal = () => {
 const handleUpdateGroup = async () => {
   if (!editingGroup.value) return;
   if (!editForm.name.trim()) {
+    editConfigTab.value = "basic";
     appStore.showError(t("admin.groups.nameRequired"));
     return;
   }
@@ -6277,18 +6457,21 @@ const handleUpdateGroup = async () => {
     editReasoningEffortPolicyRef.value &&
     !editReasoningEffortPolicyRef.value.validate()
   ) {
+    editConfigTab.value = "reasoning";
     return;
   }
   if (!validateProfitControlForm(editForm)) {
+    editConfigTab.value = "profit";
     return;
   }
-  if (!validateGroupReasoningMultipliers(editForm.model_pricing)) return;
+  if (!validateGroupReasoningMultipliers(editForm.model_pricing)) { editConfigTab.value = "pricing"; return; }
   // 模型白名单：开启且没有任何条目时阻止提交，与后端 400 对齐。
   if (
     editModelAllowlistState.enabled &&
     editModelAllowlistSelectedCount.value === 0
   ) {
     appStore.showError(t("admin.groups.modelAllowlist.emptySelectionError"));
+    editConfigTab.value = "models";
     return;
   }
   // 固定账号 manifest：开启后至少一个账号，前端阻止提交并提示。
@@ -6298,6 +6481,7 @@ const handleUpdateGroup = async () => {
     editCodexManifestConfig.value.account_ids.length === 0
   ) {
     appStore.showError(t("admin.groups.codexModelsManifest.selectAtLeastOne"));
+    editConfigTab.value = "models";
     editCodexManifestRef.value?.validate();
     return;
   }
@@ -6693,6 +6877,12 @@ const confirmDelete = async () => {
 
   try {
     await adminAPI.groups.delete(deletingGroup.value.id);
+    if (editingGroup.value?.id === deletingGroup.value.id) {
+      groupEditorRequestSeq++;
+      selectedGroupId.value = null;
+      savedEditorSnapshot.value = "";
+      closeEditModal();
+    }
     appStore.showSuccess(t("admin.groups.groupDeleted"));
     showDeleteDialog.value = false;
     deletingGroup.value = null;
@@ -6932,10 +7122,13 @@ onMounted(() => {
     loadModelAllowlistCandidates("create", 0, createForm.platform);
   }
   document.addEventListener("click", handleClickOutside);
+  window.addEventListener("beforeunload", guardUnsavedGroupChanges);
 });
 
 onUnmounted(() => {
+  cancelEditorAction();
   document.removeEventListener("click", handleClickOutside);
+  window.removeEventListener("beforeunload", guardUnsavedGroupChanges);
   accountSearchRunner.clearAll();
   clearAllAccountSearchState();
 });

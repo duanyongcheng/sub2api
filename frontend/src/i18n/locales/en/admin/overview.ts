@@ -78,7 +78,68 @@ export default {
       groupPricingDesc: 'Configure batch discount and hold ratio',
       systemSettings: 'System Settings',
       configureSystem: 'Configure system settings',
-      failedToLoad: 'Failed to load dashboard statistics'
+      failedToLoad: 'Failed to load dashboard statistics',
+
+      // ---- Operations overview (redesign: abnormal-first) ----
+      platformBreakdown: 'Platform breakdown',
+
+      overview: {
+        presetToday: 'Today',
+        presetLast7: 'Last 7 days',
+        presetLast30: 'Last 30 days',
+        title: 'Operations Overview',
+        subtitle: 'Put what needs a decision today on top: abnormal accounts, failure spikes, pending orders, negative-margin groups.',
+        actionTitle: 'Needs attention',
+        itemsNeed: '{count} items',
+        ordersPending: '{count} orders paid but not delivered',
+        warehousePending: 'Pending orders',
+        netRevenue: 'Net revenue (charged)',
+        upstreamCost: 'Upstream cost',
+        grossMargin: 'Gross margin',
+        requestsAndSuccess: 'Requests / success',
+        vsPrev: 'vs previous period',
+        target: 'target {value}%',
+        activeUsers: '{value} active users',
+        revenueVsCost: 'Revenue vs cost',
+        revenueVsCostHint: 'Bars are revenue (actual / standard), line is upstream cost',
+        revenue: 'Revenue',
+        standardPrice: 'Standard',
+        cost: 'Cost',
+        groupTable: 'Cost & margin by group',
+        group: 'Group',
+        marginRisk: 'Risk',
+        riskLowMultiplier: 'Low multiplier',
+        riskNegativeMargin: 'Negative margin',
+        riskNone: '—',
+        todo: 'To do',
+        todoItems: '{count} items',
+        todoAccountsLowQuota: 'Accounts running low on quota',
+        todoAccountsHint: '{platform} · {count}',
+        todoOrders: 'Paid orders not delivered',
+        todoOrdersHint: 'Longest wait {minutes} min',
+        todoReferral: 'Referral withdrawal requests',
+        todoReferralHint: 'Total {amount}',
+        todoNoData: 'Nothing needs your attention',
+        platformShare: 'Traffic by platform',
+        byRequests: 'by requests',
+        newUsers: 'New users',
+        newUsersHint: 'today · {value} active',
+        quickEntry: 'Quick entry',
+        quickNewAccount: 'New account',
+        quickNewGroup: 'New group',
+        quickRedeem: 'Generate redeem codes',
+        quickAnnouncement: 'Post announcement',
+        quickUsage: 'Usage logs',
+        loadingFailed: 'Failed to load',
+        gmt: 'Updated {time}',
+        viewGroups: 'View groups',
+        manage: 'Manage →',
+        accountsHealthy: 'Account pool',
+        totalLines: 'Total {value}',
+        requests: '{value} requests',
+        accountsRunningLow: 'Accounts needing attention',
+        accountHint: 'Errors {error} · rate limited {limit} · overloaded {overload}',
+      }
     },
 
     backup: {
@@ -482,13 +543,13 @@ export default {
         amountExceeds: 'Amount cannot exceed the available quota'
       },
       overview: {
-        title: 'Affiliate User Overview',
-        affCode: 'Invite Code',
-        rebateRate: 'Rebate Rate',
-        invitedCount: 'Invited Users',
-        rebatedInviteeCount: 'Rebated Invitees',
-        availableQuota: 'Available Quota',
-        historyQuota: 'Historical Rebate'
+          title: 'Affiliate User Overview',
+          affCode: 'Invite Code',
+          rebateRate: 'Rebate Rate',
+          invitedCount: 'Invited Users',
+          rebatedInviteeCount: 'Rebated Invitees',
+          availableQuota: 'Available Quota',
+          historyQuota: 'Historical Rebate'
       }
     },
 
@@ -847,6 +908,38 @@ export default {
 
     // Groups
     groups: {
+      workspace: {
+        title: 'Groups & Pricing',
+        description: 'Groups combine model access, billing rules and upstream routing. Select a group to configure and save its settings.',
+        configuration: 'Configuration',
+        tableView: 'Table view',
+        groupList: 'Group list',
+        totalGroups: '{count} groups',
+        noMatchingGroups: 'No matching groups',
+        selectGroup: 'Select a group to configure, or create a new group.',
+        models: 'Models',
+        modelMargin: 'Today actual margin',
+        modelMarginBasis: 'Based on today’s requests with exact model names. Missing samples or costs show —. Draft price changes do not rewrite historical margins.',
+        unnamedPricing: 'No model selected',
+        advancedPricing: 'Models / advanced pricing',
+        noPricing: 'No model price overrides. Current default prices apply.',
+        saveFirst: 'Save the group first',
+        compositeHint: 'Composite routes match by model, platform and endpoint, and are saved separately. Save a new group before configuring routes.',
+        todayRevenue: 'Today revenue (USD)',
+        todayCost: 'Today account cost (USD)',
+        margin: 'Today gross margin',
+        availableAccounts: 'Available / total accounts',
+        lossWarning: 'Actual revenue is below account cost. Review the multiplier and model prices.',
+        economicsUnavailable: 'Today revenue and cost are unavailable. Refresh to retry.',
+        marginBasis: 'Margin = (actual revenue − account cost) / actual revenue. Requires revenue and known account costs.',
+        projectedMargin: 'Assuming today’s revenue scales with the group multiplier, estimated margin is {margin}% (sensitivity estimate; independently priced items may not scale)',
+        unsavedTitle: 'Unsaved group changes',
+        unsavedMessage: 'These changes have not taken effect. Leaving will discard them. Confirm to continue.',
+        discardChanges: 'Discard and continue',
+        saveHint: 'Settings take effect after saving. Changes across tabs are saved together.',
+        reset: 'Reset changes',
+        tabs: { basic: 'Basics', pricing: 'Model pricing', models: 'Model allowlist', rates: 'Multiplier & RPM', routes: 'Composite routes', media: 'Images & video', subscription: 'Subscription limits', reasoning: 'Reasoning', scheduling: 'Scheduling', profit: 'Profit control' }
+      },
       title: 'Group Management',
       description: 'Manage API key groups and rate multipliers',
       searchGroups: 'Search groups...',
@@ -1330,7 +1423,9 @@ export default {
         geminiText: 'Gemini Text',
         geminiImage: 'Gemini Image',
         hint: 'Select at least one model family'
-      }
+      },
+
+
     },
 
     // Available Channels (aggregated read-only view)

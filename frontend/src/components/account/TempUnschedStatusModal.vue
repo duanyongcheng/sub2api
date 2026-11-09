@@ -3,6 +3,7 @@
     :show="show"
     :title="t('admin.accounts.tempUnschedulable.statusTitle')"
     width="normal"
+    variant="drawer"
     @close="handleClose"
   >
     <div class="space-y-4">

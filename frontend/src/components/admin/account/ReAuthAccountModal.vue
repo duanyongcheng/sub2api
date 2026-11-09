@@ -3,6 +3,8 @@
     :show="show"
     :title="t('admin.accounts.reAuthorizeAccount')"
     width="normal"
+    variant="drawer"
+    :close-on-click-outside="false"
     @close="handleClose"
   >
     <div v-if="account" class="space-y-4">

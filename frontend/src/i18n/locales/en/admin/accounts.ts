@@ -1,5 +1,17 @@
 export default {
     accounts: {
+      pool: {
+        title: 'Account Pool',
+        description: 'Inspect upstream account health, quotas and concurrency, then test, refresh or adjust scheduling.',
+        details: 'Account details',
+        matchingAccounts: 'Matching accounts',
+        available: 'Normal on page',
+        degraded: 'Limited / degraded on page',
+        error: 'Errors on page',
+        paused: 'Paused on page',
+        concurrency: 'Concurrency on page',
+        pageBasis: 'Status and concurrency summarize the {count} loaded accounts, rather than the entire pool.'
+      },
       title: 'Account Management',
       description: 'Manage AI platform accounts and credentials',
       createAccount: 'Create Account',

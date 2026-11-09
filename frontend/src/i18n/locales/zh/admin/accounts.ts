@@ -1,5 +1,17 @@
 export default {
     accounts: {
+      pool: {
+        title: '账号池',
+        description: '查看上游账号的健康状态、配额与并发，定位异常后测试、刷新或调整调度。',
+        details: '账号详情',
+        matchingAccounts: '符合筛选的账号',
+        available: '本页正常',
+        degraded: '本页限流 / 降级',
+        error: '本页异常',
+        paused: '本页已停调',
+        concurrency: '本页并发占用',
+        pageBasis: '状态与并发基于当前加载的 {count} 个账号，不代表整个账号池。'
+      },
       title: '账号管理',
       description: '管理 AI 平台账号和 Cookie',
       createAccount: '添加账号',

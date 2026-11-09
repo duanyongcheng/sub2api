@@ -174,3 +174,38 @@ describe('RelayPulseMatrix axis range', () => {
     expect(wrapper.findAll('.pulse-cell')).toHaveLength(5)
   })
 })
+
+describe('RelayPulseMatrix admin operations mode', () => {
+  it('uses four availability states and emits the exact selected matrix interval', async () => {
+    const normalMetrics = { ...metrics(10), error_rate: 0.005 }
+    const selectedRow = {
+      platform: 'openai',
+      group_id: 7,
+      group_name: '默认组',
+      model: 'gpt-5',
+      metrics: normalMetrics,
+      health: { ...health, error_rate: 'healthy' as const, score: 42 },
+      buckets: [{ bucket_start: '2026-08-01T00:00:00Z', metrics: normalMetrics, health: { ...health, error_rate: 'healthy' as const, score: 42 } }],
+    }
+    const wrapper = mount(RelayPulseMatrix, {
+      props: {
+        rows: [selectedRow],
+        coverage: {
+          requested_start: '2026-08-01T00:00:00Z', requested_end: '2026-08-01T00:01:00Z', coverage_start: '2026-08-01T00:00:00Z',
+          data_through: '2026-08-01T00:01:00Z', computed_at: '2026-08-01T00:01:00Z', aggregation_lag_seconds: 0, coverage_complete: true, bucket_seconds: 60,
+        },
+        healthMode: 'overall',
+        operations: true,
+      },
+    })
+
+    const cell = wrapper.find('.pulse-cell')
+    expect(cell.classes()).toContain('health-healthy')
+    expect(cell.classes().some(name => name.startsWith('health-score'))).toBe(false)
+    expect(wrapper.text()).toContain('channelMonitorV2.operations.requestCountValue')
+    expect(wrapper.find('.matrix-header').text()).toContain('channelMonitorV2.operations.healthScore')
+    expect(wrapper.find('.matrix-header').text()).not.toContain('每秒 Token')
+    await cell.trigger('click')
+    expect(wrapper.emitted('select')?.[0]).toEqual([selectedRow, '2026-08-01T00:00:00.000Z'])
+  })
+})

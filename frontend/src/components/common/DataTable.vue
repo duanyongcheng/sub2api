@@ -49,10 +49,10 @@
         v-for="(row, index) in sortedData"
         :key="resolveRowKey(row, index)"
         class="rounded-lg border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900"
-        :class="{
+        :class="[rowClass?.(row), {
           'cursor-pointer': clickableRows,
           'border-primary-300 bg-primary-50/40 dark:border-primary-700 dark:bg-primary-900/10': selectable && isRowSelected(row, index)
-        }"
+        }]"
         @click="clickableRows && emit('rowClick', row)"
       >
         <div class="space-y-3">
@@ -99,7 +99,15 @@
       'is-scrollable': isScrollable
     }"
   >
-    <table class="w-full min-w-max divide-y divide-gray-200 dark:divide-dark-700">
+    <table
+      class="w-full min-w-max divide-y divide-gray-200 dark:divide-dark-700"
+      :class="{ 'table-fixed': fixedLayout }"
+      :style="fixedTableStyle"
+    >
+      <colgroup v-if="fixedLayout">
+        <col v-if="selectable" style="width: 44px" />
+        <col v-for="column in columns" :key="column.key" :style="column.width ? { width: column.width } : undefined" />
+      </colgroup>
       <thead class="table-header bg-gray-50 dark:bg-dark-800">
         <tr>
           <th
@@ -214,10 +222,10 @@
             :data-index="item.index"
             :ref="item.measure ? measureElement : undefined"
             class="hover:bg-gray-50 dark:hover:bg-dark-800"
-            :class="{
+            :class="[rowClass?.(item.row), {
               'cursor-pointer': clickableRows,
               'bg-primary-50/40 dark:bg-primary-900/10': selectable && isRowSelected(item.row, item.index)
-            }"
+            }]"
             @click="clickableRows && emit('rowClick', item.row)"
           >
             <td v-if="selectable" class="w-11 min-w-11 px-3 py-4 text-center">
@@ -467,6 +475,9 @@ interface Props {
   virtualizeThreshold?: number
   /** Enable controlled row selection. Stable row keys are strongly recommended. */
   selectable?: boolean
+  /** Use declared column widths to keep dense operational tables aligned. */
+  fixedLayout?: boolean
+  rowClass?: (row: any) => string
   /** Selected row keys. Keys outside the current data page are preserved. */
   selectedKeys?: Array<string | number>
   /** Accessible label for a row selection checkbox. */
@@ -481,7 +492,14 @@ const props = withDefaults(defineProps<Props>(), {
   defaultSortOrder: 'asc',
   serverSideSort: false,
   selectable: false,
+  fixedLayout: false,
   selectedKeys: () => []
+})
+
+const fixedTableStyle = computed(() => {
+  if (!props.fixedLayout || !props.columns.every(column => column.width?.endsWith('px'))) return undefined
+  const width = props.columns.reduce((sum, column) => sum + Number.parseFloat(column.width!), props.selectable ? 44 : 0)
+  return { minWidth: `${width}px` }
 })
 
 const sortKey = ref<string>('')

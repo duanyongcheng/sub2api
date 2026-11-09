@@ -47,6 +47,20 @@ describe('DataTable', () => {
     localStorage.clear()
   })
 
+  it('uses explicit widths without letting long content shrink operational columns', async () => {
+    const wrapper = mount(DataTable, { props: {
+      columns: [{ key: 'name', label: 'Name', width: '240px' }, { key: 'status', label: 'Status', width: '120px' }],
+      data: [{ id: 1, name: 'A long account name', status: 'error' }],
+      fixedLayout: true, selectable: true, rowClass: () => 'bg-red-500/5'
+    } })
+    await wrapper.vm.$nextTick()
+    expect(wrapper.get('table').classes()).toContain('table-fixed')
+    expect(wrapper.get('table').attributes('style')).toContain('min-width: 404px')
+    expect(wrapper.findAll('col').map(column => column.attributes('style'))).toEqual(['width: 44px;', 'width: 240px;', 'width: 120px;'])
+    expect(wrapper.get('tbody tr').classes()).toContain('bg-red-500/5')
+    wrapper.unmount()
+  })
+
   it('renders paired sort arrows and highlights the active direction', async () => {
     const wrapper = mount(DataTable, {
       props: {
