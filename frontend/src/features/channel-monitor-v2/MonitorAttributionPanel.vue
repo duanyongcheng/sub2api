@@ -16,6 +16,11 @@
         <template v-if="group.categories.length">{{ t('channelMonitorV2.operations.topCause', { category: categoryLabel(group.categories[0].category), count: group.categories[0].count }) }}</template>
         <template v-else>{{ t('channelMonitorV2.operations.noOwnerErrors') }}</template>
       </p>
+      <!-- 设计主线 §3.4：占比 → 一句话结论 → 可执行动作，管理员不必从百分比里自己推理 -->
+      <p v-if="group.count" class="mt-1 flex items-start gap-1.5 text-xs leading-relaxed text-ink-2" :data-action="group.owner">
+        <Icon name="arrowRight" size="xs" class="mt-0.5 shrink-0 text-ink-3" />
+        <span>{{ t(`channelMonitorV2.operations.verdictAction.${group.owner}`) }}</span>
+      </p>
       <p v-if="group.ignoredCount" class="mt-1 text-[11px] text-ink-3">{{ t('channelMonitorV2.operations.ignoredCount', { count: group.ignoredCount }) }}</p>
       <button v-if="group.count" type="button" class="mt-2 text-xs font-semibold text-primary-700 hover:underline" @click="emit('inspect', group.owner)">{{ t('channelMonitorV2.operations.inspectOwner') }} →</button>
     </div>
@@ -37,6 +42,7 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { MonitorErrorRow, MonitorHealth, MonitorMetric } from '@/api/channelMonitorV2'
 import StatusPill, { type StatusTone } from '@/components/common/StatusPill.vue'
+import Icon from '@/components/icons/Icon.vue'
 import { attributionGroups, ignoreImpact, type AttributionOwner } from './ownership'
 import { formatMonitorPercent } from './monitorFormat'
 

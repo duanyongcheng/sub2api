@@ -506,6 +506,20 @@
     @apply bg-primary-50 text-primary-700;
   }
 
+  /*
+   * 虚线 pill 表达「这是内部问题，不是用户的问题」（设计主线 §2.2）：
+   * 视觉权重低于状态 pill，不参与可用率结论，例如「探测异常」「未绑定分组」。
+   */
+  .pill-muted {
+    @apply border border-dashed border-edge-strong bg-transparent text-ink-3;
+  }
+
+  .pill-muted.pill-dot::before {
+    @apply h-1.5 w-1.5 rounded-full;
+    background-color: transparent;
+    box-shadow: inset 0 0 0 1px currentColor;
+  }
+
   /* ============ Chip（次级元信息） ============ */
   .chip {
     @apply inline-flex items-center gap-1.5 rounded-lg bg-surface-3 px-2 py-0.5;

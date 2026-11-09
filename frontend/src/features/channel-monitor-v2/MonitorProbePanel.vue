@@ -14,7 +14,7 @@
         <thead><tr><th>{{ t('channelMonitorV2.operations.probeName') }}</th><th>{{ t('channelMonitorV2.operations.probeModel') }}</th><th>{{ t('channelMonitorV2.operations.probeMode') }}</th><th>{{ t('channelMonitorV2.operations.probeStatus') }}</th><th>{{ t('channelMonitorV2.operations.probeCheckedAt') }}</th></tr></thead>
         <tbody>
           <tr v-for="item in items" :key="item.id">
-            <td><div class="flex items-center gap-2"><span class="h-2 w-2 shrink-0 rounded-sm" :style="{ backgroundColor: platformAccentColor(item.provider) }" /><div class="min-w-0"><strong class="block max-w-44 truncate text-xs text-ink" :title="item.name">{{ item.name }}</strong><span class="text-[11px] text-ink-3">{{ platformLabel(item.provider) }}</span></div></div></td>
+            <td><div class="flex items-center gap-2"><span class="h-2 w-2 shrink-0 rounded-sm" :style="{ backgroundColor: platformAccentColor(item.provider) }" /><div class="min-w-0"><strong class="block max-w-44 truncate text-xs text-ink" :title="item.name">{{ item.name }}</strong><span class="flex items-center gap-1.5 text-[11px] text-ink-3">{{ platformLabel(item.provider) }}<StatusPill v-if="!isBound(item)" muted :dot="false" :label="t('channelMonitorV2.operations.probeUnbound')" :title="t('channelMonitorV2.operations.probeUnboundHint')" /></span></div></div></td>
             <td class="max-w-40 truncate text-xs" :title="item.primary_model">{{ item.primary_model }}</td>
             <td class="text-xs">{{ t(`channelMonitorV2.operations.probeModes.${item.check_mode}`) }}</td>
             <td><StatusPill :tone="statusTone(item)" :label="statusLabel(item)" /></td>
@@ -45,6 +45,13 @@ function statusTone(item: ChannelMonitor): StatusTone {
 function statusLabel(item: ChannelMonitor) {
   if (!item.last_checked_at || !item.primary_status) return t('channelMonitorV2.operations.probeNoResult')
   return t(`channelMonitorV2.operations.probeStates.${item.primary_status}`)
+}
+/**
+ * Probes are not bound to a group yet (no `group_id` on channel_monitors),
+ * so every probe is unbound and can never drive a group-level verdict.
+ */
+function isBound(item: ChannelMonitor) {
+  return typeof (item as ChannelMonitor & { group_id?: number | null }).group_id === 'number'
 }
 function formatTime(value: string) {
   return new Intl.DateTimeFormat(locale.value || undefined, { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(value))

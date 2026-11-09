@@ -26,12 +26,18 @@ const props = withDefaults(
     title?: string
     /** Show the leading 6px status dot (default on). */
     dot?: boolean
+    /**
+     * Dashed, low-weight rendering for internal conditions that must never
+     * change a user-facing verdict (probe failures, unbound monitors).
+     */
+    muted?: boolean
   }>(),
   {
     tone: 'neutral',
-    dot: true
+    dot: true,
+    muted: false
   }
 )
 
-const pillClass = computed(() => `pill-${props.tone}`)
+const pillClass = computed(() => (props.muted ? 'pill-muted' : `pill-${props.tone}`))
 </script>
