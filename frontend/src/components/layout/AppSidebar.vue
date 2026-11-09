@@ -566,17 +566,14 @@ const adminNavGroups = computed((): NavGroup[] => {
       hideInSimpleMode: true,
       featureFlag: flagSubscription
     },
+    // 订单：概览 / 全部订单 / 套餐已合并为一个页面的三个 Tab（原型 08），
+    // 菜单因此只保留一项，不再为两个子页浪费一次点击。
     {
       path: '/admin/orders',
       label: t('nav.orderManagement'),
       icon: OrderIcon,
       hideInSimpleMode: true,
-      featureFlag: flagAdminPayment,
-      children: [
-        { path: '/admin/orders/dashboard', label: t('nav.paymentDashboard'), icon: ChartIcon },
-        { path: '/admin/orders', label: t('nav.ordersList', '订单列表'), icon: OrderListIcon },
-        { path: '/admin/orders/plans', label: t('nav.paymentPlans'), icon: CreditCardIcon }
-      ]
+      featureFlag: flagAdminPayment
     },
     {
       path: '/admin/redeem',
