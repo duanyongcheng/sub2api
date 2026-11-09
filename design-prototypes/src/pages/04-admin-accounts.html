@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<!--META {"active":"accounts","role":"admin","title":"账号池","sub":"248 个上游账号 · 6 个平台"} -->
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<title>Sub2API Admin · 账号池（重设计原型）</title>
+<link rel="stylesheet" href="assets/proto.css" />
+<link rel="stylesheet" href="assets/shell.css" />
+<style>
+  .plat-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+  .plat-tab {
+    display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 12px;
+    border-radius: var(--r-md); border: 1px solid var(--border); background: var(--surface);
+    font-size: 12.8px; font-weight: 600; color: var(--text-2);
+  }
+  .plat-tab .n { font-size: 11px; font-weight: 700; color: var(--text-3); background: var(--surface-3); border-radius: 999px; padding: 1px 6px; }
+  .plat-tab.on { border-color: var(--p-500); background: var(--p-50); color: var(--p-700); box-shadow: 0 0 0 2px rgba(20,184,166,.12); }
+  .plat-tab.on .n { background: var(--p-100); color: var(--p-700); }
+
+  .filter-chips { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .fchip { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: var(--r-full);
+    border: 1px solid var(--border-strong); background: var(--surface); font-size: 12px; font-weight: 600; color: var(--text-2); }
+  .fchip.on { border-color: var(--p-400); background: var(--p-50); color: var(--p-700); }
+  .fchip .x { opacity: .55; }
+
+  #accTable { table-layout: fixed; width: 100%; font-size: 12.4px; }
+  #accTable td, #accTable th { padding: 9px 12px !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #accTable th { font-size: 10.6px !important; }
+  #accTable tbody tr:hover td { background: var(--p-50); }
+  [data-theme="dark"] #accTable tbody tr:hover td { background: rgba(20,184,166,.06); }
+
+  .acc-name { font-weight: 650; color: var(--text); display: flex; align-items: center; gap: 6px; }
+  .acc-sub { font-size: 10.8px; color: var(--text-3); font-family: var(--mono); }
+  .mini-bar { height: 4px; border-radius: 999px; background: var(--surface-3); overflow: hidden; margin-top: 4px; }
+  .mini-bar i { display: block; height: 100%; border-radius: 999px; }
+  .quota-num { font-variant-numeric: tabular-nums; font-weight: 650; color: var(--text); font-size: 12px; }
+  .sched { display: flex; flex-direction: column; gap: 3px; }
+  .live-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+  .act-row { display: flex; gap: 0; justify-content: flex-end; opacity: .4; }
+  tr:hover .act-row { opacity: 1; }
+  .ico { width: 25px; height: 25px; border-radius: 6px; display: grid; place-items: center; color: var(--text-3); }
+  .ico:hover { background: var(--surface-3); color: var(--text); }
+
+  .pp { width: 18px; height: 18px; border-radius: 5px; font-size: 9px; font-weight: 800; color: #fff; display: inline-grid; place-items: center; }
+  .bulkbar { display: flex; align-items: center; gap: 10px; padding: 9px 14px; border-radius: var(--r-md);
+    background: var(--surface-3); border: 1px solid var(--border); font-size: 12.6px; color: var(--text-2); }
+  .split { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 16px; align-items: start; }
+  .stat-inline { display: flex; gap: 26px; padding: 12px 16px; border-radius: var(--r-lg); background: var(--surface); border: 1px solid var(--border); }
+  .stat-inline .it { display: flex; flex-direction: column; gap: 2px; }
+  .stat-inline .k { font-size: 11px; color: var(--text-3); font-weight: 600; }
+  .stat-inline .v { font-size: 17px; font-weight: 720; letter-spacing: -.02em; }
+  .drawer .sec { margin-bottom: 18px; }
+  .drawer .sec h4 { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); margin-bottom: 9px; }
+  .kv2 { display: grid; grid-template-columns: 92px 1fr; gap: 8px 12px; font-size: 12.3px; }
+  .kv2 dt { color: var(--text-3); } .kv2 dd { margin: 0; color: var(--text); font-weight: 550; }
+  @container (max-width: 1279px) {
+    .split { grid-template-columns: minmax(0,1fr); }
+    .split > aside { display: none; }
+    #accTable .c-proxy, #accTable .c-sched { display: none; }
+  }
+</style>
+</head>
+<body class="app">
+<!--#INCLUDE icons#-->
+<!--#SHELL#-->
+
+  <main class="page">
+    <div class="page-hd">
+      <div>
+        <h2>账号池</h2>
+        <p>上游账号的调度中心。健康度、配额余量、并发占用在一行内呈现，异常账号一键摘除或刷新。</p>
+      </div>
+      <div class="actions">
+        <button class="btn btn-secondary"><svg class="i i-16"><use href="#i-upload"/></svg>导入</button>
+        <button class="btn btn-secondary"><svg class="i i-16"><use href="#i-refresh"/></svg>批量刷新</button>
+        <button class="btn btn-primary"><svg class="i i-16"><use href="#i-plus"/></svg>添加账号</button>
+      </div>
+    </div>
+
+    <!-- summary strip -->
+    <div class="stat-inline">
+      <div class="it"><span class="k">总账号</span><span class="v">248</span></div>
+      <div class="it"><span class="k" style="color:var(--ok-600)">可用</span><span class="v" style="color:var(--ok-600)">206</span></div>
+      <div class="it"><span class="k" style="color:var(--warn-600)">降级 / 限流</span><span class="v" style="color:var(--warn-600)">28</span></div>
+      <div class="it"><span class="k" style="color:var(--bad-600)">异常 / 封禁</span><span class="v" style="color:var(--bad-600)">14</span></div>
+      <div class="it"><span class="k">当前并发占用</span><span class="v">186 / 512</span></div>
+      <div class="it"><span class="k">今日调度切换</span><span class="v">1,204</span></div>
+      <div class="it" style="margin-left:auto;justify-content:center">
+        <span class="k">池健康分</span>
+        <span class="v" style="color:var(--ok-600);display:flex;align-items:center;gap:6px">92 <span class="pill pill-ok" style="font-size:10px">稳定</span></span>
+      </div>
+    </div>
+
+    <!-- platform tabs -->
+    <div class="plat-tabs">
+      <button class="plat-tab on"><span class="pp" style="background:#475569">∑</span>全部<span class="n">248</span></button>
+      <button class="plat-tab"><span class="pp" style="background:#d97757">C</span>Claude<span class="n">86</span></button>
+      <button class="plat-tab"><span class="pp" style="background:#10a37f">O</span>OpenAI<span class="n">72</span></button>
+      <button class="plat-tab"><span class="pp" style="background:#4285f4">G</span>Gemini<span class="n">48</span></button>
+      <button class="plat-tab"><span class="pp" style="background:#8b5cf6">X</span>Grok<span class="n">14</span></button>
+      <button class="plat-tab"><span class="pp" style="background:#0ea5e9">A</span>Antigravity<span class="n">18</span></button>
+      <button class="plat-tab"><span class="pp" style="background:#f97316">D</span>国产模型<span class="n">10</span></button>
+    </div>
+
+    <!-- toolbar -->
+    <div class="toolbar">
+      <div class="field" style="width:260px"><svg class="i i-16"><use href="#i-search"/></svg><input placeholder="搜索账号名 / 邮箱 / ID…" /></div>
+      <div class="filter-chips">
+        <span class="fchip on">状态：可用 <span class="x">×</span></span>
+        <span class="fchip">分组：Claude Pro 池 <span class="x">×</span></span>
+        <span class="fchip">优先级 ≤ 10 <span class="x">×</span></span>
+        <span class="fchip"><svg class="i i-14"><use href="#i-filter"/></svg>添加筛选</span>
+      </div>
+      <div class="grow"></div>
+      <div class="seg"><button>按分组</button><button class="on">按平台</button><button>按代理</button></div>
+      <button class="btn btn-secondary btn-icon"><svg class="i i-16"><use href="#i-grid"/></svg></button>
+    </div>
+
+    <div class="split" style="container-type:inline-size">
+      <!-- table -->
+      <div class="stack" style="gap:10px">
+        <div class="bulkbar">
+          <input type="checkbox" />
+          <span>已选 3 项</span>
+          <span class="divider-v"></span>
+          <button class="btn btn-sm btn-secondary">刷新 Token</button>
+          <button class="btn btn-sm btn-secondary">清空错误</button>
+          <button class="btn btn-sm btn-secondary">设置并发</button>
+          <button class="btn btn-sm btn-secondary">分配代理</button>
+          <button class="btn btn-sm btn-ghost" style="color:var(--bad-600)">删除</button>
+        </div>
+
+        <div class="card" style="overflow:hidden">
+          <table class="tbl" id="accTable">
+            <colgroup>
+              <col style="width:34px"/><col style="width:220px"/><col style="width:112px"/><col style="width:110px"/>
+              <col style="width:120px"/><col style="width:120px"/><col style="width:86px"/><col style="width:128px"/>
+              <col style="width:112px"/><col style="width:104px"/>
+            </colgroup>
+            <thead>
+              <tr>
+                <th><input type="checkbox" /></th>
+                <th>账号</th><th>状态</th><th>优先级 / 权重</th>
+                <th>今日用量</th><th>配额余量</th><th>并发</th><th>代理</th>
+                <th>调度</th><th style="text-align:right">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><input type="checkbox" checked /></td>
+                <td>
+                  <div class="acc-name"><span class="pp" style="background:#d97757">C</span>claude-pro-01</div>
+                  <div class="acc-sub">max@example.com · 5h 窗口</div>
+                </td>
+                <td><span class="pill pill-ok"><span class="dot"></span>可用</span></td>
+                <td><span class="bold" style="color:var(--text)">1</span> <span class="muted">/ 0.8</span></td>
+                <td><div class="quota-num">$42.18</div><div class="xs muted">1,284 次</div></td>
+                <td>
+                  <div class="row" style="justify-content:space-between"><span class="quota-num">72%</span><span class="xs muted">5h</span></div>
+                  <div class="mini-bar"><i style="width:72%;background:#10b981"></i></div>
+                </td>
+                <td><span class="bold" style="color:var(--text)">18</span> <span class="muted">/ 40</span></td>
+                <td class="xs">🇺🇸 US-West · 42ms</td>
+                <td><span class="pill pill-ok" style="height:19px">调度中</span></td>
+                <td><div class="act-row">
+                  <button class="ico" title="测试"><svg class="i i-16"><use href="#i-play"/></svg></button>
+                  <button class="ico" title="刷新"><svg class="i i-16"><use href="#i-refresh"/></svg></button>
+                  <button class="ico" title="编辑"><svg class="i i-16"><use href="#i-edit"/></svg></button>
+                  <button class="ico" title="更多"><svg class="i i-16"><use href="#i-more"/></svg></button>
+                </div></td>
+              </tr>
+              <tr>
+                <td><input type="checkbox" checked /></td>
+                <td>
+                  <div class="acc-name"><span class="pp" style="background:#d97757">C</span>claude-pro-02</div>
+                  <div class="acc-sub">team-a@example.com · 5h 窗口</div>
+                </td>
+                <td><span class="pill pill-warn"><span class="dot"></span>限流中</span></td>
+                <td><span class="bold" style="color:var(--text)">1</span> <span class="muted">/ 0.8</span></td>
+                <td><div class="quota-num">$58.40</div><div class="xs muted">2,041 次</div></td>
+                <td>
+                  <div class="row" style="justify-content:space-between"><span class="quota-num" style="color:var(--warn-600)">12%</span><span class="xs muted">5h</span></div>
+                  <div class="mini-bar"><i style="width:12%;background:#f59e0b"></i></div>
+                </td>
+                <td><span class="bold" style="color:var(--text)">36</span> <span class="muted">/ 40</span></td>
+                <td class="xs">🇺🇸 US-West · 38ms</td>
+                <td><span class="pill pill-warn" style="height:19px">降级</span></td>
+                <td><div class="act-row">
+                  <button class="ico" title="测试"><svg class="i i-16"><use href="#i-play"/></svg></button>
+                  <button class="ico" title="刷新"><svg class="i i-16"><use href="#i-refresh"/></svg></button>
+                  <button class="ico" title="编辑"><svg class="i i-16"><use href="#i-edit"/></svg></button>
+                  <button class="ico" title="更多"><svg class="i i-16"><use href="#i-more"/></svg></button>
+                </div></td>
+              </tr>
+              <tr>
+                <td><input type="checkbox" checked /></td>
+                <td>
+                  <div class="acc-name"><span class="pp" style="background:#10a37f">O</span>openai-plus-07</div>
+                  <div class="acc-sub">ops@example.com · OAuth</div>
+                </td>
+                <td><span class="pill pill-ok"><span class="dot"></span>可用</span></td>
+                <td><span class="bold" style="color:var(--text)">2</span> <span class="muted">/ 1.0</span></td>
+                <td><div class="quota-num">$31.06</div><div class="xs muted">804 次</div></td>
+                <td>
+                  <div class="row" style="justify-content:space-between"><span class="quota-num">61%</span><span class="xs muted">1D</span></div>
+                  <div class="mini-bar"><i style="width:61%;background:#10b981"></i></div>
+                </td>
+                <td><span class="bold" style="color:var(--text)">12</span> <span class="muted">/ 32</span></td>
+                <td class="xs">🇯🇵 JP-Tokyo · 96ms</td>
+                <td><span class="pill pill-ok" style="height:19px">调度中</span></td>
+                <td><div class="act-row">
+                  <button class="ico"><svg class="i i-16"><use href="#i-play"/></svg></button>
+                  <button class="ico"><svg class="i i-16"><use href="#i-refresh"/></svg></button>
+                  <button class="ico"><svg class="i i-16"><use href="#i-edit"/></svg></button>
+                  <button class="ico"><svg class="i i-16"><use href="#i-more"/></svg></button>
+                </div></td>
+              </tr>
+              <tr>
+                <td><input type="checkbox" /></td>
+                <td>
+                  <div class="acc-name"><span class="pp" style="background:#10a37f">O</span>openai-team-03</div>
+                  <div class="acc-sub">dev@example.com · OAuth</div>
+                </td>
+                <td><span class="pill pill-bad"><span class="dot"></span>Token 失效</span></td>
+                <td><span class="bold" style="color:var(--text)">3</span> <span class="muted">/ 1.0</span></td>
+                <td><div class="quota-num">$0.00</div><div class="xs muted">0 次</div></td>
+                <td>
+                  <div class="row" style="justify-content:space-between"><span class="quota-num muted">—</span><span class="xs muted">未知</span></div>
+                  <div class="mini-bar"><i style="width:0%"></i></div>
+                </td>
+                <td><span class="muted">0 / 32</span></td>
+                <td class="xs">直连</td>
+                <td><span class="pill pill-bad" style="height:19px">已摘除</span></td>
+                <td><div class="act-row">
+                  <button class="ico"><svg class="i i-16"><use href="#i-play"/></svg></button>
+                  <button class="ico" style="color:var(--bad-500)"><svg class="i i-16"><use href="#i-refresh"/></svg></button>
+                  <button class="ico"><svg class="i i-16"><use href="#i-edit"/></svg></button>
+                  <button class="ico"><svg class="i i-16"><use href="#i-more"/></svg></button>
+                </div></td>
+              </tr>
+              <tr>
+                <td><input type="checkbox" /></td>
+                <td>
+                  <div class="acc-name"><span class="pp" style="background:#4285f4">G</span>gemini-ultra-02</div>
+                  <div class="acc-sub">gcp@example.com · 项目 2</div>
+                </td>
+                <td><span class="pill pill-ok"><span class="dot"></span>可用</span></td>
+                <td><span class="bold" style="color:var(--text)">1</span> <span class="muted">/ 1.2</span></td>
+                <td><div class="quota-num">$12.44</div><div class="xs muted">642 次</div></td>
+                <td>
+                  <div class="row" style="justify-content:space-between"><span class="quota-num">88%</span><span class="xs muted">QPM</span></div>
+                  <div class="mini-bar"><i style="width:88%;background:#10b981"></i></div>
+                </td>
+                <td><span class="bold" style="color:var(--text)">6</span> <span class="muted">/ 16</span></td>
+                <td class="xs">🇸🇬 SG · 61ms</td>
+                <td><span class="pill pill-ok" style="height:19px">调度中</span></td>
+                <td><div class="act-row">
+                  <button class="ico"><svg class="i i-16"><use href="#i-play"/></svg></button>
+                  <button class="ico"><svg class="i i-16"><use href="#i-refresh"/></svg></button>
+                  <button class="ico"><svg class="i i-16"><use href="#i-edit"/></svg></button>
+                  <button class="ico"><svg class="i i-16"><use href="#i-more"/></svg></button>
+                </div></td>
+              </tr>
+              <tr>
+                <td><input type="checkbox" /></td>
+                <td>
+                  <div class="acc-name"><span class="pp" style="background:#8b5cf6">X</span>grok-sso-04</div>
+                  <div class="acc-sub">sso · 临时不可调度</div>
+                </td>
+                <td><span class="pill pill-warn"><span class="dot"></span>冷却中</span></td>
+                <td><span class="bold" style="color:var(--text)">5</span> <span class="muted">/ 1.0</span></td>
+                <td><div class="quota-num">$2.90</div><div class="xs muted">118 次</div></td>
+                <td>
+                  <div class="row" style="justify-content:space-between"><span class="quota-num">34%</span><span class="xs muted">1D</span></div>
+                  <div class="mini-bar"><i style="width:34%;background:#10b981"></i></div>
+                </td>
+                <td><span class="muted">0 / 8</span></td>
+                <td class="xs">🇩🇪 DE-FRA · 128ms</td>
+                <td><span class="pill pill-warn" style="height:19px">8 分钟后恢复</span></td>
+                <td><div class="act-row">
+                  <button class="ico"><svg class="i i-16"><use href="#i-play"/></svg></button>
+                  <button class="ico"><svg class="i i-16"><use href="#i-refresh"/></svg></button>
+                  <button class="ico"><svg class="i i-16"><use href="#i-edit"/></svg></button>
+                  <button class="ico"><svg class="i i-16"><use href="#i-more"/></svg></button>
+                </div></td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="row" style="justify-content:space-between;padding:10px 14px;border-top:1px solid var(--border);font-size:12.3px;color:var(--text-3)">
+            <span>248 条 · 每页 20</span>
+            <div class="row gap-6">
+              <button class="btn btn-sm btn-secondary btn-icon"><svg class="i i-14"><use href="#i-chevronLeft"/></svg></button>
+              <button class="btn btn-sm btn-primary" style="width:32px;padding:0;justify-content:center">1</button>
+              <button class="btn btn-sm btn-secondary" style="width:32px;padding:0;justify-content:center">2</button>
+              <button class="btn btn-sm btn-secondary" style="width:32px;padding:0;justify-content:center">3</button>
+              <button class="btn btn-sm btn-secondary btn-icon"><svg class="i i-14"><use href="#i-chevronRight"/></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- account detail drawer (inline, always visible in this prototype) -->
+      <aside class="card" style="position:sticky;top:80px">
+        <div class="card-hd" style="align-items:flex-start">
+          <div>
+            <div class="row gap-8"><span class="pp" style="background:#d97757;width:22px;height:22px;font-size:10px">C</span>
+              <h3 style="font-size:15px">claude-pro-02</h3>
+              <span class="pill pill-warn"><span class="dot"></span>限流中</span></div>
+            <div class="xs muted" style="margin-top:4px;font-family:var(--mono)">acct_8f21c4 · team-a@example.com</div>
+          </div>
+          <button class="ico"><svg class="i"><use href="#i-x"/></svg></button>
+        </div>
+        <div class="drawer-bd" style="max-height:calc(100vh - 220px)">
+          <div class="sec">
+            <h4>配额窗口</h4>
+            <div class="stack" style="gap:9px">
+              <div>
+                <div class="row" style="justify-content:space-between;font-size:12px"><span>5 小时窗口</span><span class="muted">剩余 12% · 1h 12m 后重置</span></div>
+                <div class="progress" style="margin-top:5px;height:7px"><i style="width:12%;background:linear-gradient(90deg,#fbbf24,#f59e0b)"></i></div>
+              </div>
+              <div>
+                <div class="row" style="justify-content:space-between;font-size:12px"><span>7 天窗口</span><span class="muted">剩余 46%</span></div>
+                <div class="progress" style="margin-top:5px;height:7px"><i style="width:46%"></i></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="sec">
+            <h4>运行指标</h4>
+            <dl class="kv2">
+              <dt>今日请求</dt><dd>2,041 次 · $58.40</dd>
+              <dt>成功率</dt><dd style="color:var(--warn-600)">97.2%（含 429 重试）</dd>
+              <dt>平均首 Token</dt><dd>1.8s</dd>
+              <dt>并发占用</dt><dd>36 / 40（持续 4 分钟）</dd>
+              <dt>最近错误</dt><dd style="color:var(--bad-600)">429 rate_limit_exceeded · 14:36</dd>
+              <dt>上游倍率</dt><dd>×0.86（探测于 14:00）</dd>
+            </dl>
+          </div>
+
+          <div class="sec">
+            <h4>最近 1 小时成功率</h4>
+            <svg viewBox="0 0 320 54" width="100%" height="54">
+              <g fill="#f59e0b">
+                <rect x="0" y="14" width="14" height="6" rx="2"/><rect x="18" y="10" width="14" height="6" rx="2"/>
+                <rect x="36" y="16" width="14" height="6" rx="2"/><rect x="54" y="8" width="14" height="6" rx="2"/>
+                <rect x="72" y="18" width="14" height="6" rx="2"/><rect x="90" y="22" width="14" height="6" rx="2"/>
+                <rect x="108" y="26" width="14" height="6" rx="2"/><rect x="126" y="20" width="14" height="6" rx="2"/>
+                <rect x="144" y="24" width="14" height="6" rx="2"/><rect x="162" y="30" width="14" height="6" rx="2"/>
+                <rect x="180" y="34" width="14" height="6" rx="2"/><rect x="198" y="30" width="14" height="6" rx="2"/>
+                <rect x="216" y="38" width="14" height="6" rx="2"/><rect x="234" y="34" width="14" height="6" rx="2"/>
+                <rect x="252" y="40" width="14" height="6" rx="2"/><rect x="270" y="44" width="14" height="6" rx="2"/>
+                <rect x="288" y="40" width="14" height="6" rx="2"/>
+              </g>
+            </svg>
+            <div class="row" style="justify-content:space-between;font-size:10.5px;color:var(--text-3);margin-top:2px">
+              <span>13:40</span><span>14:10</span><span>14:40</span>
+            </div>
+          </div>
+
+          <div class="sec">
+            <h4>关联资源</h4>
+            <div class="row gap-8" style="flex-wrap:wrap">
+              <span class="chip"><svg class="i i-14"><use href="#i-globe"/></svg>US · 38ms</span>
+              <span class="chip"><svg class="i i-14"><use href="#i-layers"/></svg>Claude Pro 池</span>
+              <span class="chip"><svg class="i i-14"><use href="#i-shield"/></svg>指纹 · Chrome 131</span>
+            </div>
+          </div>
+        </div>
+        <div class="drawer-ft" style="border-top:1px solid var(--border)">
+          <button class="btn btn-sm btn-secondary">清空错误</button>
+          <button class="btn btn-sm btn-secondary">临时摘除</button>
+          <button class="btn btn-sm btn-primary"><svg class="i i-14"><use href="#i-refresh"/></svg>刷新 Token</button>
+        </div>
+      </aside>
+    </div>
+  </main>
+</div>
+<!--#INCLUDE runtime#-->
+</body>
+</html>

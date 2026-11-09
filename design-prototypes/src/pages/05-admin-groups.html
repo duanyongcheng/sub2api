@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<!--META {"active":"groups","role":"admin","title":"分组与定价","sub":"12 个分组 · 价格与路由编排"} -->
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<title>Sub2API Admin · 分组与定价（重设计原型）</title>
+<link rel="stylesheet" href="assets/proto.css" />
+<link rel="stylesheet" href="assets/shell.css" />
+<style>
+  .grp-grid { display: grid; grid-template-columns: 268px minmax(0, 1fr); gap: 16px; align-items: start; }
+  .grp-list { padding: 8px; }
+  .grp-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px; border-radius: var(--r-md); cursor: pointer;
+    border: 1px solid transparent;
+  }
+  .grp-item:hover { background: var(--surface-2); }
+  .grp-item.on { background: var(--p-50); border-color: var(--p-200); }
+  [data-theme="dark"] .grp-item.on { background: rgba(20,184,166,.1); border-color: rgba(20,184,166,.3); }
+  .grp-item .nm { font-size: 13px; font-weight: 650; }
+  .grp-item .meta { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+  .grp-item .drag { color: var(--text-3); opacity: .5; }
+
+  .hero-card { padding: 16px 18px; display: flex; align-items: flex-start; gap: 16px; }
+  .hero-card h3 { font-size: 17px; letter-spacing: -.02em; }
+  .metric-mini { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 14px; }
+  .metric-mini .m { padding: 10px 12px; border-radius: var(--r-md); background: var(--surface-2); border: 1px solid var(--border); }
+  .metric-mini .k { font-size: 10.8px; color: var(--text-3); font-weight: 650; }
+  .metric-mini .v { font-size: 16px; font-weight: 720; margin-top: 3px; letter-spacing: -.02em; }
+
+  .cfg-tabs { display: flex; gap: 2px; padding: 5px; background: var(--surface-3); border-radius: var(--r-md); flex-wrap: wrap; }
+  .cfg-tabs button { height: 30px; padding: 0 12px; border-radius: 7px; font-size: 12.6px; font-weight: 600; color: var(--text-2); display: flex; align-items: center; gap: 6px; }
+  .cfg-tabs button.on { background: var(--surface); color: var(--text); box-shadow: var(--sh-xs); }
+  .cfg-tabs .dotm { width: 5px; height: 5px; border-radius: 50%; background: var(--warn-500); }
+
+  #priceTable { table-layout: fixed; }
+  #priceTable td, #priceTable th { padding: 9px 12px !important; font-size: 12.5px; white-space: nowrap; }
+  #priceTable th { font-size: 10.8px !important; }
+  .pcell { display: flex; align-items: center; gap: 6px; }
+  .pval { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--text); }
+  .pinput { width: 74px; height: 27px; border: 1px solid var(--border-strong); border-radius: 6px; padding: 0 7px; font-size: 12px; font-family: var(--font); background: var(--surface); color: var(--text); font-variant-numeric: tabular-nums; }
+  .pinput:focus { outline: 0; border-color: var(--p-500); box-shadow: 0 0 0 2px rgba(20,184,166,.16); }
+  .mult { width: 52px; text-align: center; font-size: 11.5px; font-weight: 700; color: var(--p-700); background: var(--p-50); border-radius: 6px; padding: 3px 0; }
+  [data-theme="dark"] .mult { background: rgba(20,184,166,.14); color: var(--p-300); }
+
+  .side-card + .side-card { margin-top: 16px; }
+  .kv3 { display: grid; grid-template-columns: 104px 1fr; gap: 9px 10px; font-size: 12.3px; align-items: center; }
+  .kv3 dt { color: var(--text-3); }
+  .kv3 dd { margin: 0; color: var(--text); font-weight: 600; }
+  .route {
+    position: relative; padding: 10px 12px 10px 26px; border-radius: var(--r-md);
+    background: var(--surface-2); border: 1px solid var(--border); font-size: 12.3px;
+  }
+  .route::before { content:""; position: absolute; left: 11px; top: 14px; width: 6px; height: 6px; border-radius: 50%; background: var(--p-500); }
+  .route .r { display: flex; justify-content: space-between; gap: 8px; }
+  .route + .route { margin-top: 8px; }
+  .route .arrow { position: absolute; left: 13px; bottom: -9px; height: 8px; width: 1px; background: var(--border-strong); }
+</style>
+</head>
+<body class="app">
+<!--#INCLUDE icons#-->
+<!--#SHELL#-->
+
+  <main class="page">
+    <div class="page-hd">
+      <div>
+        <h2>分组与定价</h2>
+        <p>分组 = 「一组模型 + 一套价格 + 一条路由」，是用户拿到的产品形态。左侧选分组，右侧编辑它的一切。</p>
+      </div>
+      <div class="actions">
+        <button class="btn btn-secondary"><svg class="i i-16"><use href="#i-sync"/></svg>同步上游模型</button>
+        <button class="btn btn-primary"><svg class="i i-16"><use href="#i-plus"/></svg>新建分组</button>
+      </div>
+    </div>
+
+    <div class="grp-grid">
+      <!-- group list -->
+      <div class="card grp-list">
+        <div class="row" style="justify-content:space-between;padding:4px 8px 10px">
+          <span class="xs bold muted">12 个分组</span>
+          <span class="xs muted">拖拽排序</span>
+        </div>
+        <div class="stack" style="gap:2px">
+          <div class="grp-item on">
+            <svg class="i i-16 drag"><use href="#i-menu"/></svg>
+            <div style="flex:1"><div class="nm">Claude Pro 池</div><div class="meta">Anthropic · ×0.8 · 86 账号</div></div>
+            <span class="pill pill-ok" style="height:18px">上线</span>
+          </div>
+          <div class="grp-item">
+            <svg class="i i-16 drag"><use href="#i-menu"/></svg>
+            <div style="flex:1"><div class="nm">Claude 低价池</div><div class="meta">Anthropic · ×0.6 · 32 账号</div></div>
+            <span class="pill pill-ok" style="height:18px">上线</span>
+          </div>
+          <div class="grp-item">
+            <svg class="i i-16 drag"><use href="#i-menu"/></svg>
+            <div style="flex:1"><div class="nm">OpenAI 标准</div><div class="meta">OpenAI · ×1.2 · 72 账号</div></div>
+            <span class="pill pill-warn" style="height:18px">毛利预警</span>
+          </div>
+          <div class="grp-item">
+            <svg class="i i-16 drag"><use href="#i-menu"/></svg>
+            <div style="flex:1"><div class="nm">Gemini Pro</div><div class="meta">Google · ×1.0 · 48 账号</div></div>
+            <span class="pill pill-ok" style="height:18px">上线</span>
+          </div>
+          <div class="grp-item">
+            <svg class="i i-16 drag"><use href="#i-menu"/></svg>
+            <div style="flex:1"><div class="nm">Grok 体验池</div><div class="meta">xAI · ×1.0 · 14 账号</div></div>
+            <span class="pill pill-bad" style="height:18px">成本倒挂</span>
+          </div>
+          <div class="grp-item">
+            <svg class="i i-16 drag"><use href="#i-menu"/></svg>
+            <div style="flex:1"><div class="nm">通用分组</div><div class="meta">多平台 · ×1.0 · 复合路由</div></div>
+            <span class="pill pill-neutral" style="height:18px">草稿</span>
+          </div>
+          <div class="grp-item">
+            <svg class="i i-16 drag"><use href="#i-menu"/></svg>
+            <div style="flex:1"><div class="nm">内部测试</div><div class="meta">多平台 · ×0.1 · 仅管理员</div></div>
+            <span class="pill pill-neutral" style="height:18px">隐藏</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- detail -->
+      <div class="stack" style="gap:16px">
+        <div class="card hero-card">
+          <div style="flex:1">
+            <div class="row gap-8">
+              <h3>Claude Pro 池</h3>
+              <span class="pill pill-ok"><span class="dot"></span>已上线</span>
+              <span class="pill pill-brand">订阅分组</span>
+            </div>
+            <div class="sm muted" style="margin-top:4px">面向个人开发者的 Claude 订阅池，含 Opus/Sonnet/Haiku 全系，含 1 小时缓存写入。</div>
+            <div class="metric-mini">
+              <div class="m"><div class="k">今日收入</div><div class="v">$4,208.10</div></div>
+              <div class="m"><div class="k">今日成本</div><div class="v">$2,612.40</div></div>
+              <div class="m"><div class="k">毛利率</div><div class="v" style="color:var(--ok-600)">37.9%</div></div>
+              <div class="m"><div class="k">绑定密钥</div><div class="v">184</div></div>
+            </div>
+          </div>
+          <div class="stack gap-8" style="flex:0 0 auto">
+            <button class="btn btn-sm btn-secondary"><svg class="i i-14"><use href="#i-copy"/></svg>复制分组</button>
+            <button class="btn btn-sm btn-secondary"><svg class="i i-14"><use href="#i-eye"/></svg>预览效果</button>
+          </div>
+        </div>
+
+        <!-- config tabs -->
+        <div class="cfg-tabs">
+          <button>基础信息</button>
+          <button class="on"><svg class="i i-14"><use href="#i-calculator"/></svg>模型定价</button>
+          <button>模型白名单</button>
+          <button>倍率与 RPM</button>
+          <button><svg class="i i-14"><use href="#i-layers"/></svg>复合路由</button>
+          <button>图片与视频</button>
+          <button>订阅限额</button>
+          <button>推理强度</button>
+          <button>调度策略 <span class="dotm"></span></button>
+          <button>利润控制 <span class="dotm"></span></button>
+        </div>
+
+        <div class="card">
+          <div class="card-hd">
+            <div class="row gap-10">
+              <h3>逐模型定价</h3>
+              <span class="pill pill-neutral">18 / 26 个模型已覆盖</span>
+            </div>
+            <div class="row gap-8">
+              <div class="field" style="height:32px;width:210px"><svg class="i i-14"><use href="#i-search"/></svg><input placeholder="筛选模型…" /></div>
+              <div class="seg" style="padding:2px"><button class="on">全部</button><button>仅已覆盖</button><button>未覆盖</button></div>
+              <button class="btn btn-sm btn-secondary">批量填充</button>
+            </div>
+          </div>
+          <table class="tbl" id="priceTable">
+            <colgroup><col style="width:240px"/><col style="width:96px"/><col style="width:110px"/><col style="width:110px"/><col style="width:110px"/><col style="width:96px"/><col/></colgroup>
+            <thead>
+              <tr><th>模型</th><th>倍率</th><th>输入 $/1M</th><th>输出 $/1M</th><th>缓存写 $/1M</th><th>缓存读 $/1M</th><th>上游基准</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><div class="row gap-8"><span class="plat" style="background:#d97757;width:20px;height:20px;font-size:9px">C</span><b style="color:var(--text)">claude-opus-4.6</b></div></td>
+                <td><span class="mult">×0.8</span></td>
+                <td><input class="pinput" value="12.00" /></td>
+                <td><input class="pinput" value="60.00" /></td>
+                <td><input class="pinput" value="15.00" /></td>
+                <td><input class="pinput" value="1.50" /></td>
+                <td class="xs muted">官方 $15 / $75 · 毛利 21%</td>
+              </tr>
+              <tr>
+                <td><div class="row gap-8"><span class="plat" style="background:#d97757;width:20px;height:20px;font-size:9px">C</span><b style="color:var(--text)">claude-sonnet-4.5</b></div></td>
+                <td><span class="mult">×0.8</span></td>
+                <td><input class="pinput" value="2.40" /></td>
+                <td><input class="pinput" value="12.00" /></td>
+                <td><input class="pinput" value="3.00" /></td>
+                <td><input class="pinput" value="0.30" /></td>
+                <td class="xs muted">官方 $3 / $15 · 毛利 42%</td>
+              </tr>
+              <tr>
+                <td><div class="row gap-8"><span class="plat" style="background:#d97757;width:20px;height:20px;font-size:9px">C</span><b style="color:var(--text)">claude-haiku-4.5</b></div></td>
+                <td><span class="mult">×0.8</span></td>
+                <td><input class="pinput" value="0.80" /></td>
+                <td><input class="pinput" value="4.00" /></td>
+                <td><input class="pinput" value="1.00" /></td>
+                <td><input class="pinput" value="0.08" /></td>
+                <td class="xs muted">官方 $1 / $5 · 毛利 38%</td>
+              </tr>
+              <tr>
+                <td><div class="row gap-8"><span class="plat" style="background:#10a37f;width:20px;height:20px;font-size:9px">O</span><b style="color:var(--text)">gpt-5.4</b><span class="pill pill-neutral" style="height:17px">跨平台</span></div></td>
+                <td><span class="mult">×0.8</span></td>
+                <td><input class="pinput" value="1.60" /></td>
+                <td><input class="pinput" value="12.80" /></td>
+                <td><input class="pinput" value="—" /></td>
+                <td><input class="pinput" value="0.40" /></td>
+                <td class="xs muted">官方 $1.25 / $10 · 毛利 15%</td>
+              </tr>
+              <tr style="background:var(--warn-50)">
+                <td><div class="row gap-8"><span class="plat" style="background:#8b5cf6;width:20px;height:20px;font-size:9px">X</span><b style="color:var(--text)">grok-4.1-fast</b><span class="pill pill-bad" style="height:17px">亏损</span></div></td>
+                <td><span class="mult" style="background:var(--bad-50);color:var(--bad-600)">×0.7</span></td>
+                <td><input class="pinput" value="0.35" style="border-color:var(--bad-500)" /></td>
+                <td><input class="pinput" value="0.90" style="border-color:var(--bad-500)" /></td>
+                <td><input class="pinput" value="—" /></td>
+                <td><input class="pinput" value="—" /></td>
+                <td class="xs" style="color:var(--bad-600)">上游 $0.50 / $1.30 · 毛利 -42%</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="row" style="justify-content:space-between;padding:10px 16px;border-top:1px solid var(--border)">
+            <span class="xs muted">改动仅在点击「保存分组」后生效；可随时「重置」回到最近一次保存值</span>
+            <div class="row gap-8">
+              <button class="btn btn-sm btn-ghost">重置</button>
+              <button class="btn btn-sm btn-secondary">重新计算毛利</button>
+              <button class="btn btn-sm btn-primary">保存分组</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid" style="display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;align-items:start">
+          <div class="card">
+            <div class="card-hd"><h3>长上下文阶梯定价</h3><span class="xs muted">超过阈值后按更高单价计费</span></div>
+            <div class="card-bd">
+              <div class="row gap-8" style="font-size:12.5px;align-items:center;flex-wrap:wrap">
+                <span class="muted">当单次请求输入超过</span>
+                <input class="pinput" value="200000" style="width:88px" />
+                <span class="muted">tokens 时，输入价格</span>
+                <select class="pinput" style="width:64px"><option>×1.5</option></select>
+                <span class="muted">、输出价格</span>
+                <select class="pinput" style="width:64px"><option>×1.5</option></select>
+              </div>
+              <div class="sep" style="margin:14px 0"></div>
+              <div class="row gap-20" style="font-size:12.5px">
+                <label class="row gap-6"><input type="checkbox" checked /> 1 小时缓存写入单独定价</label>
+                <label class="row gap-6"><input type="checkbox" checked /> 启用推理强度分级定价</label>
+                <label class="row gap-6"><input type="checkbox" /> 按请求计费（per-request）</label>
+              </div>
+            </div>
+          </div>
+
+          <div class="card side-card">
+            <div class="card-hd"><h3>生效规则</h3></div>
+            <div class="card-bd">
+              <dl class="kv3">
+                <dt>分组倍率</dt><dd>×0.8 <span class="xs muted">（低于官方价）</span></dd>
+                <dt>高峰倍率</dt><dd>×1.5 · 09:00–12:00</dd>
+                <dt>默认 RPM</dt><dd>60 / 密钥</dd>
+                <dt>模型白名单</dt><dd>18 个模型</dd>
+                <dt>计费模式</dt><dd>订阅优先，余额兜底</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="card" style="grid-column:1 / -1">
+            <div class="card-hd">
+              <div><h3>复合路由</h3><div class="xs muted" style="margin-top:2px">同一模型按顺序尝试多个上游分组，失败自动转移</div></div>
+              <button class="btn btn-sm btn-secondary"><svg class="i i-14"><use href="#i-plus"/></svg>添加路由</button>
+            </div>
+            <div class="card-bd">
+              <div class="grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px">
+                <div>
+                  <div class="xs bold muted" style="margin-bottom:8px">claude-opus-4.6</div>
+                  <div class="route"><div class="r"><b>Claude Pro 池</b><span class="xs muted">权重 100</span></div><span class="arrow"></span></div>
+                  <div class="route"><div class="r"><b>Claude 低价池</b><span class="xs muted">fallback · 权重 40</span></div></div>
+                </div>
+                <div>
+                  <div class="xs bold muted" style="margin-bottom:8px">gpt-5.4</div>
+                  <div class="route"><div class="r"><b>OpenAI 标准</b><span class="xs muted">权重 100</span></div><span class="arrow"></span></div>
+                  <div class="route"><div class="r"><b>Codex 池</b><span class="xs muted">fallback · 权重 20</span></div></div>
+                </div>
+                <div>
+                  <div class="xs bold muted" style="margin-bottom:8px">gemini-3-pro</div>
+                  <div class="route"><div class="r"><b>Gemini Pro</b><span class="xs muted">权重 100</span></div></div>
+                  <div style="margin-top:8px;padding:10px 12px;border:1px dashed var(--border-strong);border-radius:var(--r-md);font-size:12px;color:var(--text-3);text-align:center">+ 添加兜底分组</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+<!--#INCLUDE runtime#-->
+</body>
+</html>

@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<!--META {"active":"monitor","role":"admin","title":"渠道监控","sub":"真实流量 · 主动探测 · 错误归因"} -->
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<title>Sub2API Admin · 渠道监控主看板（重设计提案）</title>
+<link rel="stylesheet" href="assets/proto.css" />
+<link rel="stylesheet" href="assets/shell.css" />
+<style>
+  /* ---------- 结论条 ---------- */
+  .verdict { display: flex; align-items: center; gap: 16px; padding: 14px 16px; border-radius: var(--r-lg);
+    background: var(--surface); border: 1px solid var(--border); box-shadow: var(--sh-xs); }
+  .verdict .lead { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 680; letter-spacing: -.01em; }
+  .verdict .lead .n { font-variant-numeric: tabular-nums; color: var(--bad-600); }
+  .verdict .why { font-size: 12.4px; color: var(--text-3); }
+  .verdict .why b { color: var(--text-2); font-weight: 650; }
+  .verdict .btns { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+  .noglow { display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 9px; border-radius: 6px;
+    background: var(--bad-50); color: var(--bad-600); font-size: 11.6px; font-weight: 700; }
+
+  /* ---------- 证据分段 ---------- */
+  .evseg { display: inline-flex; padding: 3px; gap: 2px; background: var(--surface-3); border-radius: var(--r-md); }
+  .evseg button { height: 27px; padding: 0 10px; border-radius: 7px; font-size: 12.2px; font-weight: 620; color: var(--text-2);
+    display: inline-flex; align-items: center; gap: 5px; }
+  .evseg button.on { background: var(--surface); color: var(--text); box-shadow: var(--sh-xs); }
+  .evseg .c { font-size: 10.5px; font-weight: 750; padding: 1px 5px; border-radius: 999px; background: var(--surface-3); color: var(--text-3); }
+  .evseg button.on .c { background: var(--p-100); color: var(--p-700); }
+
+  /* ---------- 主区栅格 ---------- */
+  .layout { display: grid; grid-template-columns: minmax(0,1fr) 348px; gap: 16px; align-items: start; }
+
+  /* ---------- 矩阵 ---------- */
+  .mx-wrap { overflow-x: auto; }
+  .mx { border-collapse: separate; border-spacing: 2px; font-size: 11.4px; width: 100%; table-layout: fixed; }
+  .mx col.lblcol { width: 264px; } .mx col.scorecol { width: 58px; }
+  .mx th { font-weight: 600; color: var(--text-3); font-size: 10.2px; text-align: center; padding: 0 1px 6px; white-space: nowrap; }
+  .mx th:last-child { text-align: center; padding-right: 2px; }
+  .mx td:last-child { text-align: center; }
+  .mx th.lbl, .mx td.lbl { text-align: left; white-space: nowrap; padding-right: 12px; }
+  .mx tbody td.lbl .row { gap: 7px; }
+  .mx td.lbl { font-weight: 600; color: var(--text); }
+  .mx tr:hover td.lbl { color: var(--p-700); }
+  .cell { height: 21px; border-radius: 3px; position: relative; }
+  .mx td { padding: 0; }
+  .cell:hover { outline: 2px solid var(--p-500); outline-offset: 1px; }
+  .c-ok { background: #10b981; } .c-warn { background: #fbbf24; } .c-bad { background: #f87171; } .c-none { background: var(--surface-3); }
+  .row-bad td.lbl { color: var(--bad-600); }
+  .row-bad td.lbl .nmx::after { content: ""; display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: var(--bad-500); margin-left: 6px; vertical-align: 1px; }
+  .tooltip-demo { display: inline-flex; align-items: center; gap: 5px; font-size: 11.4px; color: var(--text-3);
+    padding: 4px 8px; border-radius: 6px; background: var(--surface-2); border: 1px dashed var(--border-strong); }
+  .tooltip-demo .tt { color: var(--text-2); }
+  .tooltip-demo .tt b { color: var(--text); }
+  .legend { display: flex; align-items: center; gap: 12px; font-size: 11.2px; color: var(--text-2); flex-wrap: wrap; }
+  .legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; margin-right: 4px; vertical-align: -1px; }
+
+  /* ---------- 归因卡 ---------- */
+  .attr { padding: 0; overflow: hidden; }
+  .attr-hd { display: flex; align-items: center; gap: 8px; padding: 13px 16px; border-bottom: 1px solid var(--border); }
+  .attr-hd h3 { font-size: 13.6px; }
+  .attr-row { padding: 11px 16px; border-bottom: 1px solid var(--border); }
+  .attr-row:last-child { border-bottom: 0; }
+  .attr-top { display: flex; align-items: center; gap: 8px; font-size: 12.6px; }
+  .attr-top .own { font-weight: 700; }
+  .attr-top .pct { margin-left: auto; font-weight: 750; font-variant-numeric: tabular-nums; font-size: 13px; }
+  .attr-bar { height: 6px; border-radius: 999px; background: var(--surface-3); overflow: hidden; margin: 8px 0 7px; display: flex; gap: 2px; }
+  .attr-bar i { height: 100%; display: block; border-radius: 2px; }
+  .attr-say { font-size: 11.8px; color: var(--text-2); line-height: 1.65; }
+  .attr-say b { color: var(--text); }
+  .attr-act { display: inline-flex; align-items: center; gap: 4px; margin-top: 7px; font-size: 11.8px; font-weight: 680; color: var(--p-700); }
+  [data-theme="dark"] .attr-act { color: var(--p-300); }
+  .ownership { display: inline-flex; align-items: center; height: 19px; padding: 0 6px; border-radius: 4px; font-size: 10.5px; font-weight: 700; }
+  .own-up { background: #fff7ed; color: #c2410c; } [data-theme="dark"] .own-up { background: rgba(249,115,22,.14); color: #fdba74; }
+  .own-us { background: var(--bad-50); color: var(--bad-600); }
+  .own-client { background: var(--surface-3); color: var(--text-2); }
+  .own-internal { background: var(--info-50); color: var(--info-600); }
+
+  .impact { margin: 0 16px 14px; padding: 10px 12px; border-radius: var(--r-md); background: var(--surface-2); border: 1px solid var(--border); font-size: 11.8px; }
+  .impact .line { display: flex; align-items: center; gap: 7px; }
+  .impact .from { color: var(--text-3); } .impact .to { color: var(--ok-600); font-weight: 750; }
+  .impact .sw { width: 26px; height: 15px; border-radius: 999px; background: var(--p-500); position: relative; flex: 0 0 auto; }
+  .impact .sw::after { content: ""; position: absolute; top: 2px; right: 2px; width: 11px; height: 11px; border-radius: 50%; background: #fff; }
+
+  /* ---------- 探测卡 ---------- */
+  .probe-row { display: flex; align-items: center; gap: 9px; padding: 9px 0; border-bottom: 1px dashed var(--border); font-size: 12.2px; }
+  .probe-row:last-child { border-bottom: 0; }
+  .pips { display: flex; gap: 2px; }
+  .pip { width: 6px; height: 14px; border-radius: 1px; }
+  .pip-ok { background: var(--ok-500); } .pip-bad { background: var(--bad-500); } .pip-none { background: var(--surface-3); }
+
+  .drill {
+    margin-top: 14px; border-radius: var(--r-md); border: 1px dashed var(--border-strong);
+    padding: 12px 14px; font-size: 12px; color: var(--text-3); line-height: 1.7; background: var(--surface-2);
+  }
+  .drill b { color: var(--text); }
+</style>
+</head>
+<body class="app">
+<!--#INCLUDE icons#-->
+<!--#SHELL#-->
+
+  <main class="page">
+    <!-- ============ 1. 结论条 ============ -->
+    <div class="verdict">
+      <div class="lead"><svg class="i i-20" style="color:var(--bad-600)"><use href="#i-warning"/></svg>
+        当前 24h：<span class="n">2 个模型降级</span></div>
+      <div class="why">影响 <b>3.1%</b> 的请求 · 主因 <b>上游 529 超载</b>（占错误 61%）· 已自动切换备用账号 <b>214</b> 次</div>
+      <div class="btns">
+        <span class="noglow"><svg class="i i-14"><use href="#i-fire"/></svg>grok-4.1-fast</span>
+        <span class="noglow"><svg class="i i-14"><use href="#i-fire"/></svg>gpt-5.4</span>
+        <button class="btn btn-sm btn-secondary">只看异常</button>
+        <button class="btn btn-sm btn-primary"><svg class="i i-14"><use href="#i-shield"/></svg>查看归因</button>
+      </div>
+    </div>
+
+    <!-- ============ 2. 工具栏 ============ -->
+    <div class="toolbar" style="margin-top:-4px">
+      <div class="seg"><button>90 分钟</button><button class="on">24 小时</button><button>7 天</button><button>30 天</button></div>
+      <span class="divider-v"></span>
+      <div class="evseg">
+        <button class="on"><svg class="i i-14"><use href="#i-chart"/></svg>真实流量<span class="c">6</span></button>
+        <button><svg class="i i-14"><use href="#i-signal"/></svg>主动探测<span class="c">3</span></button>
+        <button>全部<span class="c">9</span></button>
+      </div>
+      <span class="divider-v"></span>
+      <div class="select" style="height:32px;font-size:12.3px">维度：平台 / 模型<svg class="i i-14"><use href="#i-chevronDown"/></svg></div>
+      <div class="select" style="height:32px;font-size:12.3px">全部分组<svg class="i i-14"><use href="#i-chevronDown"/></svg></div>
+      <div class="grow"></div>
+      <span class="xs muted">数据截止 14:38 · 每 5 分钟</span>
+      <button class="btn btn-sm btn-secondary btn-icon"><svg class="i i-14"><use href="#i-refresh"/></svg></button>
+      <button class="btn btn-sm btn-secondary" data-open="#cfg"><svg class="i i-14"><use href="#i-cog"/></svg>监控设置</button>
+    </div>
+
+    <!-- ============ 3. 主区 ============ -->
+    <div class="layout">
+      <!-- 左：矩阵 -->
+      <div class="stack" style="gap:16px">
+        <div class="card">
+          <div class="card-hd">
+            <div class="row gap-10" style="flex:0 0 auto;white-space:nowrap"><h3 style="white-space:nowrap">可用率矩阵</h3>
+              <span class="pill pill-bad">2 行异常</span></div>
+            <div class="legend">
+              <span><i class="c-ok"></i>正常 ≥99%</span>
+              <span><i class="c-warn"></i>波动 90–99%</span>
+              <span><i class="c-bad"></i>异常 &lt;90%</span>
+              <span><i class="c-none"></i>无样本</span>
+            </div>
+          </div>
+          <div class="card-bd mx-wrap" style="padding-bottom:10px">
+            <table class="mx" id="mx"><colgroup><col class="lblcol" /><col span="48" /><col class="scorecol" /></colgroup>
+              <thead><tr>
+                <th class="lbl" style="text-align:left">平台 / 模型</th>
+                <th>00</th><th></th><th></th><th></th><th></th><th></th><th>06</th><th></th><th></th><th></th><th></th><th></th><th>12</th>
+                <th></th><th></th><th></th><th></th><th></th><th>18</th><th></th><th></th><th></th><th></th><th></th><th>24</th>
+                <th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th>
+                <th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th>
+                <th>健康分</th>
+              </tr></thead>
+              <tbody id="mxBody"></tbody>
+            </table>
+          </div>
+          <div class="row" style="padding:9px 18px;border-top:1px solid var(--border);justify-content:space-between">
+            <span class="xs muted">颜色 = 状态（4 档离散）· 健康分仅在悬停时展示</span>
+            <span class="tooltip-demo" style="margin-left:14px"><svg class="i i-14"><use href="#i-info"/></svg>悬停色块 →
+              <span class="tt">13:40–14:00 · <b>grok-4.1-fast</b> · <b style="color:var(--warn-600)">88.2%</b> · 健康分 <b>41</b> · 上游 429</span></span>
+            <a class="xs bold" style="color:var(--p-600)">展开全部依赖 →</a>
+          </div>
+        </div>
+
+        <!-- 趋势 + 错误分类 -->
+        <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px">
+          <div class="card">
+            <div class="card-hd"><h3>错误率与首字延迟</h3><span class="legend"><span><i style="background:#f87171"></i>错误率</span><span><i style="background:#14b8a6"></i>TTFT P50</span></span></div>
+            <div class="card-bd">
+              <svg viewBox="0 0 380 128" width="100%" height="132">
+                <g class="chart-grid"><line x1="28" y1="18" x2="376" y2="18"/><line x1="28" y1="56" x2="376" y2="56"/><line x1="28" y1="94" x2="376" y2="94"/></g>
+                <g class="chart-axis"><text x="0" y="22">8%</text><text x="0" y="60">4%</text><text x="0" y="98">0</text>
+                  <text x="36" y="118">00</text><text x="130" y="118">06</text><text x="224" y="118">12</text><text x="318" y="118">18</text></g>
+                <path d="M32,90 L60,88 L88,86 L116,90 L144,80 L172,78 L200,84 L228,74 L256,72 L284,80 L312,68 L340,72 L368,62"
+                      fill="none" stroke="#14b8a6" stroke-width="2"/>
+                <path d="M32,96 L60,96 L88,94 L116,92 L144,96 L172,86 L200,90 L228,80 L256,74 L284,64 L312,58 L340,50 L368,44"
+                      fill="none" stroke="#f87171" stroke-width="2"/>
+                <circle cx="368" cy="44" r="3.6" fill="#f87171"/>
+              </svg>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-hd"><h3>错误分类</h3><span class="xs muted">按责任方分组</span></div>
+            <div class="card-bd" style="padding-top:10px">
+              <div class="row gap-8" style="font-size:11.6px;color:var(--text-3);margin-bottom:6px"><span>错误占全部请求 3.1%</span><span style="margin-left:auto">计入项 / 已忽略</span></div>
+              <div class="attr-bar" style="height:9px;margin:0 0 10px">
+                <i style="width:38%;background:#f97316"></i><i style="width:22%;background:#ef4444"></i>
+                <i style="width:14%;background:#94a3b8"></i><i style="width:9%;background:#3b82f6"></i>
+                <i style="width:17%;background:var(--border-strong)"></i>
+              </div>
+              <div class="stack" style="gap:8px;font-size:12px">
+                <div class="row gap-8"><i style="width:9px;height:9px;border-radius:2px;background:#f97316"></i>上游平台
+                  <span class="xs muted">529 / 429 / 超时</span><b style="margin-left:auto">38%</b></div>
+                <div class="row gap-8"><i style="width:9px;height:9px;border-radius:2px;background:#ef4444"></i>我们的账号池
+                  <span class="xs muted">401 / 额度耗尽</span><b style="margin-left:auto">22%</b></div>
+                <div class="row gap-8"><i style="width:9px;height:9px;border-radius:2px;background:#94a3b8"></i>客户端
+                  <span class="xs muted">取消 / 参数错误</span><b style="margin-left:auto">14%</b></div>
+                <div class="row gap-8"><i style="width:9px;height:9px;border-radius:2px;background:#3b82f6"></i>平台内部
+                  <span class="xs muted">内部错误 / 传输</span><b style="margin-left:auto">9%</b></div>
+                <div class="row gap-8"><i style="width:9px;height:9px;border-radius:2px;background:var(--border-strong)"></i>已忽略
+                  <span class="xs muted">不计入可用率</span><b style="margin-left:auto">17%</b></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 右：归因 + 探测 -->
+      <div class="stack" style="gap:16px">
+        <div class="card attr">
+          <div class="attr-hd"><svg class="i i-16" style="color:var(--bad-600)"><use href="#i-shield"/></svg><h3>错误归因</h3>
+            <span class="pill pill-neutral" style="margin-left:auto">24h</span></div>
+
+          <div class="attr-row">
+            <div class="attr-top"><span class="ownership own-up">上游平台</span><span class="own">529 超载 · 占错误 38%</span><span class="pct">61%</span></div>
+            <div class="attr-bar"><i style="width:70%;background:#f97316"></i><i style="width:30%;background:#fdba74"></i></div>
+            <div class="attr-say">集中在 <b>grok-4.1-fast</b> 与 <b>gpt-5.4</b>，与你方配置无关。备用账号已接管 214 次。</div>
+            <a class="attr-act">查看涉及账号 <svg class="i i-12" style="width:12px;height:12px"><use href="#i-arrowRight"/></svg></a>
+          </div>
+
+          <div class="attr-row">
+            <div class="attr-top"><span class="ownership own-us">我们的账号池</span><span class="own">401 认证失败</span><span class="pct">22%</span></div>
+            <div class="attr-bar"><i style="width:100%;background:#ef4444"></i></div>
+            <div class="attr-say">仅 <b>3 个账号</b>（openai-team-03 等）Token 失效，立即刷新即可消除。</div>
+            <a class="attr-act">去账号池处理（已预置筛选）<svg class="i" style="width:12px;height:12px"><use href="#i-arrowRight"/></svg></a>
+          </div>
+
+          <div class="attr-row">
+            <div class="attr-top"><span class="ownership own-client">客户端</span><span class="own">主动取消 / 上下文超限</span><span class="pct">14%</span></div>
+            <div class="attr-bar"><i style="width:100%;background:#94a3b8"></i></div>
+            <div class="attr-say">多为客户端中断，<b>不影响可用率</b>，无需处理。</div>
+          </div>
+
+          <div class="attr-row">
+            <div class="attr-top"><span class="ownership own-internal">平台内部</span><span class="own">内部错误 / 传输中断</span><span class="pct">9%</span></div>
+            <div class="attr-bar"><i style="width:100%;background:#3b82f6"></i></div>
+            <div class="attr-say">见 14:22 的 3 条 <code style="font-family:var(--mono);font-size:11px">transport_or_stream</code> 记录。</div>
+            <a class="attr-act">打开请求错误明细<svg class="i" style="width:12px;height:12px"><use href="#i-arrowRight"/></svg></a>
+          </div>
+
+          <div class="impact">
+            <div class="row" style="justify-content:space-between;margin-bottom:7px"><span class="sm bold">忽略「客户端取消」后的影响</span>
+              <span class="sw"></span></div>
+            <div class="line"><span class="from">当前可用率 <b style="color:var(--text)">96.9%</b></span>
+              <svg class="i i-14 muted"><use href="#i-arrowRight"/></svg>
+              <span class="to">忽略后 99.1%</span></div>
+            <div class="xs muted" style="margin-top:5px">该分类当前已忽略；修改在「监控设置 → 错误忽略」中生效。</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-hd"><h3>主动探测</h3><span class="pill pill-brand">3 个分组</span></div>
+          <div class="card-bd" style="padding-top:4px;padding-bottom:6px">
+            <div class="probe-row">
+              <span class="plat" style="background:#0ea5e9;width:20px;height:20px;font-size:9px">D</span>
+              <div style="flex:1"><div class="bold">DeepSeek 尝鲜</div><div class="xs muted">通过 · 1.2s · 3 分钟前</div></div>
+              <div class="pips"><span class="pip pip-ok"></span><span class="pip pip-ok"></span><span class="pip pip-ok"></span><span class="pip pip-ok"></span><span class="pip pip-ok"></span><span class="pip pip-ok"></span><span class="pip pip-ok"></span><span class="pip pip-ok"></span></div>
+            </div>
+            <div class="probe-row">
+              <span class="plat" style="background:#f97316;width:20px;height:20px;font-size:9px">K</span>
+              <div style="flex:1"><div class="bold">Kimi 企业版</div><div class="xs muted" style="color:var(--bad-600)">401 · 连续 12 次失败</div></div>
+              <div class="pips"><span class="pip pip-bad"></span><span class="pip pip-bad"></span><span class="pip pip-bad"></span><span class="pip pip-bad"></span><span class="pip pip-bad"></span><span class="pip pip-bad"></span><span class="pip pip-bad"></span><span class="pip pip-bad"></span></div>
+            </div>
+            <div class="probe-row">
+              <span class="plat" style="background:#22c55e;width:20px;height:20px;font-size:9px">Z</span>
+              <div style="flex:1"><div class="bold">智谱 备用</div><div class="xs muted">通过 · 0.9s · 6 分钟前</div></div>
+              <div class="pips"><span class="pip pip-ok"></span><span class="pip pip-ok"></span><span class="pip pip-ok"></span><span class="pip pip-ok"></span><span class="pip pip-ok"></span><span class="pip pip-ok"></span><span class="pip pip-ok"></span><span class="pip pip-none"></span></div>
+            </div>
+          </div>
+          <div style="padding:0 16px 14px">
+            <button class="btn btn-sm btn-secondary" style="width:100%">管理探测项与模板</button>
+          </div>
+        </div>
+
+        <div class="drill">
+          <b>下钻（下一张设计稿）</b><br>
+          点任意色块 → 右侧抽屉：该时段请求数 / 错误明细 / 首字延迟分布 / 归因建议 + 「切备用分组」「暂停调度」动作。
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+(function () {
+  const rows = [
+    ['C', '#d97757', 'claude-opus-4.6', 'Claude', '99.8%', 92, false],
+    ['C', '#d97757', 'claude-sonnet-4.5', 'Claude', '99.9%', 95, false],
+    ['C', '#d97757', 'claude-haiku-4.5', 'Claude', '100%', 98, false],
+    ['O', '#10a37f', 'gpt-5.4', 'OpenAI', '96.4%', 61, true],
+    ['O', '#10a37f', 'gpt-5.4-mini', 'OpenAI', '99.1%', 82, false],
+    ['G', '#4285f4', 'gemini-3-pro', 'Gemini', '99.9%', 96, false],
+    ['X', '#8b5cf6', 'grok-4.1-fast', 'Grok', '91.2%', 41, true],
+  ];
+  let seed = 7;
+  const rnd = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
+  const cellFor = (i, degraded, j) => {
+    const r = rnd();
+    if (degraded && i === 6 && j > 30) return r < 0.55 ? 'c-bad' : (r < 0.85 ? 'c-warn' : 'c-ok');
+    if (degraded && i === 3 && (j < 8 || j > 38)) return r < 0.35 ? 'c-warn' : 'c-ok';
+    if (r < 0.015) return 'c-none';
+    if (r < 0.06) return 'c-warn';
+    return 'c-ok';
+  };
+  document.getElementById('mxBody').innerHTML = rows.map(([p, color, name, plat, avail, score, bad], i) => {
+    const cells = Array.from({ length: 48 }, (_, j) => `<td><div class="cell ${cellFor(i, bad, j)}"></div></td>`).join('');
+    const scorePill = score >= 80 ? 'pill-ok' : score >= 50 ? 'pill-warn' : 'pill-bad';
+    return `<tr class="${bad ? 'row-bad' : ''}">
+      <td class="lbl"><span class="row gap-8"><span class="plat" style="background:${color};width:18px;height:18px;font-size:8px">${p}</span><span class="nmx">${name}</span>
+      <span class="xs muted" style="font-weight:500">${plat} · ${avail}</span></span></td>
+      ${cells}
+      <td style="text-align:center"><span class="pill ${scorePill}" style="height:19px">${score}</span></td>
+    </tr>`;
+  }).join('');
+})();
+</script>
+<!--#INCLUDE runtime#-->
+</body>
+</html>

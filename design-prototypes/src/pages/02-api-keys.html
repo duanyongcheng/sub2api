@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<!--META {"active":"keys","role":"user","title":"API 密钥","sub":"管理密钥、分组路由、额度与速率限制"} -->
+
+
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<title>Sub2API · API 密钥（重设计原型）</title>
+<link rel="stylesheet" href="assets/proto.css" />
+<link rel="stylesheet" href="assets/shell.css" />
+<style>
+  .key-cell { display: flex; align-items: center; gap: 7px; }
+  .key-name { font-weight: 650; color: var(--text); display: flex; align-items: center; gap: 6px; }
+  .key-mono { font-family: var(--mono); font-size: 11px; color: var(--text-3); white-space: nowrap; }
+  .tbl { font-size: 12.5px; }
+  .tbl th, .tbl td { padding-left: 11px !important; padding-right: 11px !important; white-space: nowrap; }
+  .tbl tbody td { padding-top: 10px !important; padding-bottom: 10px !important; }
+  .tbl th { font-size: 10.8px !important; letter-spacing: .03em !important; }
+  .pill { white-space: nowrap; }
+  .quota-cell { min-width: 124px; }
+  #keyTable { table-layout: fixed; width: 100%; }
+  #keyTable col.c-name { width: 190px; } #keyTable col.c-grp { width: 132px; } #keyTable col.c-st { width: 92px; }
+  #keyTable col.c-quota { width: 132px; } #keyTable col.c-rate { width: 190px; } #keyTable col.c-today { width: 78px; }
+  #keyTable col.c-exp { width: 104px; } #keyTable col.c-last { width: 96px; } #keyTable col.c-act { width: 100px; }
+  #keyTable td, #keyTable th { overflow: hidden; }
+  .icobtn-narrow { width: 24px; height: 24px; }
+  .ico-btn { width: 26px; height: 26px; border-radius: 7px; display: grid; place-items: center; color: var(--text-3); }
+  .ico-btn:hover { background: var(--surface-3); color: var(--text); }
+  .grp {
+    display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 8px;
+    border-radius: 7px; font-size: 12px; font-weight: 600;
+    background: var(--surface-3); color: var(--text-2); border: 1px solid var(--border);
+  }
+  .grp:hover { border-color: var(--p-300); color: var(--p-700); }
+  .grp .sw { width: 6px; height: 6px; border-radius: 50%; }
+  .quota-cell { min-width: 140px; }
+  .quota-line { display: flex; align-items: baseline; justify-content: space-between; font-size: 11.5px; margin-bottom: 5px; }
+  .quota-line b { font-size: 12.5px; color: var(--text); font-variant-numeric: tabular-nums; }
+  .rl-windows { display: flex; gap: 10px; }
+  .rl-win { flex: 1; min-width: 46px; }
+  .rl-win .t { font-size: 10px; color: var(--text-3); font-weight: 700; letter-spacing: .03em; }
+  .rl-win .bar { margin-top: 3px; height: 4px; }
+  .actions-cell { display: flex; align-items: center; gap: 2px; justify-content: flex-end; opacity: .35; transition: opacity .12s; }
+  tr:hover .actions-cell { opacity: 1; }
+  .bulkbar {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 14px; border-radius: var(--r-md);
+    background: var(--p-50); border: 1px solid var(--p-200); color: var(--p-800);
+    font-size: 12.8px; font-weight: 600;
+  }
+  [data-theme="dark"] .bulkbar { background: rgba(20,184,166,.1); border-color: rgba(20,184,166,.3); color: var(--p-200); }
+  .endpoint-strip {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px; border-radius: var(--r-md);
+    background: var(--surface-2); border: 1px dashed var(--border-strong);
+    font-size: 12px; color: var(--text-2);
+  }
+  .endpoint-strip code { font-family: var(--mono); font-size: 11.8px; color: var(--text); }
+  .th-wrap { display: inline-flex; align-items: center; gap: 4px; }
+  /* drawer specifics */
+  .drawer-tabs { display: flex; gap: 18px; padding: 0 20px; border-bottom: 1px solid var(--border); }
+  .kv { display: grid; grid-template-columns: 96px 1fr; gap: 10px 12px; font-size: 12.5px; }
+  .kv dt { color: var(--text-3); }
+  .kv dd { margin: 0; color: var(--text); font-weight: 550; }
+  .section-label { font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--text-3); margin: 20px 0 10px; }
+  .choose-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .choose {
+    padding: 9px 11px; border-radius: var(--r-md); border: 1px solid var(--border-strong);
+    background: var(--surface); text-align: left; font-size: 12.5px; font-weight: 600; color: var(--text-2);
+  }
+  .choose.on { border-color: var(--p-500); background: var(--p-50); color: var(--p-700); box-shadow: 0 0 0 2px rgba(20,184,166,.14); }
+  [data-theme="dark"] .choose.on { background: rgba(20,184,166,.12); color: var(--p-200); }
+  .code-block { font-family: var(--mono); font-size: 11.5px; line-height: 1.7; background: #0b1220; color: #cbd5e1; padding: 12px 14px; border-radius: var(--r-md); overflow-x: auto; }
+  .code-block .c { color: #5e7189; }
+  .code-block .k { color: #5eead4; }
+  .code-block .s { color: #fbbf24; }
+</style>
+</head>
+<body class="app">
+<!--#INCLUDE icons#-->
+
+
+
+<aside class="sidebar">
+  <div class="sb-brand">
+    <div class="sb-logo">S2</div>
+    <div class="stack">
+      <div class="sb-name">Sub2API</div>
+      <div class="row gap-6">v1.4.2 <span class="xs muted" style="margin-left:6px">Forge</span></div>
+    </div>
+  </div>
+  <nav class="sb-scroll">
+<div class="sb-group">
+<div class="sb-group-t">工作</div>
+<a class="sb-item"><svg class="i"><use href="#i-grid"/></svg>工作台</a>
+<a class="sb-item on"><svg class="i"><use href="#i-key"/></svg>API 密钥<span class="tail">6</span></a>
+<a class="sb-item"><svg class="i"><use href="#i-chart"/></svg>使用记录</a>
+<a class="sb-item"><svg class="i"><use href="#i-sparkles"/></svg>批量生图</a>
+</div>
+<div class="sb-group">
+<div class="sb-group-t">服务</div>
+<a class="sb-item"><svg class="i"><use href="#i-layers"/></svg>可用渠道</a>
+<a class="sb-item"><svg class="i"><use href="#i-signal"/></svg>渠道状态<span class="tail"><span class="pill pill-ok" style="height:18px">99.4%</span></span></a>
+<a class="sb-item"><svg class="i"><use href="#i-creditCard"/></svg>我的订阅</a>
+</div>
+<div class="sb-group">
+<div class="sb-group-t">账务</div>
+<a class="sb-item"><svg class="i"><use href="#i-dollar"/></svg>充值 / 订阅</a>
+<a class="sb-item"><svg class="i"><use href="#i-orderList"/></svg>我的订单</a>
+<a class="sb-item"><svg class="i"><use href="#i-gift"/></svg>兑换</a>
+<a class="sb-item"><svg class="i"><use href="#i-users"/></svg>邀请返利</a>
+</div>
+<div class="sb-group">
+<a class="sb-item"><svg class="i"><use href="#i-user"/></svg>个人资料</a>
+</div>
+  </nav>
+  <div class="sb-foot">
+    <div class="usage-meter">
+      <div class="row" style="justify-content:space-between"><span class="xs bold">本月额度</span><span class="xs muted">72%</span></div>
+      <div class="progress"><i style="width:72%"></i></div>
+      <div class="xs muted">已用 $218.40 / $300.00</div>
+    </div>
+    <a class="sb-item" data-toggle-theme><svg class="i"><use href="#i-moon"/></svg><span>深色模式</span></a>
+    <a class="sb-item"><svg class="i"><use href="#i-chevronLeft"/></svg>收起侧栏</a>
+  </div>
+</aside>
+
+<div class="main">
+  <header class="topbar">
+    <div class="tb-title"><h1>API 密钥</h1><span>管理密钥、分组路由、额度与速率限制</span></div>
+    <div class="tb-search"><svg class="i i-16"><use href="#i-search"/></svg><span class="grow">全局搜索：用户 / 账号 / 订单…</span><span class="kbd">⌘K</span></div>
+    <div class="tb-right">
+      <div class="tb-icon"><svg class="i"><use href="#i-bell"/></svg><span class="badge-dot"></span></div>
+      <div class="balance-pill"><svg class="i i-16"><use href="#i-dollar"/></svg>$312.86</div>
+      <div class="user-chip"><div class="avatar">LY</div><div class="stack"><span class="nm">林岩</span><span class="rl">订阅用户</span></div><svg class="i i-16 muted"><use href="#i-chevronDown"/></svg></div>
+    </div>
+  </header>
+
+
+  <main class="page">
+    <div class="page-hd">
+      <div>
+        <h2>API 密钥 <span class="chip" style="vertical-align:middle;margin-left:4px">6 个 · 4 个启用</span></h2>
+        <p>密钥是调用网关的唯一凭证。可绑定分组以决定可用模型与计费倍率，并单独配置额度、速率和有效期。</p>
+      </div>
+      <div class="actions">
+        <button class="btn btn-secondary"><svg class="i i-16"><use href="#i-download"/></svg>导出</button>
+        <button class="btn btn-secondary" data-open="#createModal"><svg class="i i-16"><use href="#i-plus"/></svg>新建密钥</button>
+      </div>
+    </div>
+
+    <!-- toolbar -->
+    <div class="toolbar">
+      <div class="field" style="width:300px"><svg class="i i-16"><use href="#i-search"/></svg><input placeholder="搜索名称或密钥…" /></div>
+      <div class="select">全部分组<svg class="i i-16"><use href="#i-chevronDown"/></svg></div>
+      <div class="select">全部状态<svg class="i i-16"><use href="#i-chevronDown"/></svg></div>
+      <div class="seg" style="margin-left:4px"><button class="on">全部</button><button>启用</button><button>已禁用</button><button>已过期</button></div>
+      <div class="grow"></div>
+      <button class="btn btn-secondary btn-icon"><svg class="i i-16"><use href="#i-refresh"/></svg></button>
+      <button class="btn btn-secondary"><svg class="i i-16"><use href="#i-grid"/></svg>列设置</button>
+    </div>
+
+    <div class="endpoint-strip">
+      <svg class="i i-16" style="color:var(--p-600)"><use href="#i-link"/></svg>
+      <span>API 端点</span>
+      <code>https://api.sub2api.dev</code>
+      <button class="ico-btn" title="复制"><svg class="i i-16"><use href="#i-copy"/></svg></button>
+      <span class="divider-v"></span>
+      <span class="muted">兼容 Anthropic / OpenAI / Gemini SDK，只需替换 Base URL</span>
+      <a class="sm bold" style="margin-left:auto;color:var(--p-600)">查看接入示例 →</a>
+    </div>
+
+    <!-- bulk bar -->
+    <div class="bulkbar">
+      <svg class="i i-16"><use href="#i-checkCircle"/></svg>
+      已选择 2 项
+      <button class="btn btn-sm btn-primary" style="margin-left:6px">批量编辑</button>
+      <button class="btn btn-sm btn-secondary">批量禁用</button>
+      <button class="btn btn-sm btn-ghost">清空选择</button>
+    </div>
+
+    <!-- table -->
+    <div class="card" style="overflow:hidden">
+      <table class="tbl" id="keyTable">
+        <colgroup>
+          <col style="width:34px" /><col class="c-name" /><col class="c-grp" /><col class="c-st" /><col class="c-quota" />
+          <col class="c-rate" /><col class="c-today" /><col class="c-exp" /><col class="c-last" /><col class="c-act" />
+        </colgroup>
+        <thead>
+          <tr>
+            <th style="width:34px"><input type="checkbox" /></th>
+            <th><span class="th-wrap">名称 / 密钥<svg class="i i-14 muted"><use href="#i-sort"/></svg></span></th>
+            <th>分组</th>
+            <th>状态</th>
+            <th>额度（已用 / 上限）</th>
+            <th>速率限制 5h · 1d · 7d</th>
+            <th>今日用量</th>
+            <th>有效期</th>
+            <th>最近使用</th>
+            <th style="text-align:right">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr data-selectable class="sel">
+            <td><input type="checkbox" checked /></td>
+            <td>
+              <div class="key-name">生产 · Claude Code <svg class="i i-14" style="color:var(--warn-500)" title="已启用 IP 限制"><use href="#i-lock"/></svg></div>
+              <div class="key-cell"><span class="key-mono">sk-ant-9f2a••••4d81</span>
+                <button class="ico-btn" title="显示"><svg class="i i-14"><use href="#i-eye"/></svg></button>
+                <button class="ico-btn" title="复制"><svg class="i i-14"><use href="#i-copy"/></svg></button>
+              </div>
+            </td>
+            <td><button class="grp"><span class="sw" style="background:#d97757"></span>Claude Pro 池</button></td>
+            <td><span class="pill pill-ok"><span class="dot"></span>启用</span></td>
+            <td class="quota-cell">
+              <div class="quota-line"><b>$128.40</b><span class="muted">/ $300.00</span></div>
+              <div class="progress"><i style="width:43%"></i></div>
+            </td>
+            <td>
+              <div class="rl-windows">
+                <div class="rl-win"><div class="t">5H · 32%</div><div class="progress bar"><i style="width:32%"></i></div></div>
+                <div class="rl-win"><div class="t">1D · 61%</div><div class="progress bar"><i style="width:61%"></i></div></div>
+                <div class="rl-win"><div class="t">7D · 24%</div><div class="progress bar"><i style="width:24%"></i></div></div>
+              </div>
+            </td>
+            <td class="num"><span class="bold" style="color:var(--text)">7,812</span><div class="xs muted">$8.12</div></td>
+            <td><span class="sm">2026-12-31</span><div class="xs muted">余 53 天</div></td>
+            <td><span class="sm">3 分钟前</span><div class="xs muted mono">10.24.3.18</div></td>
+            <td>
+              <div class="actions-cell" style="gap:0">
+                <button class="ico-btn" title="查看用量"><svg class="i i-16"><use href="#i-chart"/></svg></button>
+                <button class="ico-btn" title="使用示例"><svg class="i i-16"><use href="#i-terminal"/></svg></button>
+                <button class="ico-btn" title="禁用"><svg class="i i-16"><use href="#i-ban"/></svg></button>
+                <button class="ico-btn" title="编辑"><svg class="i i-16"><use href="#i-edit"/></svg></button>
+                <button class="ico-btn" style="color:var(--bad-500)" title="删除"><svg class="i i-16"><use href="#i-trash"/></svg></button>
+              </div>
+            </td>
+          </tr>
+          <tr data-selectable class="sel">
+            <td><input type="checkbox" checked /></td>
+            <td>
+              <div class="key-name">批量生图 Agent</div>
+              <div class="key-cell"><span class="key-mono">sk-s2-77de••••02aa</span>
+                <button class="ico-btn"><svg class="i i-14"><use href="#i-eye"/></svg></button>
+                <button class="ico-btn"><svg class="i i-14"><use href="#i-copy"/></svg></button>
+              </div>
+            </td>
+            <td><button class="grp"><span class="sw" style="background:#4285f4"></span>Gemini Pro</button></td>
+            <td><span class="pill pill-ok"><span class="dot"></span>启用</span></td>
+            <td class="quota-cell">
+              <div class="quota-line"><b>$42.10</b><span class="muted">/ $100.00</span></div>
+              <div class="progress"><i style="width:42%"></i></div>
+            </td>
+            <td>
+              <div class="rl-windows">
+                <div class="rl-win"><div class="t">5H · 12%</div><div class="progress bar"><i style="width:12%"></i></div></div>
+                <div class="rl-win"><div class="t">1D · 28%</div><div class="progress bar"><i style="width:28%"></i></div></div>
+                <div class="rl-win"><div class="t">7D · 19%</div><div class="progress bar"><i style="width:19%"></i></div></div>
+              </div>
+            </td>
+            <td class="num"><span class="bold" style="color:var(--text)">1,464</span><div class="xs muted">$1.56</div></td>
+            <td><span class="sm muted">长期</span></td>
+            <td><span class="sm">12 分钟前</span><div class="xs muted mono">10.24.3.18</div></td>
+            <td>
+              <div class="actions-cell" style="gap:0">
+                <button class="ico-btn" title="使用示例"><svg class="i i-16"><use href="#i-terminal"/></svg></button>
+                <button class="ico-btn" title="禁用"><svg class="i i-16"><use href="#i-ban"/></svg></button>
+                <button class="ico-btn" title="编辑"><svg class="i i-16"><use href="#i-edit"/></svg></button>
+                <button class="ico-btn" title="更多"><svg class="i i-16"><use href="#i-more"/></svg></button>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td><input type="checkbox" /></td>
+            <td>
+              <div class="key-name">测试 · GPT-5</div>
+              <div class="key-cell"><span class="key-mono">sk-s2-1c8b••••77fe</span>
+                <button class="ico-btn"><svg class="i i-14"><use href="#i-eye"/></svg></button>
+                <button class="ico-btn"><svg class="i i-14"><use href="#i-copy"/></svg></button>
+              </div>
+            </td>
+            <td><button class="grp"><span class="sw" style="background:#10a37f"></span>OpenAI 标准</button></td>
+            <td><span class="pill pill-warn"><span class="dot"></span>限流中</span></td>
+            <td class="quota-cell">
+              <div class="quota-line"><b style="color:var(--warn-600)">$86.20</b><span class="muted">/ $100.00</span></div>
+              <div class="progress"><i style="width:86%;background:linear-gradient(90deg,#fbbf24,#f59e0b)"></i></div>
+            </td>
+            <td>
+              <div class="rl-windows">
+                <div class="rl-win"><div class="t">5H · 78%</div><div class="progress bar"><i style="width:78%;background:#f59e0b"></i></div></div>
+                <div class="rl-win"><div class="t">1D · 44%</div><div class="progress bar"><i style="width:44%"></i></div></div>
+                <div class="rl-win"><div class="t">7D · 31%</div><div class="progress bar"><i style="width:31%"></i></div></div>
+              </div>
+            </td>
+            <td class="num"><span class="bold" style="color:var(--text)">3,204</span><div class="xs muted">$3.06</div></td>
+            <td><span class="sm" style="color:var(--warn-600)">2026-11-20</span><div class="xs muted">余 12 天</div></td>
+            <td><span class="sm">1 小时前</span><div class="xs muted mono">172.16.0.9</div></td>
+            <td>
+              <div class="actions-cell" style="gap:0">
+                <button class="ico-btn" title="使用示例"><svg class="i i-16"><use href="#i-terminal"/></svg></button>
+                <button class="ico-btn" title="禁用"><svg class="i i-16"><use href="#i-ban"/></svg></button>
+                <button class="ico-btn" title="编辑"><svg class="i i-16"><use href="#i-edit"/></svg></button>
+                <button class="ico-btn" title="更多"><svg class="i i-16"><use href="#i-more"/></svg></button>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td><input type="checkbox" /></td>
+            <td>
+              <div class="key-name">CI 流水线</div>
+              <div class="key-cell"><span class="key-mono">sk-s2-c11e••••9b02</span>
+                <button class="ico-btn"><svg class="i i-14"><use href="#i-eye"/></svg></button>
+                <button class="ico-btn"><svg class="i i-14"><use href="#i-copy"/></svg></button>
+              </div>
+            </td>
+            <td><button class="grp"><span class="sw" style="background:#d97757"></span>Claude 低价池</button></td>
+            <td><span class="pill pill-bad"><span class="dot"></span>额度耗尽</span></td>
+            <td class="quota-cell">
+              <div class="quota-line"><b style="color:var(--bad-600)">$50.00</b><span class="muted">/ $50.00</span></div>
+              <div class="progress"><i style="width:100%;background:linear-gradient(90deg,#f87171,#dc2626)"></i></div>
+            </td>
+            <td>
+              <div class="rl-windows">
+                <div class="rl-win"><div class="t">5H · 100%</div><div class="progress bar"><i style="width:100%;background:#ef4444"></i></div></div>
+                <div class="rl-win"><div class="t">1D · 100%</div><div class="progress bar"><i style="width:100%;background:#ef4444"></i></div></div>
+                <div class="rl-win"><div class="t">7D · 96%</div><div class="progress bar"><i style="width:96%;background:#ef4444"></i></div></div>
+              </div>
+            </td>
+            <td class="num"><span class="bold" style="color:var(--text)">0</span><div class="xs muted">$0.00</div></td>
+            <td><span class="sm muted">长期</span></td>
+            <td><span class="sm">2 天前</span><div class="xs muted mono">10.0.0.12</div></td>
+            <td>
+              <div class="actions-cell" style="gap:0">
+                <button class="ico-btn" title="重置额度"><svg class="i i-16"><use href="#i-refresh"/></svg></button>
+                <button class="ico-btn" title="使用示例"><svg class="i i-16"><use href="#i-terminal"/></svg></button>
+                <button class="ico-btn" title="启用"><svg class="i i-16"><use href="#i-check"/></svg></button>
+                <button class="ico-btn" title="编辑"><svg class="i i-16"><use href="#i-edit"/></svg></button>
+                <button class="ico-btn" title="更多"><svg class="i i-16"><use href="#i-more"/></svg></button>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td><input type="checkbox" /></td>
+            <td>
+              <div class="key-name">旧版 · 已停用</div>
+              <div class="key-cell"><span class="key-mono">sk-ant-3fa9••••10cd</span>
+                <button class="ico-btn"><svg class="i i-14"><use href="#i-eye"/></svg></button>
+                <button class="ico-btn"><svg class="i i-14"><use href="#i-copy"/></svg></button>
+              </div>
+            </td>
+            <td><button class="grp"><span class="sw" style="background:#94a3b8"></span>通用分组</button></td>
+            <td><span class="pill pill-neutral"><span class="dot"></span>已禁用</span></td>
+            <td class="quota-cell">
+              <div class="quota-line"><b>$0.00</b><span class="muted">/ 不限</span></div>
+              <div class="progress"><i style="width:0%"></i></div>
+            </td>
+            <td>
+              <div class="rl-windows">
+                <div class="rl-win"><div class="t">5H · 0%</div><div class="progress bar"><i style="width:0%"></i></div></div>
+                <div class="rl-win"><div class="t">1D · 0%</div><div class="progress bar"><i style="width:0%"></i></div></div>
+                <div class="rl-win"><div class="t">7D · 0%</div><div class="progress bar"><i style="width:0%"></i></div></div>
+              </div>
+            </td>
+            <td class="num"><span class="bold" style="color:var(--text)">0</span><div class="xs muted">$0.00</div></td>
+            <td><span class="sm muted">已过期</span></td>
+            <td><span class="sm muted">34 天前</span></td>
+            <td>
+              <div class="actions-cell" style="gap:0">
+                <button class="ico-btn" title="使用示例"><svg class="i i-16"><use href="#i-terminal"/></svg></button>
+                <button class="ico-btn" title="启用"><svg class="i i-16"><use href="#i-check"/></svg></button>
+                <button class="ico-btn" title="编辑"><svg class="i i-16"><use href="#i-edit"/></svg></button>
+                <button class="ico-btn" title="更多"><svg class="i i-16"><use href="#i-more"/></svg></button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="row" style="justify-content:space-between;padding:11px 16px;border-top:1px solid var(--border);font-size:12.5px;color:var(--text-3)">
+        <span>共 6 条 · 每页 20 条</span>
+        <div class="row gap-6">
+          <button class="btn btn-sm btn-secondary btn-icon"><svg class="i i-14"><use href="#i-chevronLeft"/></svg></button>
+          <button class="btn btn-sm btn-primary" style="width:32px;padding:0;justify-content:center">1</button>
+          <button class="btn btn-sm btn-secondary btn-icon"><svg class="i i-14"><use href="#i-chevronRight"/></svg></button>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- ============ CREATE / EDIT KEY DRAWER ============ -->
+<div class="scrim hide" id="createScrim"></div>
+<aside class="drawer hide" id="createModal" style="width:520px">
+  <div class="drawer-hd">
+    <div style="flex:1">
+      <div class="row gap-8"><h3 style="font-size:16px">新建 API 密钥</h3><span class="pill pill-brand">草稿</span></div>
+      <p class="xs muted" style="margin-top:4px">创建后密钥仅显示一次，请立即保存。</p>
+    </div>
+    <button class="ico-btn" data-close="#createModal"><svg class="i"><use href="#i-x"/></svg></button>
+  </div>
+  <div class="drawer-bd">
+    <div class="form-item" style="margin-bottom:16px">
+      <label>名称</label>
+      <div class="field"><input placeholder="例如：生产 · Claude Code" value="生产 · Claude Code 2" /></div>
+      <div class="hint">建议包含用途和客户端名称，便于在用量记录中区分。</div>
+    </div>
+
+    <div class="form-item" style="margin-bottom:16px">
+      <label>选择分组 <span class="muted" style="font-weight:500">— 决定可用模型与倍率</span></label>
+      <div class="choose-grid">
+        <button class="choose on">
+          <div class="row gap-6"><span class="sw" style="width:6px;height:6px;border-radius:50%;background:#d97757"></span>Claude Pro 池</div>
+          <div class="xs muted" style="margin-top:2px">Anthropic · ×0.8 · 订阅</div>
+        </button>
+        <button class="choose">
+          <div class="row gap-6"><span style="width:6px;height:6px;border-radius:50%;background:#4285f4"></span>Gemini Pro</div>
+          <div class="xs muted" style="margin-top:2px">Google · ×1.0 · 订阅</div>
+        </button>
+        <button class="choose">
+          <div class="row gap-6"><span style="width:6px;height:6px;border-radius:50%;background:#10a37f"></span>OpenAI 标准</div>
+          <div class="xs muted" style="margin-top:2px">OpenAI · ×1.2 · 按量</div>
+        </button>
+        <button class="choose">
+          <div class="row gap-6"><span style="width:6px;height:6px;border-radius:50%;background:#94a3b8"></span>通用分组</div>
+          <div class="xs muted" style="margin-top:2px">多平台 · ×1.0 · 按量</div>
+        </button>
+      </div>
+    </div>
+
+    <div class="section-label">额度与速率</div>
+    <div class="form-row" style="margin-bottom:14px">
+      <div class="form-item"><label>额度上限（USD）</label><div class="field"><input value="300" /><span class="muted xs">0 = 不限</span></div></div>
+      <div class="form-item"><label>有效期</label><div class="select" style="width:100%">30 天<svg class="i i-16" style="margin-left:auto"><use href="#i-chevronDown"/></svg></div></div>
+    </div>
+    <div class="form-item" style="margin-bottom:14px">
+      <label>速率限制（留空 = 不限）</label>
+      <div class="row gap-8">
+        <div class="field" style="flex:1"><span class="xs muted">5h</span><input placeholder="0" /></div>
+        <div class="field" style="flex:1"><span class="xs muted">1d</span><input placeholder="0" /></div>
+        <div class="field" style="flex:1"><span class="xs muted">7d</span><input placeholder="0" /></div>
+      </div>
+      <div class="hint">按金额滑动窗口限制，超出后请求返回 429。</div>
+    </div>
+
+    <div class="section-label">访问控制</div>
+    <div class="row" style="justify-content:space-between;padding:10px 12px;border:1px solid var(--border);border-radius:var(--r-md);margin-bottom:10px">
+      <div class="stack"><span class="sm bold">IP 白名单</span><span class="xs muted">仅允许以下网段调用</span></div>
+      <div class="switch on"></div>
+    </div>
+    <div class="field" style="height:auto;padding:10px 12px;align-items:flex-start">
+      <textarea style="border:0;outline:0;background:transparent;width:100%;font:inherit;font-size:12.5px;resize:none;color:var(--text)" rows="2">10.24.0.0/16
+1.2.3.4</textarea>
+    </div>
+
+    <div class="row" style="justify-content:space-between;padding:10px 12px;border:1px solid var(--border);border-radius:var(--r-md);margin:12px 0">
+      <div class="stack"><span class="sm bold">自定义密钥</span><span class="xs muted">使用自己的密钥串（≥16 位，字母数字 - _）</span></div>
+      <div class="switch"></div>
+    </div>
+  </div>
+  <div class="drawer-ft">
+    <button class="btn btn-secondary" data-close="#createModal">取消</button>
+    <button class="btn btn-primary"><svg class="i i-16"><use href="#i-key"/></svg>创建密钥</button>
+  </div>
+</aside>
+
+<!--#INCLUDE runtime#-->
+</body>
+</html>

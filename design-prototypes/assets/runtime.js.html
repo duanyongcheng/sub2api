@@ -1,0 +1,19 @@
+<script>
+// Prototype-only runtime: theme toggle, segmented controls, row selection, drawer/modal open.
+document.addEventListener('click', (e) => {
+  const seg = e.target.closest('.seg button, .tabs a');
+  if (seg) { [...seg.parentElement.children].forEach(c => c.classList.remove('on')); seg.classList.add('on'); }
+  const theme = e.target.closest('[data-toggle-theme]');
+  if (theme) {
+    const h = document.documentElement;
+    h.dataset.theme = h.dataset.theme === 'dark' ? 'light' : 'dark';
+    theme.querySelector('span').textContent = h.dataset.theme === 'dark' ? '浅色模式' : '深色模式';
+  }
+  const open = e.target.closest('[data-open]');
+  if (open) { const el = document.querySelector(open.dataset.open); if (el) el.classList.remove('hide'); }
+  const close = e.target.closest('[data-close]');
+  if (close) { const el = document.querySelector(close.dataset.close); if (el) el.classList.add('hide'); }
+  const rowSel = e.target.closest('tbody tr[data-selectable]');
+  if (rowSel) { rowSel.classList.toggle('sel'); const cb = rowSel.querySelector('input[type=checkbox]'); if (cb) cb.checked = rowSel.classList.contains('sel'); }
+});
+</script>

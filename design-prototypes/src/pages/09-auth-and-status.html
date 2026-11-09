@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<title>Sub2API · 登录 与 渠道状态（重设计原型）</title>
+<link rel="stylesheet" href="assets/proto.css" />
+<link rel="stylesheet" href="assets/shell.css" />
+<style>
+  body.demo { display: flex; flex-direction: column; background: var(--bg); }
+  .demo-bar {
+    position: sticky; top: 0; z-index: 100;
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 18px; background: #0f172a; color: #cbd5e1; font-size: 12.5px;
+  }
+  .demo-bar b { color: #fff; }
+  .demo-bar button {
+    height: 28px; padding: 0 12px; border-radius: 7px; font-size: 12px; font-weight: 650;
+    color: #cbd5e1; background: rgba(255,255,255,.06);
+  }
+  .demo-bar button.on { background: #14b8a6; color: #042f2e; }
+  .frame-host { flex: 1; }
+
+  /* ============ LOGIN ============ */
+  .login { display: grid; grid-template-columns: minmax(0,1.05fr) minmax(0,1fr); min-height: calc(100vh - 46px); }
+  .login-left {
+    position: relative; overflow: hidden; padding: 46px 54px; color: #e2e8f0;
+    background:
+      radial-gradient(900px 520px at 12% 0%, rgba(20,184,166,.30), transparent 60%),
+      radial-gradient(720px 420px at 90% 100%, rgba(59,130,246,.26), transparent 62%),
+      linear-gradient(160deg, #061019 0%, #071a25 55%, #04121a 100%);
+    display: flex; flex-direction: column;
+  }
+  .login-left::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background-image: linear-gradient(rgba(148,163,184,.08) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,184,.08) 1px, transparent 1px);
+    background-size: 44px 44px;
+    mask-image: radial-gradient(600px 420px at 30% 40%, #000 20%, transparent 78%);
+  }
+  .ll-brand { display: flex; align-items: center; gap: 10px; z-index: 1; }
+  .ll-spacer { flex: 1; }
+  .ll-quote { z-index: 1; font-size: 12.5px; color: #7d8ea0; border-left: 2px solid rgba(94,234,212,.4); padding-left: 12px; margin-bottom: 26px; line-height: 1.7; }
+  .ll-logo { width: 34px; height: 34px; border-radius: 10px; background: linear-gradient(140deg, var(--p-400), var(--p-700)); display: grid; place-items: center; font-weight: 800; color: #fff; font-size: 15px; }
+  .ll-title { margin-top: auto; z-index: 1; }
+  .ll-title h1 { font-size: 38px; line-height: 1.16; letter-spacing: -.035em; font-weight: 750; color: #fff; }
+  .ll-title h1 em { font-style: normal; background: linear-gradient(100deg, #5eead4, #38bdf8); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .ll-title p { margin-top: 14px; font-size: 14px; line-height: 1.7; color: #94a3b8; max-width: 460px; }
+  .ll-points { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 30px; z-index: 1; }
+  .ll-point { padding: 14px; border-radius: 12px; background: rgba(255,255,255,.045); border: 1px solid rgba(148,163,184,.16); }
+  .ll-point .k { font-size: 20px; font-weight: 750; color: #fff; letter-spacing: -.02em; }
+  .ll-point .t { font-size: 11.5px; color: #7d8ea0; margin-top: 4px; }
+  .term {
+    z-index: 1; margin: 26px 0 30px; max-width: 470px;
+    border-radius: 12px; overflow: hidden; border: 1px solid rgba(148,163,184,.18);
+    background: rgba(3,10,17,.72); box-shadow: 0 24px 60px -30px rgba(0,0,0,.9);
+    backdrop-filter: blur(6px);
+  }
+  .term-hd { display: flex; align-items: center; gap: 6px; padding: 9px 12px; border-bottom: 1px solid rgba(148,163,184,.14); }
+  .term-hd i { width: 8px; height: 8px; border-radius: 50%; background: #334155; }
+  .term-hd span { margin-left: 8px; font-size: 10.5px; color: #64748b; font-family: var(--mono); }
+  .term-bd { padding: 12px 14px; font-family: var(--mono); font-size: 11.6px; line-height: 1.95; color: #93a4b8; }
+  .term-bd .p { color: #5eead4; } .term-bd .c { color: #475569; } .term-bd .s { color: #fbbf24; } .term-bd .ok { color: #34d399; }
+  .ll-foot { margin-top: 34px; z-index: 1; font-size: 11.5px; color: #5e7189; display: flex; gap: 14px; }
+
+  .login-right { display: flex; align-items: center; justify-content: center; padding: 40px; background: var(--surface); min-height: calc(100vh - 46px); }
+  .login-card { width: 100%; max-width: 384px; margin-top: -6vh; }
+  .login-card h2 { font-size: 23px; letter-spacing: -.03em; }
+  .login-card .sub { font-size: 13px; color: var(--text-3); margin-top: 6px; }
+  .ss-btn {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    height: 42px; border-radius: var(--r-md); border: 1px solid var(--border-strong);
+    background: var(--surface); font-size: 13px; font-weight: 600; color: var(--text-2); width: 100%;
+  }
+  .ss-btn:hover { background: var(--surface-2); }
+  .ss-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 16px; }
+  .ss-grid .ss-btn:first-child { grid-column: 1 / -1; }
+  .other { display: flex; align-items: center; gap: 12px; margin: 20px 0; color: var(--text-3); font-size: 11.5px; }
+  .other::before, .other::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+  .login-card .field { height: 44px; margin-bottom: 12px; color: var(--text-3); }
+  .login-card .field input { color: var(--text); }
+  .login-card .btn-primary { width: 100%; height: 44px; margin-top: 6px; font-size: 14px; }
+
+  /* ============ CHANNEL STATUS (user) ============ */
+  .cs-page { padding: 26px 34px 44px; max-width: 1180px; margin: 0 auto; }
+  .cs-hd { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; }
+  .status-hero {
+    display: flex; align-items: center; gap: 18px; padding: 20px 22px; border-radius: var(--r-xl);
+    background: linear-gradient(120deg, rgba(16,185,129,.10), rgba(20,184,166,.04) 60%, transparent);
+    border: 1px solid color-mix(in srgb, var(--ok-500) 26%, transparent);
+  }
+  .big-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--ok-500); box-shadow: 0 0 0 5px rgba(16,185,129,.18); }
+  .cs-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px; }
+  .cs-card { padding: 16px 18px; }
+  .cs-card .head { display: flex; align-items: center; gap: 10px; }
+  .cs-card .nm { font-size: 14px; font-weight: 700; }
+  .window-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 14px; }
+  .win { padding: 9px 10px; border-radius: var(--r-md); background: var(--surface-2); border: 1px solid var(--border); }
+  .win .t { font-size: 10.5px; color: var(--text-3); font-weight: 650; }
+  .win .v { font-size: 14px; font-weight: 720; margin-top: 3px; }
+  .uptime { display: flex; gap: 2px; margin-top: 12px; }
+  .uptime span { flex: 1; height: 22px; border-radius: 2px; }
+</style>
+</head>
+<body class="demo">
+<!--#INCLUDE icons#-->
+
+
+<div class="demo-bar">
+  <b>原型状态切换</b>
+  <button class="on" data-view="login">① 登录页</button>
+  <button data-view="status">② 用户端 · 渠道状态</button>
+  <span style="margin-left:auto;color:#64748b">Sub2API 重设计原型 · 静态演示</span>
+</div>
+
+<div class="frame-host">
+<!-- ================= LOGIN ================= -->
+<section id="view-login" class="login">
+  <div class="login-left">
+    <div class="ll-brand">
+      <div class="ll-logo">S2</div>
+      <div><div style="font-weight:700;font-size:15px;color:#fff">Sub2API</div><div style="font-size:11px;color:#64748b">AI API Gateway</div></div>
+    </div>
+    <div class="ll-spacer"></div>
+    <div class="term">
+      <div class="term-hd"><i></i><i></i><i></i><span>terminal — sub2api</span></div>
+      <div class="term-bd">
+<span class="p">$</span> curl https://api.sub2api.dev/v1/messages \<br>
+&nbsp;&nbsp;-H <span class="s">"x-api-key: sk-ant-9f2a…"</span> \<br>
+&nbsp;&nbsp;-d <span class="s">'{"model":"claude-opus-4.6","stream":true}'</span><br>
+<span class="c"># routing → claude-pro-01 (US-West)…</span><br>
+<span class="ok">200 OK</span> · ttft 0.86s · $0.0042
+      </div>
+    </div>
+    <div class="ll-title">
+      <h1>把订阅额度，<br>变成<em>一把可调度的钥匙</em></h1>
+      <p>统一网关接入 Claude / OpenAI / Gemini / Grok，按分组定价、按额度结算，一个 Key 跑通全部 SDK。</p>
+      <div class="ll-points">
+        <div class="ll-point"><div class="k">99.98%</div><div class="t">近 30 天可用率</div></div>
+        <div class="ll-point"><div class="k">6</div><div class="t">支持的模型平台</div></div>
+        <div class="ll-point"><div class="k">&lt; 900ms</div><div class="t">平均首 Token</div></div>
+      </div>
+    </div>
+    <div class="ll-foot"><span>© 2026 Sub2API</span><span>服务条款</span><span>隐私政策</span><span>状态页</span></div>
+  </div>
+
+  <div class="login-right">
+    <div class="login-card">
+      <h2>欢迎回来</h2>
+      <div class="sub">登录以管理密钥、查看用量与订阅</div>
+
+      <div class="ss-grid">
+        <button class="ss-btn"><svg class="i i-16" viewBox="0 0 24 24"><path d="M12 22C6.5 22 2 17.5 2 12S6.5 2 12 2s10 4.5 10 10-4.5 10-10 10zm0-17.5A7.5 7.5 0 1012 19a7.5 7.5 0 000-14.5z" fill="currentColor" stroke="none"/></svg>使用 Passkey 登录</button>
+        <button class="ss-btn"><span style="font-weight:800;font-size:13px;color:#0f172a">𝕃</span>LinuxDo</button>
+        <button class="ss-btn"><span style="font-weight:800;font-size:13px;color:#0ea5e9">G</span>Google</button>
+        <button class="ss-btn"><span style="font-weight:800;font-size:13px;color:#22c55e">微</span>微信</button>
+        <button class="ss-btn"><span style="font-weight:800;font-size:13px;color:#1677ff">钉</span>钉钉</button>
+      </div>
+
+      <div class="other">或使用邮箱登录</div>
+
+      <div class="field"><svg class="i i-16" style="color:var(--text-3)"><use href="#i-mail"/></svg><input placeholder="邮箱地址" value="leyan@example.com" /></div>
+      <div class="field"><svg class="i i-16" style="color:var(--text-3)"><use href="#i-lock"/></svg><input type="password" placeholder="密码" value="password123" /><svg class="i i-16" style="color:var(--text-3)"><use href="#i-eyeOff"/></svg></div>
+      <div class="row" style="justify-content:space-between;font-size:12.5px;margin-top:2px">
+        <label class="row gap-8" style="color:var(--text-2)"><input type="checkbox" checked />记住我</label>
+        <a style="color:var(--p-600);font-weight:600">忘记密码？</a>
+      </div>
+      <button class="btn btn-primary">登录</button>
+      <div class="row gap-6" style="justify-content:center;font-size:12.5px;margin-top:16px;color:var(--text-3)">
+        还没有账号？<a style="color:var(--p-600);font-weight:650">立即注册</a>
+      </div>
+      <div style="margin-top:18px;padding:9px 11px;border-radius:var(--r-md);background:var(--surface-2);border:1px solid var(--border);font-size:11.5px;color:var(--text-3)">
+        登录即表示同意 <a style="color:var(--text-2);text-decoration:underline">服务条款</a> 与 <a style="color:var(--text-2);text-decoration:underline">隐私政策</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= CHANNEL STATUS ================= -->
+<section id="view-status" class="cs-page hide">
+  <div class="cs-hd">
+    <div>
+      <div class="xs bold muted" style="letter-spacing:.06em;text-transform:uppercase">服务状态</div>
+      <h2 style="font-size:24px;margin-top:6px;letter-spacing:-.03em">渠道状态</h2>
+      <p class="sm muted" style="margin-top:5px">基于真实请求的可用率，每 5 分钟更新。最近一次更新 14:38。</p>
+    </div>
+    <div class="row gap-8">
+      <div class="seg"><button>90 分钟</button><button class="on">24 小时</button><button>7 天</button><button>30 天</button></div>
+    </div>
+  </div>
+
+  <div class="status-hero" style="margin-top:18px">
+    <span class="big-dot"></span>
+    <div style="flex:1">
+      <div style="font-size:17px;font-weight:720;letter-spacing:-.02em">所有服务运行正常</div>
+      <div class="sm muted" style="margin-top:3px">1 个渠道处于降级状态，已自动切换备用路由，你的请求不受影响</div>
+    </div>
+    <div class="row gap-20">
+      <div><div class="xs muted">整体可用率</div><div class="bold" style="font-size:17px;margin-top:2px">99.12%</div></div>
+      <div><div class="xs muted">平均首 Token</div><div class="bold" style="font-size:17px;margin-top:2px">1.21s</div></div>
+      <div><div class="xs muted">进行中事件</div><div class="bold" style="font-size:17px;margin-top:2px;color:var(--warn-600)">1</div></div>
+    </div>
+  </div>
+
+  <div class="cs-grid" style="margin-top:16px">
+    <div class="card cs-card">
+      <div class="head">
+        <span class="plat" style="background:#d97757;width:30px;height:30px;border-radius:9px">C</span>
+        <div style="flex:1"><div class="nm">Claude</div><div class="xs muted">Opus / Sonnet / Haiku · 3 个模型</div></div>
+        <span class="pill pill-ok"><span class="dot"></span>正常</span>
+      </div>
+      <div class="window-row">
+        <div class="win"><div class="t">5 小时</div><div class="v">99.9%</div></div>
+        <div class="win"><div class="t">24 小时</div><div class="v">99.8%</div></div>
+        <div class="win"><div class="t">7 天</div><div class="v">99.6%</div></div>
+      </div>
+      <div class="uptime">
+        <span style="background:#10b981"></span><span style="background:#10b981"></span><span style="background:#10b981"></span><span style="background:#10b981"></span>
+        <span style="background:#10b981"></span><span style="background:#6ee7b7"></span><span style="background:#10b981"></span><span style="background:#10b981"></span>
+        <span style="background:#10b981"></span><span style="background:#10b981"></span><span style="background:#fbbf24"></span><span style="background:#10b981"></span>
+        <span style="background:#10b981"></span><span style="background:#10b981"></span><span style="background:#10b981"></span><span style="background:#10b981"></span>
+        <span style="background:#10b981"></span><span style="background:#10b981"></span><span style="background:#10b981"></span><span style="background:#10b981"></span>
+        <span style="background:#10b981"></span><span style="background:#10b981"></span><span style="background:#10b981"></span><span style="background:#10b981"></span>
+      </div>
+    </div>
+
+    <div class="card cs-card">
+      <div class="head">
+        <span class="plat" style="background:#10a37f;width:30px;height:30px;border-radius:9px">O</span>
+        <div style="flex:1"><div class="nm">OpenAI</div><div class="xs muted">GPT-5 系列 · 2 个模型</div></div>
+        <span class="pill pill-warn"><span class="dot"></span>降级</span>
+      </div>
+      <div class="window-row">
+        <div class="win"><div class="t">5 小时</div><div class="v">98.2%</div></div>
+        <div class="win"><div class="t">24 小时</div><div class="v">96.4%</div></div>
+        <div class="win"><div class="t">7 天</div><div class="v">98.9%</div></div>
+      </div>
+      <div class="uptime">
+        <span style="background:#10b981"></span><span style="background:#10b981"></span><span style="background:#fbbf24"></span><span style="background:#6ee7b7"></span>
+        <span style="background:#10b981"></span><span style="background:#fbbf24"></span><span style="background:#fbbf24"></span><span style="background:#6ee7b7"></span>
+        <span style="background:#10b981"></span><span style="background:#10b981"></span><span style="background:#6ee7b7"></span><span style="background:#10b981"></span>
+        <span style="background:#10b981"></span><span style="background:#fbbf24"></span><span style="background:#fbbf24"></span><span style="background:#6ee7b7"></span>
+        <span style="background:#10b981"></span><span style="background:#10b981"></span><span style="background:#10b981"></span><span style="background:#6ee7b7"></span>
+        <span style="background:#10b981"></span><span style="background:#10b981"></span><span style="background:#10b981"></span><span style="background:#10b981"></span>
+      </div>
+    </div>
+
+    <div class="card cs-card">
+      <div class="head">
+        <span class="plat" style="background:#4285f4;width:30px;height:30px;border-radius:9px">G</span>
+        <div style="flex:1"><div class="nm">Google</div><div class="xs muted">Gemini 3 系列 · 1 个模型</div></div>
+        <span class="pill pill-ok"><span class="dot"></span>正常</span>
+      </div>
+      <div class="window-row">
+        <div class="win"><div class="t">5 小时</div><div class="v">100%</div></div>
+        <div class="win"><div class="t">24 小时</div><div class="v">99.9%</div></div>
+        <div class="win"><div class="t">7 天</div><div class="v">99.9%</div></div>
+      </div>
+      <div class="uptime">
+        <span style="background:#10b981"></span><span style="background:#10b981"></span><span style="background:#10b981"></span><span style="background:#10b981"></span>
+        <span style="background:#10b981"></span><span style="background:#10b981"></span><span style="background:#10b981"></span><span style="background:#10b981"></span>
+        <span style="background:#10b981"></span><span style="background:#10b981"></span><span style="background:#10b981"></span><span style="background:#10b981"></span>
+        <span style="background:#10b981"></span><span style="background:#10b981"></span><span style="background:#10b981"></span><span style="background:#10b981"></span>
+        <span style="background:#10b981"></span><span style="background:#10b981"></span><span style="background:#10b981"></span><span style="background:#10b981"></span>
+        <span style="background:#10b981"></span><span style="background:#10b981"></span><span style="background:#10b981"></span><span style="background:#10b981"></span>
+      </div>
+    </div>
+
+    <div class="card cs-card">
+      <div class="head">
+        <span class="plat" style="background:#8b5cf6;width:30px;height:30px;border-radius:9px">X</span>
+        <div style="flex:1"><div class="nm">Grok</div><div class="xs muted">grok-4.1 · 1 个模型</div></div>
+        <span class="pill pill-bad"><span class="dot"></span>异常</span>
+      </div>
+      <div class="window-row">
+        <div class="win"><div class="t">5 小时</div><div class="v" style="color:var(--warn-600)">94.1%</div></div>
+        <div class="win"><div class="t">24 小时</div><div class="v" style="color:var(--bad-600)">91.2%</div></div>
+        <div class="win"><div class="t">7 天</div><div class="v">97.4%</div></div>
+      </div>
+      <div class="uptime">
+        <span style="background:#10b981"></span><span style="background:#fbbf24"></span><span style="background:#f87171"></span><span style="background:#fbbf24"></span>
+        <span style="background:#10b981"></span><span style="background:#fbbf24"></span><span style="background:#f87171"></span><span style="background:#f87171"></span>
+        <span style="background:#fbbf24"></span><span style="background:#10b981"></span><span style="background:#fbbf24"></span><span style="background:#6ee7b7"></span>
+        <span style="background:#10b981"></span><span style="background:#f87171"></span><span style="background:#fbbf24"></span><span style="background:#6ee7b7"></span>
+        <span style="background:#fbbf24"></span><span style="background:#10b981"></span><span style="background:#10b981"></span><span style="background:#6ee7b7"></span>
+        <span style="background:#10b981"></span><span style="background:#10b981"></span><span style="background:#fbbf24"></span><span style="background:#10b981"></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px;padding:16px 18px">
+    <div class="row" style="justify-content:space-between">
+      <h3 style="font-size:14px">最近事件</h3>
+      <span class="xs muted">仅显示影响你所在分组的事件</span>
+    </div>
+    <div style="margin-top:12px;display:flex;flex-direction:column;gap:12px">
+      <div class="row gap-12" style="align-items:flex-start">
+        <span class="pill pill-warn" style="flex:0 0 auto">进行中</span>
+        <div style="flex:1"><div class="sm bold">grok-4.1 上游限流</div><div class="xs muted" style="margin-top:2px">14:12 起 · 已自动切换到备用账号，成功率恢复至 96%</div></div>
+        <span class="xs muted">41 分钟前</span>
+      </div>
+      <div class="row gap-12" style="align-items:flex-start">
+        <span class="pill pill-neutral" style="flex:0 0 auto">已恢复</span>
+        <div style="flex:1"><div class="sm bold">OpenAI GPT-5.4 响应延迟升高</div><div class="xs muted" style="margin-top:2px">13:20 – 13:52 · 首 Token P95 由 2.1s 升至 3.8s</div></div>
+        <span class="xs muted">1 小时前</span>
+      </div>
+      <div class="row gap-12" style="align-items:flex-start">
+        <span class="pill pill-ok" style="flex:0 0 auto">计划中</span>
+        <div style="flex:1"><div class="sm bold">Gemini 上游维护窗口</div><div class="xs muted" style="margin-top:2px">11-09 02:00 – 03:00 · 可能短暂返回 503，已准备备用路由</div></div>
+        <span class="xs muted">明天 02:00</span>
+      </div>
+    </div>
+  </div>
+</section>
+</div>
+
+<script>
+function applyView(view) {
+  document.querySelectorAll('.demo-bar button').forEach(b => b.classList.toggle('on', b.dataset.view === view));
+  document.querySelectorAll('#view-login, #view-status').forEach(v => v.classList.add('hide'));
+  document.getElementById('view-' + view).classList.remove('hide');
+}
+document.querySelectorAll('.demo-bar button').forEach(btn => {
+  btn.addEventListener('click', () => { applyView(btn.dataset.view); history.replaceState(null, '', '#' + btn.dataset.view); });
+});
+// deep link: 09-auth-and-status.html#status
+if (location.hash.replace('#','') === 'status') applyView('status');
+</script>
+</body>
+</html>
