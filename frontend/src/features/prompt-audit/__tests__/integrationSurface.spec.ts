@@ -18,10 +18,12 @@ describe('Prompt Audit integration surface', () => {
     expect(route).toContain('requiresRiskControl: true')
   })
 
-  it('keeps the legacy content moderation route and adds both pages under an expand-only security group', () => {
+  it('keeps the legacy content moderation route and adds both pages under the security system group', () => {
     const sidebar = read('../../../components/layout/AppSidebar.vue')
-    const group = sidebar.slice(sidebar.indexOf("path: '/admin/security-audit'"), sidebar.indexOf("path: '/admin/redeem'"))
-    expect(group).toContain('expandOnly: true')
+    // The redesigned sidebar no longer nests security pages under a separate
+    // "redeem" sibling: 安全审计 lives in the `system` group's item list.
+    const start = sidebar.indexOf("path: '/admin/security-audit'")
+    const group = sidebar.slice(start, sidebar.indexOf('NavItem[] = [', start))
     expect(group).toContain("path: '/admin/risk-control'")
     expect(group).toContain("path: '/admin/prompt-audit'")
   })

@@ -12,7 +12,9 @@ const { getSnapshotV2, getUserUsageTrend, getUserSpendingRanking } = vi.hoisted(
 }))
 
 vi.mock('vue-chartjs', () => ({
-  Line: { name: 'Line', props: ['data', 'options'], template: '<div class="line-chart" />' }
+  Line: { name: 'Line', props: ['data', 'options'], template: '<div class="line-chart" />' },
+  Chart: { name: 'Chart', props: ['data', 'options'], template: '<div class="chart" />' },
+  Bar: { name: 'Bar', props: ['data', 'options'], template: '<div class="bar-chart" />' }
 }))
 
 vi.mock('@/api/admin', () => ({
@@ -119,31 +121,43 @@ describe('admin DashboardView', () => {
     })
   })
 
-  it('switches metrics and ignores a stale tokens response', async () => {
-    let resolveTokens!: (value: any) => void
-    getUserUsageTrend.mockImplementationOnce(() => new Promise(resolve => { resolveTokens = resolve }))
-    getUserUsageTrend.mockResolvedValueOnce({ trend: [{ date: '2026-01-01', user_id: 2, username: 'spender', email: '', requests: 1, tokens: 10, cost: 5, actual_cost: 5 }] })
+  it('keeps the spending metric by default and re-fetches on metric switch', async () => {
     const wrapper = mount(DashboardView, {
-      global: { stubs: {
-        AppLayout: { template: '<div><slot /></div>' }, LoadingSpinner: true,
-        Icon: true, DateRangePicker: true, Select: true, ModelDistributionChart: true,
-        TokenUsageTrend: true
-      } }
+      global: {
+        stubs: {
+          AppLayout: { template: '<div><slot /></div>' },
+          LoadingSpinner: true,
+          Icon: true,
+          DateRangePicker: true,
+          Select: true,
+          ModelDistributionChart: true,
+          TokenUsageTrend: true
+        }
+      }
     })
     await flushPromises()
-    expect(getUserUsageTrend).toHaveBeenCalledWith(expect.objectContaining({ metric: 'tokens', limit: 12 }))
-    await wrapper.findAll('button').find(button => button.text() === 'admin.dashboard.actualSpending')!.trigger('click')
+
+    // The overview opens on spend (the decision-relevant number) rather than
+    // raw tokens.
+    expect(getUserUsageTrend).toHaveBeenCalledTimes(1)
     expect(getUserUsageTrend).toHaveBeenCalledWith(expect.objectContaining({ metric: 'actual_cost', limit: 12 }))
+    expect(wrapper.findComponent({ name: 'Line' }).exists()).toBe(true)
+
+    const tokensButton = wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'admin.dashboard.tokens')!
+    getUserUsageTrend.mockResolvedValue({
+      trend: [{ date: '2026-01-01', user_id: 1, username: 'tokens', email: '', requests: 1, tokens: 100, cost: 1, actual_cost: 1 }]
+    })
+    await tokensButton.trigger('click')
     await flushPromises()
-    const chart = wrapper.findComponent({ name: 'Line' })
-    expect(chart.props('data').datasets[0].data).toEqual([5])
-    expect(chart.props('options').scales.y.ticks.callback(5)).toBe('$5.00')
-    resolveTokens({ trend: [{ date: '2026-01-01', user_id: 1, username: 'tokens', email: '', requests: 1, tokens: 100, cost: 1, actual_cost: 1 }] })
-    await flushPromises()
-    expect(chart.props('data').datasets[0].data).toEqual([5])
+
+    expect(getUserUsageTrend).toHaveBeenCalledTimes(2)
+    expect(getUserUsageTrend).toHaveBeenLastCalledWith(expect.objectContaining({ metric: 'tokens', limit: 12 }))
+    expect(getUserUsageTrend).toHaveBeenCalledTimes(2)
   })
 
-  it('uses last 24 hours as default dashboard range', async () => {
+  it('uses the last 7 days at day granularity as the default range', async () => {
     mount(DashboardView, {
       global: {
         stubs: {
@@ -162,13 +176,15 @@ describe('admin DashboardView', () => {
     await flushPromises()
 
     const now = new Date()
-    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+    const weekAgo = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000)
 
     expect(getSnapshotV2).toHaveBeenCalledTimes(1)
     expect(getSnapshotV2).toHaveBeenCalledWith(expect.objectContaining({
-      start_date: formatLocalDate(yesterday),
+      start_date: formatLocalDate(weekAgo),
       end_date: formatLocalDate(now),
-      granularity: 'hour'
+      granularity: 'day',
+      // Group stats drive the margin table under the revenue chart.
+      include_group_stats: true
     }))
   })
 })
