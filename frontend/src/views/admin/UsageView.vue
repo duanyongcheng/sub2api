@@ -191,6 +191,7 @@ import { useRoute } from 'vue-router'
 import { useAppStore } from '@/stores/app'; import { adminAPI } from '@/api/admin'; import { adminUsageAPI } from '@/api/admin/usage'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 import { formatReasoningEffort } from '@/utils/format'
+import { getLast24HoursRange, getDateRangeGranularity, isLast24HoursRange } from '@/utils/dateRange'
 import { resolveUsageRequestType, requestTypeToLegacyStream } from '@/utils/usageRequestType'
 import AppLayout from '@/components/layout/AppLayout.vue'; import Pagination from '@/components/common/Pagination.vue'; import Select from '@/components/common/Select.vue'; import DateRangePicker from '@/components/common/DateRangePicker.vue'
 import UsageStatsCards from '@/components/admin/usage/UsageStatsCards.vue'; import UsageFilters from '@/components/admin/usage/UsageFilters.vue'
@@ -275,28 +276,7 @@ const handleRankingSelectUser = (userId: number, email: string) => {
 }
 
 const granularityOptions = computed(() => [{ value: 'day', label: t('admin.dashboard.day') }, { value: 'hour', label: t('admin.dashboard.hour') }])
-// Use local timezone to avoid UTC timezone issues
-const formatLD = (d: Date) => {
-  const year = d.getFullYear()
-  const month = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-const getLast24HoursRangeDates = (): { start: string; end: string } => {
-  const end = new Date()
-  const start = new Date(end.getTime() - 24 * 60 * 60 * 1000)
-  return {
-    start: formatLD(start),
-    end: formatLD(end)
-  }
-}
-const getGranularityForRange = (start: string, end: string): 'day' | 'hour' => {
-  const startTime = new Date(`${start}T00:00:00`).getTime()
-  const endTime = new Date(`${end}T00:00:00`).getTime()
-  const daysDiff = Math.ceil((endTime - startTime) / (1000 * 60 * 60 * 24))
-  return daysDiff <= 1 ? 'hour' : 'day'
-}
-const defaultRange = getLast24HoursRangeDates()
+const defaultRange = getLast24HoursRange()
 const startDate = ref(defaultRange.start); const endDate = ref(defaultRange.end)
 const filters = ref<AdminUsageQueryParams>({ user_id: undefined, model: undefined, group_id: undefined, request_type: undefined, native_compaction_v2: null, billing_type: null, start_date: startDate.value, end_date: endDate.value })
 const pagination = reactive({ page: 1, page_size: getPersistedPageSize(), total: 0 })
@@ -335,7 +315,7 @@ const applyRouteQueryFilters = () => {
     start_date: startDate.value,
     end_date: endDate.value
   }
-  granularity.value = getGranularityForRange(startDate.value, endDate.value)
+  granularity.value = getDateRangeGranularity(startDate.value, endDate.value)
 }
 
 const loadRouteUserFilterLabel = async () => {
@@ -366,7 +346,7 @@ const onDateRangeChange = (range: { startDate: string; endDate: string; preset: 
     start_date: range.startDate,
     end_date: range.endDate
   }
-  granularity.value = getGranularityForRange(range.startDate, range.endDate)
+  granularity.value = getDateRangeGranularity(range.startDate, range.endDate)
   applyFilters()
 }
 
@@ -532,20 +512,29 @@ const applyFilters = () => {
   }
 }
 const refreshData = () => {
+  let rangeChanged = false
+  if (isLast24HoursRange(startDate.value, endDate.value)) {
+    const range = getLast24HoursRange()
+    rangeChanged = startDate.value !== range.start || endDate.value !== range.end
+    startDate.value = range.start
+    endDate.value = range.end
+    filters.value = { ...filters.value, start_date: range.start, end_date: range.end }
+  }
   invalidateModelStatsCache()
   loadLogs()
   loadStats(true)
   loadModelStats(modelDistributionSource.value, true)
   loadChartData()
   if (activeTab.value === 'errors') loadAdminErrors()
-  if (rankingMounted.value) rankingRef.value?.reload()
+  // Ranking watches date changes after its props update.
+  if (rankingMounted.value && !rangeChanged) rankingRef.value?.reload()
 }
 const resetFilters = () => {
-  const range = getLast24HoursRangeDates()
+  const range = getLast24HoursRange()
   startDate.value = range.start
   endDate.value = range.end
   filters.value = { start_date: startDate.value, end_date: endDate.value, request_type: undefined, native_compaction_v2: null, billing_type: null, billing_mode: undefined }
-  granularity.value = getGranularityForRange(startDate.value, endDate.value)
+  granularity.value = getDateRangeGranularity(startDate.value, endDate.value)
   applyFilters()
 }
 const handlePageChange = (p: number) => { pagination.page = p; loadLogs() }
@@ -577,6 +566,7 @@ const exportToExcel = async () => {
   const c = new AbortController(); exportAbortController = c
   try {
     let p = 1; let total = pagination.total; let exportedCount = 0
+    const exportParams = buildUsageListParams(1, 100, true)
     const XLSX = await import('xlsx')
     const headers = [
       t('usage.time'), t('admin.usage.user'), t('usage.apiKeyFilter'),
@@ -594,7 +584,7 @@ const exportToExcel = async () => {
     const ws = XLSX.utils.aoa_to_sheet([headers])
     while (true) {
       const res = await adminUsageAPI.list(
-        buildUsageListParams(p, 100, true),
+        { ...exportParams, page: p },
         { signal: c.signal }
       )
       if (c.signal.aborted) break; if (p === 1) { total = res.total; exportProgress.total = total }
@@ -621,7 +611,7 @@ const exportToExcel = async () => {
     if(!c.signal.aborted) {
       const wb = XLSX.utils.book_new()
       XLSX.utils.book_append_sheet(wb, ws, 'Usage')
-      saveAs(new Blob([XLSX.write(wb, { bookType: 'xlsx', type: 'array' })], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `usage_${filters.value.start_date}_to_${filters.value.end_date}.xlsx`)
+      saveAs(new Blob([XLSX.write(wb, { bookType: 'xlsx', type: 'array' })], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `usage_${exportParams.start_date}_to_${exportParams.end_date}.xlsx`.replace(/:/g, '-'))
       appStore.showSuccess(t('usage.exportSuccess'))
     }
   } catch (error) { console.error('Failed to export:', error); appStore.showError('Export Failed') }
@@ -813,7 +803,7 @@ const selectedErrorId = ref<number | null>(null)
 
 // 注意：'YYYY-MM-DDT00:00:00' 无时区后缀，按本地时区解析后再转 UTC——与页面其它日期处理语义一致，刻意如此，勿改成 'T00:00:00Z'
 const toRFC3339 = (d: string | undefined, endOfDay = false): string | undefined =>
-  d ? new Date(d + (endOfDay ? 'T23:59:59.999' : 'T00:00:00')).toISOString() : undefined
+  d ? new Date(d.includes('T') ? d : d + (endOfDay ? 'T23:59:59.999' : 'T00:00:00')).toISOString() : undefined
 
 const loadAdminErrors = async () => {
   errLoading.value = true

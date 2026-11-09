@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/usagestats"
 )
 
@@ -282,7 +283,8 @@ func (r *usageLogRepository) GetUsageTrendWithUsageFilters(ctx context.Context, 
 }
 
 func (r *usageLogRepository) getUsageTrendWithFilters(ctx context.Context, startTime, endTime time.Time, granularity string, userID, apiKeyID, accountID, groupID int64, model string, modelSource string, requestType *int16, stream *bool, billingType *int8, billingMode string, upstreamModelMismatch *bool, nativeCompactionV2 *bool) (results []TrendDataPoint, err error) {
-	if shouldUsePreaggregatedTrend(granularity, userID, apiKeyID, accountID, groupID, model, requestType, stream, billingType, billingMode, upstreamModelMismatch, nativeCompactionV2) {
+	if shouldUsePreaggregatedTrend(granularity, userID, apiKeyID, accountID, groupID, model, requestType, stream, billingType, billingMode, upstreamModelMismatch, nativeCompactionV2) &&
+		isUsageTrendRangeAligned(startTime, endTime, granularity) {
 		aggregated, aggregatedErr := r.getUsageTrendFromAggregates(ctx, startTime, endTime, granularity)
 		if aggregatedErr == nil && len(aggregated) > 0 {
 			return aggregated, nil
@@ -373,6 +375,24 @@ func shouldUsePreaggregatedTrend(granularity string, userID, apiKeyID, accountID
 		nativeCompactionV2 == nil
 }
 
+// Aggregates contain whole buckets in the configured timezone. Partial buckets
+// must use raw records to preserve the requested half-open time range.
+func isUsageTrendRangeAligned(startTime, endTime time.Time, granularity string) bool {
+	if !endTime.After(startTime) || (granularity != "hour" && granularity != "day") {
+		return false
+	}
+	for _, boundary := range []time.Time{startTime, endTime} {
+		local := boundary.In(timezone.Location())
+		if local.Minute() != 0 || local.Second() != 0 || local.Nanosecond() != 0 {
+			return false
+		}
+		if granularity == "day" && local.Hour() != 0 {
+			return false
+		}
+	}
+	return true
+}
+
 func (r *usageLogRepository) getUsageTrendFromAggregates(ctx context.Context, startTime, endTime time.Time, granularity string) (results []TrendDataPoint, err error) {
 	dateFormat := safeDateFormat(granularity)
 	query := ""
@@ -396,6 +416,10 @@ func (r *usageLogRepository) getUsageTrendFromAggregates(ctx context.Context, st
 			ORDER BY bucket_start ASC
 		`, dateFormat)
 	case "day":
+		args = []any{
+			startTime.In(timezone.Location()).Format("2006-01-02"),
+			endTime.In(timezone.Location()).Format("2006-01-02"),
+		}
 		query = fmt.Sprintf(`
 			SELECT
 				TO_CHAR(bucket_date::timestamp, '%s') as date,
