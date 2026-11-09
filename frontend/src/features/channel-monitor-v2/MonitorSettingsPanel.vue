@@ -47,7 +47,8 @@
     </div>
 
     <template v-else-if="draft">
-      <!-- 三个 Tab 各自回答一个问题：收哪些流量 / 什么算错误 / 什么颜色（设计 12 号稿、03 §5） -->
+      <!-- 三个 Tab 各自回答一个问题：收哪些流量 / 什么算错误 / 什么颜色（设计 12 号稿、03 §5）。
+           定稿就这三个：探测请求模板的管理在「主动探测」列表页，不在这里再开一个入口。 -->
       <nav class="tabs inline-flex flex-wrap" role="tablist" :aria-label="t('channelMonitorV2.settings.tabsAria')">
         <button
           v-for="item in settingsTabs"
