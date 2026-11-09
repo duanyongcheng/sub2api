@@ -41,6 +41,7 @@ export default {
     noData: '暂无数据',
     expand: '展开',
     collapse: '收起',
+    details: '详情',
     success: '成功',
     error: '错误',
     critical: '严重',

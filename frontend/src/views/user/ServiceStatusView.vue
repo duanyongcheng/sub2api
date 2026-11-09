@@ -39,13 +39,13 @@
           </button>
         </div>
 
-        <!-- 结论 + 三项指标 -->
-        <div class="flex flex-wrap items-center justify-between gap-4 border-t border-gray-100 px-5 py-4 dark:border-dark-700 sm:px-6">
+        <!-- 结论 + 三项指标：窄屏纵向堆叠，指标用等分三列，不靠横向挤压 -->
+        <div class="flex flex-col gap-4 border-t border-gray-100 px-5 py-4 dark:border-dark-700 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:px-6">
           <div class="min-w-0">
             <p class="text-sm font-semibold" :class="bannerTone.text" data-testid="service-verdict">{{ verdictTitle }}</p>
             <p class="mt-0.5 text-xs text-gray-500 dark:text-dark-400">{{ verdictDescription }}</p>
           </div>
-          <dl class="flex shrink-0 gap-6 text-right sm:gap-8">
+          <dl class="grid w-full grid-cols-3 gap-4 text-right sm:flex sm:w-auto sm:shrink-0 sm:gap-6 md:gap-8">
             <div>
               <dt class="text-[10px] text-gray-400 dark:text-dark-400">{{ t('channelMonitorV2.service.bannerOverview') }}</dt>
               <dd class="mt-0.5 text-lg font-semibold tabular-nums" :class="bannerTone.text" data-testid="service-availability">

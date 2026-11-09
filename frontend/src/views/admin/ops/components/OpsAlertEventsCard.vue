@@ -669,7 +669,8 @@ const empty = computed(() => events.value.length === 0 && !loading.value)
           <div v-else-if="history.length === 0" class="py-6 text-center text-xs text-gray-500 dark:text-gray-400">
             {{ t('admin.ops.alertEvents.detail.historyEmpty') }}
           </div>
-          <div v-else class="overflow-hidden rounded-lg border border-gray-100 dark:border-dark-700">
+          <!-- overflow-x-auto: 窄屏下历史表要能横向滚动，而不是被裁掉右边的列 -->
+          <div v-else class="overflow-x-auto rounded-lg border border-gray-100 dark:border-dark-700">
             <table class="min-w-full divide-y divide-gray-100 dark:divide-dark-700">
               <thead class="bg-gray-50 dark:bg-dark-900">
                 <tr>

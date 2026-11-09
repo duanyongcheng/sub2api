@@ -341,12 +341,12 @@ describe('DataTable', () => {
     })
 
     expect(viewport.style.width).toBe('320px')
-    expect(wrapper.findAll('[data-field="usage"]')).toHaveLength(1)
-    expect(wrapper.find('[data-field="ollama_cloud_usage"]').exists()).toBe(false)
-    const field = wrapper.get('[data-field="usage"]')
-    expect(field.classes()).toContain('min-w-0')
-    expect(field.get('div').classes()).toEqual(expect.arrayContaining(['min-w-0', 'max-w-full']))
+    // A single column becomes the card title, so it renders once and is shrinkable.
     expect(wrapper.findAll('[data-test="usage-cell"]')).toHaveLength(1)
+    expect(wrapper.find('[data-field="ollama_cloud_usage"]').exists()).toBe(false)
+    expect(wrapper.get('[data-test="mobile-primary"]').classes()).toContain('min-w-0')
+    // Nothing else to collapse, so no expand affordance is offered.
+    expect(wrapper.find('[data-test="mobile-expand"]').exists()).toBe(false)
 
     wrapper.unmount()
     viewport.remove()
@@ -370,5 +370,74 @@ describe('DataTable', () => {
     await wrapper.get('[data-test="select-all-mobile"]').setValue(true)
 
     expect(wrapper.emitted('update:selectedKeys')?.at(-1)?.[0]).toEqual([99, 1, 2])
+  })
+
+  it('collapses secondary columns behind one tap on a phone', async () => {
+    stubMobileMatchMedia()
+    const columns = [
+      { key: 'name', label: 'Name', mobilePrimary: true },
+      { key: 'status', label: 'Status', mobileAlways: true },
+      { key: 'today', label: 'Today' },
+      { key: 'proxy', label: 'Proxy' },
+      { key: 'created', label: 'Created' }
+    ]
+    const wrapper = mount(DataTable, {
+      props: { columns, data: [{ id: 1, name: 'claude-pro-01', status: 'ok', today: 42, proxy: 'US', created: '2026-01-01' }], rowKey: 'id' }
+    })
+
+    // Identity first, always-on fields next; the rest is hidden until asked for.
+    expect(wrapper.get('[data-test="mobile-primary"]').text()).toContain('claude-pro-01')
+    expect(wrapper.find('[data-field="status"]').exists()).toBe(true)
+    expect(wrapper.find('[data-field="today"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="mobile-details"]').exists()).toBe(false)
+    const toggle = wrapper.get('[data-test="mobile-expand"]')
+    expect(toggle.attributes('aria-expanded')).toBe('false')
+
+    await toggle.trigger('click')
+    expect(wrapper.findAll('[data-test="mobile-details"]')).toHaveLength(1)
+    expect(wrapper.get('[data-field="today"]').text()).toContain('42')
+    expect(wrapper.get('[data-field="proxy"]').text()).toContain('US')
+    expect(wrapper.get('[data-test="mobile-expand"]').attributes('aria-expanded')).toBe('true')
+
+    await wrapper.get('[data-test="mobile-expand"]').trigger('click')
+    expect(wrapper.find('[data-test="mobile-details"]').exists()).toBe(false)
+  })
+
+  it('expands cards independently', async () => {
+    stubMobileMatchMedia()
+    const wrapper = mount(DataTable, {
+      props: {
+        columns: [{ key: 'name', label: 'Name' }, { key: 'today', label: 'Today' }],
+        data: [{ id: 1, name: 'a', today: 1 }, { id: 2, name: 'b', today: 2 }],
+        rowKey: 'id'
+      }
+    })
+    const toggles = wrapper.findAll('[data-test="mobile-expand"]')
+    await toggles[1].trigger('click')
+    expect(wrapper.findAll('[data-test="mobile-details"]')).toHaveLength(1)
+    expect(wrapper.findAll('[data-test="mobile-details"]')[0].text()).toContain('2')
+  })
+
+  it('falls back to the first real column as the card title', () => {
+    stubMobileMatchMedia()
+    const wrapper = mount(DataTable, {
+      props: {
+        // 'select' is a placeholder with no cell slot and must never become the title.
+        columns: [{ key: 'select', label: '' }, { key: 'name', label: 'Name' }, { key: 'id', label: 'ID' }],
+        data: [{ id: 7, name: 'group-a' }],
+        rowKey: 'id'
+      }
+    })
+    expect(wrapper.get('[data-test="mobile-primary"]').text()).toContain('group-a')
+    expect(wrapper.find('[data-field="select"]').exists()).toBe(false)
+  })
+
+  it('switches to card layout below the lg breakpoint', () => {
+    stubMobileMatchMedia() // reports no match for any query, i.e. narrow viewport
+    const wrapper = mount(DataTable, {
+      props: { columns: [{ key: 'name', label: 'Name' }], data: [{ id: 1, name: 'x' }], rowKey: 'id' }
+    })
+    expect(wrapper.find('table').exists()).toBe(false)
+    expect(wrapper.find('[data-test="mobile-primary"]').exists()).toBe(true)
   })
 })

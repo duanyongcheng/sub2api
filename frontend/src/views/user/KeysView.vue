@@ -1145,7 +1145,8 @@ const onboardingStore = useOnboardingStore()
 const { copyToClipboard: clipboardCopy } = useClipboard()
 
 const allColumns = computed<Column[]>(() => [
-  { key: 'name', label: t('common.name'), sortable: true, width: '190px' },
+  // 移动端卡片标题：密钥名是唯一能区分两把密钥的东西
+  { key: 'name', label: t('common.name'), sortable: true, width: '190px', mobilePrimary: true },
   { key: 'id', label: t('keys.id'), sortable: true, width: '84px' },
   { key: 'key', label: t('keys.apiKey'), sortable: false, width: '220px' },
   { key: 'group', label: t('keys.group'), sortable: true, width: '172px' },

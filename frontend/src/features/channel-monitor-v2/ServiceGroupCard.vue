@@ -33,7 +33,8 @@
       </div>
 
       <!-- 指标：可用率 + 平均首字延迟，口径写在标签里 -->
-      <dl class="flex shrink-0 gap-6 text-right sm:gap-8">
+      <!-- 窄屏：两个指标并排占满整行，不跟分组名抢宽度 -->
+      <dl class="grid w-full grid-cols-2 gap-4 text-right sm:flex sm:w-auto sm:shrink-0 sm:gap-8">
         <div>
           <dt class="text-[10px] text-ink-3">{{ t('channelMonitorV2.service.windowAvailability', { range: rangeLabel }) }}</dt>
           <dd class="mt-0.5 text-lg font-semibold tabular-nums" :class="availabilityTone[state].value">

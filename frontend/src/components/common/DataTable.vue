@@ -56,19 +56,50 @@
         @click="clickableRows && emit('rowClick', row)"
       >
         <div class="space-y-3">
-          <div v-if="selectable" class="flex justify-end">
+          <!-- Identity row: the primary column is what tells two rows apart on a phone.
+               Printing every column as label/value turns a 20-column list into 20 stacked
+               lines per card, which is why "mobile mode" used to be unusable. -->
+          <div class="flex min-w-0 items-start gap-3">
             <input
+              v-if="selectable"
               type="checkbox"
-              class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 dark:border-dark-600 dark:bg-dark-800"
+              class="mt-0.5 h-4 w-4 shrink-0 rounded border-gray-300 text-primary-600 focus:ring-primary-500 dark:border-dark-600 dark:bg-dark-800"
               :checked="isRowSelected(row, index)"
               :aria-label="getRowSelectionLabel(row, index)"
               data-test="select-row"
               @click.stop
               @change="toggleRowSelection(row, index, ($event.target as HTMLInputElement).checked)"
             />
+            <div class="min-w-0 flex-1" data-test="mobile-primary">
+              <slot
+                v-if="primaryColumn"
+                :name="`cell-${primaryColumn.key}`"
+                :row="row"
+                :value="row[primaryColumn.key]"
+                :expanded="actionsExpanded"
+              >
+                <span class="block truncate text-sm font-semibold text-gray-900 dark:text-gray-100">
+                  {{ primaryColumn.formatter ? primaryColumn.formatter(row[primaryColumn.key], row) : row[primaryColumn.key] }}
+                </span>
+              </slot>
+            </div>
+            <button
+              v-if="mobileSecondaryColumns.length"
+              type="button"
+              class="btn btn-ghost btn-sm shrink-0"
+              :aria-expanded="isMobileExpanded(index)"
+              :aria-label="isMobileExpanded(index) ? t('common.collapse') : t('common.expand')"
+              data-test="mobile-expand"
+              @click.stop="toggleMobileExpanded(index)"
+            >
+              {{ isMobileExpanded(index) ? t('common.collapse') : t('common.details') }}
+              <Icon name="chevronDown" size="xs" class="transition-transform" :class="isMobileExpanded(index) ? 'rotate-180' : ''" />
+            </button>
           </div>
+
+          <!-- Always-visible fields stay on the card body; the rest are one tap away. -->
           <div
-            v-for="column in dataColumns"
+            v-for="column in mobileInlineColumns"
             :key="column.key"
             :data-field="column.key"
             class="flex min-w-0 items-start justify-between gap-4"
@@ -82,6 +113,29 @@
               </slot>
             </div>
           </div>
+
+          <div
+            v-if="mobileSecondaryColumns.length && isMobileExpanded(index)"
+            class="space-y-3 border-t border-gray-200 pt-3 dark:border-dark-700"
+            data-test="mobile-details"
+          >
+            <div
+              v-for="column in mobileSecondaryColumns"
+              :key="column.key"
+              :data-field="column.key"
+              class="flex min-w-0 items-start justify-between gap-4"
+            >
+              <span class="text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-dark-400">
+                {{ column.label }}
+              </span>
+              <div class="min-w-0 max-w-full text-right text-sm text-gray-900 dark:text-gray-100">
+                <slot :name="`cell-${column.key}`" :row="row" :value="row[column.key]" :expanded="actionsExpanded">
+                  {{ column.formatter ? column.formatter(row[column.key], row) : row[column.key] }}
+                </slot>
+              </div>
+            </div>
+          </div>
+
           <div v-if="hasActionsColumn" class="border-t border-gray-200 pt-3 dark:border-dark-700">
             <slot name="cell-actions" :row="row" :value="row['actions']" :expanded="actionsExpanded"></slot>
           </div>
@@ -279,7 +333,9 @@ import Icon from '@/components/icons/Icon.vue'
 
 const { t } = useI18n()
 
-const desktopViewportQuery = '(min-width: 768px)'
+// Below lg (1024px) a 15-column admin table cannot be read even with horizontal
+// scroll — the identity column scrolls away. Card mode starts at lg instead.
+const desktopViewportQuery = '(min-width: 1024px)'
 const isDesktopViewport = ref(
   typeof window === 'undefined' ? true : window.matchMedia(desktopViewportQuery).matches
 )
@@ -653,6 +709,34 @@ const resolveStableRowKey = (row: any): string | number | undefined => {
 const resolveRowKey = (row: any, index: number) => resolveStableRowKey(row) ?? index
 
 const dataColumns = computed(() => props.columns.filter((column) => column.key !== 'actions'))
+/** Columns that actually carry data (the 'select' placeholder column has no cell slot). */
+const cellColumns = computed(() => dataColumns.value.filter((column) => column.key !== 'select'))
+
+/**
+ * The card title. Prefer an explicit `mobilePrimary`, else the first real column:
+ * on every list page here the first column is the account / key / group identity.
+ */
+const primaryColumn = computed(() => cellColumns.value.find((column) => column.mobilePrimary) || cellColumns.value[0])
+const mobileInlineColumns = computed(() =>
+  cellColumns.value.filter((column) => column !== primaryColumn.value && column.mobileAlways),
+)
+const mobileSecondaryColumns = computed(() =>
+  cellColumns.value.filter((column) => column !== primaryColumn.value && !column.mobileAlways),
+)
+
+// Per-card expansion, keyed by row so a re-render does not reset it.
+const mobileExpanded = ref(new Set<string | number>())
+function isMobileExpanded(index: number) {
+  const key = resolveRowKey(sortedData.value[index], index)
+  return mobileExpanded.value.has(key)
+}
+function toggleMobileExpanded(index: number) {
+  const key = resolveRowKey(sortedData.value[index], index)
+  const next = new Set(mobileExpanded.value)
+  if (next.has(key)) next.delete(key)
+  else next.add(key)
+  mobileExpanded.value = next
+}
 const columnsSignature = computed(() =>
   props.columns.map((column) => `${column.key}:${column.sortable ? '1' : '0'}`).join('|')
 )

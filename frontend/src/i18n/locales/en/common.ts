@@ -41,6 +41,7 @@ export default {
     noData: 'No data',
     expand: 'Expand',
     collapse: 'Collapse',
+    details: 'Details',
     success: 'Success',
     error: 'Error',
     critical: 'Critical',
