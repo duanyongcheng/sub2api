@@ -158,6 +158,7 @@ import { usageAPI, type UserDashboardStats as UserStatsType } from '@/api/usage'
 import { getMyPlatformQuotas } from '@/api/user'
 import type { UsageLog, TrendDataPoint, ModelStat, PlatformQuotaItem } from '@/types'
 import { formatDateLocalInput } from '@/utils/format'
+import { isLast24HoursRange } from '@/utils/dateRange'
 import type { WorkbenchMetric, WorkbenchGranularity } from '@/components/user/workbench/WorkbenchTrend.vue'
 
 /**
@@ -202,6 +203,7 @@ const presets = computed(() => [
 const statsWindowDays = computed(() => selectedPreset.value ?? 7)
 
 const windowLabel = computed(() => {
+  if (isLast24HoursRange(startDate.value, endDate.value)) return t('dates.last24Hours')
   const preset = presets.value.find((p) => p.days === selectedPreset.value)
   return preset ? preset.label : `${startDate.value} ~ ${endDate.value}`
 })

@@ -161,21 +161,21 @@ func (h *UsageHandler) parseUserUsageFilters(c *gin.Context, requireRange bool) 
 	endDateStr := strings.TrimSpace(c.Query("end_date"))
 
 	if startDateStr != "" {
-		t, err := timezone.ParseInUserLocation("2006-01-02", startDateStr, userTZ)
+		t, err := timezone.ParseDateRangeBoundary(startDateStr, userTZ, false)
 		if err != nil {
-			response.BadRequest(c, "Invalid start_date format, use YYYY-MM-DD")
+			response.BadRequest(c, "Invalid start_date format, use YYYY-MM-DD or RFC3339")
 			return nil, false
 		}
 		startTime = t
 		startPtr = &startTime
 	}
 	if endDateStr != "" {
-		t, err := timezone.ParseInUserLocation("2006-01-02", endDateStr, userTZ)
+		t, err := timezone.ParseDateRangeBoundary(endDateStr, userTZ, true)
 		if err != nil {
-			response.BadRequest(c, "Invalid end_date format, use YYYY-MM-DD")
+			response.BadRequest(c, "Invalid end_date format, use YYYY-MM-DD or RFC3339")
 			return nil, false
 		}
-		endTime = t.AddDate(0, 0, 1)
+		endTime = t
 		endPtr = &endTime
 	}
 
@@ -288,20 +288,19 @@ func (h *UsageHandler) ListErrors(c *gin.Context) {
 	// Date range (half-open [start, end)), reuse usage-list semantics.
 	userTZ := c.Query("timezone")
 	if startDateStr := c.Query("start_date"); startDateStr != "" {
-		t, err := timezone.ParseInUserLocation("2006-01-02", startDateStr, userTZ)
+		t, err := timezone.ParseDateRangeBoundary(startDateStr, userTZ, false)
 		if err != nil {
-			response.BadRequest(c, "Invalid start_date format, use YYYY-MM-DD")
+			response.BadRequest(c, "Invalid start_date format, use YYYY-MM-DD or RFC3339")
 			return
 		}
 		filter.StartTime = &t
 	}
 	if endDateStr := c.Query("end_date"); endDateStr != "" {
-		t, err := timezone.ParseInUserLocation("2006-01-02", endDateStr, userTZ)
+		t, err := timezone.ParseDateRangeBoundary(endDateStr, userTZ, true)
 		if err != nil {
-			response.BadRequest(c, "Invalid end_date format, use YYYY-MM-DD")
+			response.BadRequest(c, "Invalid end_date format, use YYYY-MM-DD or RFC3339")
 			return
 		}
-		t = t.AddDate(0, 0, 1)
 		filter.EndTime = &t
 	}
 
@@ -481,8 +480,8 @@ func (h *UsageHandler) DashboardTrend(c *gin.Context) {
 
 	response.Success(c, gin.H{
 		"trend":       trend,
-		"start_date":  parsed.StartTime.Format("2006-01-02"),
-		"end_date":    parsed.EndTime.Add(-24 * time.Hour).Format("2006-01-02"),
+		"start_date":  timezone.FormatDateRangeBoundary(parsed.StartTime, c.Query("start_date"), false),
+		"end_date":    timezone.FormatDateRangeBoundary(parsed.EndTime, c.Query("end_date"), true),
 		"granularity": granularity,
 	})
 }
@@ -509,8 +508,8 @@ func (h *UsageHandler) DashboardModels(c *gin.Context) {
 
 	response.Success(c, gin.H{
 		"models":     userModelStatsFromUsageStats(stats),
-		"start_date": parsed.StartTime.Format("2006-01-02"),
-		"end_date":   parsed.EndTime.Add(-24 * time.Hour).Format("2006-01-02"),
+		"start_date": timezone.FormatDateRangeBoundary(parsed.StartTime, c.Query("start_date"), false),
+		"end_date":   timezone.FormatDateRangeBoundary(parsed.EndTime, c.Query("end_date"), true),
 	})
 }
 
@@ -541,8 +540,8 @@ func (h *UsageHandler) DashboardSnapshotV2(c *gin.Context) {
 
 	resp := gin.H{
 		"generated_at": time.Now().UTC().Format(time.RFC3339),
-		"start_date":   parsed.StartTime.Format("2006-01-02"),
-		"end_date":     parsed.EndTime.Add(-24 * time.Hour).Format("2006-01-02"),
+		"start_date":   timezone.FormatDateRangeBoundary(parsed.StartTime, c.Query("start_date"), false),
+		"end_date":     timezone.FormatDateRangeBoundary(parsed.EndTime, c.Query("end_date"), true),
 		"granularity":  granularity,
 	}
 

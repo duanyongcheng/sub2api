@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/usagestats"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
@@ -52,6 +53,8 @@ type dashboardSnapshotV2Filters struct {
 type dashboardSnapshotV2CacheKey struct {
 	StartTime             string `json:"start_time"`
 	EndTime               string `json:"end_time"`
+	StartDate             string `json:"start_date"`
+	EndDate               string `json:"end_date"`
 	Granularity           string `json:"granularity"`
 	UserID                int64  `json:"user_id"`
 	APIKeyID              int64  `json:"api_key_id"`
@@ -72,7 +75,10 @@ type dashboardSnapshotV2CacheKey struct {
 }
 
 func (h *DashboardHandler) GetSnapshotV2(c *gin.Context) {
-	startTime, endTime := parseTimeRange(c)
+	startTime, endTime, ok := parseTimeRange(c)
+	if !ok {
+		return
+	}
 	granularity := strings.TrimSpace(c.DefaultQuery("granularity", "day"))
 	if granularity != "hour" {
 		granularity = "day"
@@ -97,8 +103,10 @@ func (h *DashboardHandler) GetSnapshotV2(c *gin.Context) {
 	}
 
 	keyRaw, _ := json.Marshal(dashboardSnapshotV2CacheKey{
-		StartTime:             startTime.UTC().Format(time.RFC3339),
-		EndTime:               endTime.UTC().Format(time.RFC3339),
+		StartTime:             startTime.UTC().Format(time.RFC3339Nano),
+		EndTime:               endTime.UTC().Format(time.RFC3339Nano),
+		StartDate:             timezone.FormatDateRangeBoundary(startTime, c.Query("start_date"), false),
+		EndDate:               timezone.FormatDateRangeBoundary(endTime, c.Query("end_date"), true),
 		Granularity:           granularity,
 		UserID:                filters.UserID,
 		APIKeyID:              filters.APIKeyID,
@@ -124,6 +132,8 @@ func (h *DashboardHandler) GetSnapshotV2(c *gin.Context) {
 			c.Request.Context(),
 			startTime,
 			endTime,
+			timezone.FormatDateRangeBoundary(startTime, c.Query("start_date"), false),
+			timezone.FormatDateRangeBoundary(endTime, c.Query("end_date"), true),
 			granularity,
 			filters,
 			includeStats,
@@ -153,6 +163,7 @@ func (h *DashboardHandler) GetSnapshotV2(c *gin.Context) {
 func (h *DashboardHandler) buildSnapshotV2Response(
 	ctx context.Context,
 	startTime, endTime time.Time,
+	startDate, endDate string,
 	granularity string,
 	filters *dashboardSnapshotV2Filters,
 	includeStats, includeTrend, includeModels, includeGroups, includeUsersTrend bool,
@@ -160,8 +171,8 @@ func (h *DashboardHandler) buildSnapshotV2Response(
 ) (*dashboardSnapshotV2Response, error) {
 	resp := &dashboardSnapshotV2Response{
 		GeneratedAt: time.Now().UTC().Format(time.RFC3339),
-		StartDate:   startTime.Format("2006-01-02"),
-		EndDate:     endTime.Add(-24 * time.Hour).Format("2006-01-02"),
+		StartDate:   startDate,
+		EndDate:     endDate,
 		Granularity: granularity,
 	}
 

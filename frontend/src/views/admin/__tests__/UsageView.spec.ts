@@ -42,13 +42,6 @@ const messages: Record<string, string> = {
 	'common.no': 'No',
 }
 
-const formatLocalDate = (date: Date): string => {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
 vi.mock('@/api/admin', () => ({
   adminAPI: {
     usage: {
@@ -210,6 +203,83 @@ describe('admin UsageView route filters', () => {
     expect(getById).toHaveBeenCalledWith(42, true)
     expect(list).toHaveBeenCalledWith(expect.objectContaining({ user_id: 42 }), expect.anything())
     expect(wrapper.find('[data-test="user-filter-label"]').text()).toBe('route-user@test.com')
+  })
+
+  it('shares precise timestamps across initial requests, errors, pagination, refresh, and reset', async () => {
+    const now = new Date('2026-11-09T00:15:30.456+08:00')
+    vi.setSystemTime(now)
+    listErrorLogs.mockReset().mockResolvedValue({ items: [], total: 0, pages: 0 })
+    const wrapper = mountRouteFilteredUsageView()
+    vi.advanceTimersByTime(120)
+    await flushPromises()
+    const range = {
+      start_date: new Date(now.getTime() - 86_400_000).toISOString(),
+      end_date: now.toISOString(),
+    }
+    expect(list).toHaveBeenCalledWith(expect.objectContaining(range), expect.anything())
+    expect(getStats).toHaveBeenCalledWith(expect.objectContaining(range))
+    expect(getModelStats).toHaveBeenCalledWith(expect.objectContaining(range))
+    expect(getSnapshotV2).toHaveBeenCalledWith(expect.objectContaining({ ...range, granularity: 'hour' }))
+
+    const vm = wrapper.vm as any
+    vm.switchTab('errors')
+    vm.handlePageChange(2)
+    await flushPromises()
+    expect(listErrorLogs).toHaveBeenCalledWith(expect.objectContaining({
+      start_time: range.start_date, end_time: range.end_date,
+    }))
+    expect(list).toHaveBeenLastCalledWith(expect.objectContaining({ ...range, page: 2 }), expect.anything())
+
+    const refreshAt = new Date(now.getTime() + 600_000)
+    vi.setSystemTime(refreshAt)
+    vm.granularity = 'day'
+    vm.refreshData()
+    await flushPromises()
+    const refreshedRange = {
+      start_date: new Date(refreshAt.getTime() - 86_400_000).toISOString(),
+      end_date: refreshAt.toISOString(),
+    }
+    expect(list).toHaveBeenLastCalledWith(expect.objectContaining(refreshedRange), expect.anything())
+    expect(getStats).toHaveBeenLastCalledWith(expect.objectContaining(refreshedRange))
+    expect(getModelStats).toHaveBeenLastCalledWith(expect.objectContaining(refreshedRange))
+    expect(getSnapshotV2).toHaveBeenLastCalledWith(expect.objectContaining({ ...refreshedRange, granularity: 'day' }))
+    expect(listErrorLogs).toHaveBeenLastCalledWith(expect.objectContaining({
+      start_time: refreshedRange.start_date, end_time: refreshedRange.end_date,
+    }))
+    vm.handlePageChange(3)
+    await flushPromises()
+    expect(list).toHaveBeenLastCalledWith(expect.objectContaining({ ...refreshedRange, page: 3 }), expect.anything())
+
+    const resetAt = new Date(now.getTime() + 3_600_000)
+    vi.setSystemTime(resetAt)
+    vm.resetFilters()
+    await flushPromises()
+    const resetRange = {
+      start_date: new Date(resetAt.getTime() - 86_400_000).toISOString(),
+      end_date: resetAt.toISOString(),
+    }
+    expect(list).toHaveBeenLastCalledWith(expect.objectContaining({ ...resetRange, page: 1 }), expect.anything())
+    expect(getStats).toHaveBeenLastCalledWith(expect.objectContaining(resetRange))
+    expect(getSnapshotV2).toHaveBeenLastCalledWith(expect.objectContaining({ ...resetRange, granularity: 'hour' }))
+    wrapper.unmount()
+  })
+
+  it('retains a custom calendar range when refreshing later', async () => {
+    routeQuery.start_date = '2026-11-01'
+    routeQuery.end_date = '2026-11-02'
+    const wrapper = mountRouteFilteredUsageView()
+    try {
+      await flushPromises()
+      const vm = wrapper.vm as any
+      vm.refreshData()
+      await flushPromises()
+      const range = { start_date: routeQuery.start_date, end_date: routeQuery.end_date }
+      expect(list).toHaveBeenLastCalledWith(expect.objectContaining(range), expect.anything())
+      expect(getStats).toHaveBeenLastCalledWith(expect.objectContaining(range))
+      expect(getSnapshotV2).toHaveBeenLastCalledWith(expect.objectContaining(range))
+    } finally {
+      wrapper.unmount()
+    }
   })
 
   it('does not apply a stale routed user label after user_id changes', async () => {
@@ -405,6 +475,7 @@ describe('admin UsageView distribution metric toggles', () => {
   })
 
   it('keeps model and group metric toggles independent without refetching chart data', async () => {
+    const now = new Date()
     const wrapper = mount(UsageView, {
       global: {
         stubs: {
@@ -431,11 +502,10 @@ describe('admin UsageView distribution metric toggles', () => {
     await flushPromises()
 
     expect(getSnapshotV2).toHaveBeenCalledTimes(1)
-    const now = new Date()
     const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000)
     expect(getSnapshotV2).toHaveBeenCalledWith(expect.objectContaining({
-      start_date: formatLocalDate(yesterday),
-      end_date: formatLocalDate(now),
+      start_date: yesterday.toISOString(),
+      end_date: now.toISOString(),
       granularity: 'hour'
     }))
 
@@ -774,6 +844,42 @@ describe('admin UsageView model audit export', () => {
 		vi.useRealTimers()
 	})
 
+  it('keeps the exported window and filename when refresh advances the rolling range', async () => {
+    const now = new Date('2026-11-09T00:15:30.456+08:00')
+    vi.setSystemTime(now)
+    const wrapper = mountRouteFilteredUsageView()
+    try {
+      await flushPromises()
+      const row = { id: 1, created_at: now.toISOString(), model: 'gpt-5.6-sol', request_type: 'sync' }
+      const response = { items: [row], total: 101, pages: 2 }
+      let resolveFirstPage!: (value: typeof response) => void
+      exportList.mockImplementationOnce(() => new Promise<typeof response>((resolve) => { resolveFirstPage = resolve }))
+      exportList.mockResolvedValueOnce(response)
+
+      const vm = wrapper.vm as any
+      const exporting = vm.exportToExcel()
+      await flushPromises()
+      expect(exportList).toHaveBeenCalledTimes(1)
+      const initialParams = { ...exportList.mock.calls[0][0] }
+
+      vi.setSystemTime(new Date(now.getTime() + 600_000))
+      vm.refreshData()
+      await flushPromises()
+      expect(vm.endDate).not.toBe(initialParams.end_date)
+      resolveFirstPage({ ...response, items: Array.from({ length: 100 }, () => row) })
+      await exporting
+
+      expect(exportList.mock.calls.map(([params]) => params)).toEqual([
+        initialParams,
+        { ...initialParams, page: 2 },
+      ])
+      expect(saveAs).toHaveBeenCalledWith(expect.any(Blob),
+        `usage_${initialParams.start_date}_to_${initialParams.end_date}.xlsx`.replace(/:/g, '-'))
+    } finally {
+      wrapper.unmount()
+    }
+  })
+
 	it('exports requested, sent, response, and mismatch as separate admin columns', async () => {
 		const wrapper = mountRouteFilteredUsageView()
 		vi.advanceTimersByTime(120)
@@ -784,7 +890,11 @@ describe('admin UsageView model audit export', () => {
 		await flushPromises()
 
 		expect(exportList).toHaveBeenCalledWith(
-			expect.objectContaining({ native_compaction_v2: true }),
+			expect.objectContaining({
+        native_compaction_v2: true,
+        start_date: (wrapper.vm as any).startDate,
+        end_date: (wrapper.vm as any).endDate,
+      }),
 			expect.anything()
 		)
 
@@ -798,5 +908,6 @@ describe('admin UsageView model audit export', () => {
 		const row = sheetAddAoa.mock.calls[0][1][0]
 		expect(row.slice(4, 8)).toEqual(['gpt-5.6-sol', 'gpt-5.5', 'gpt-5.4', 'Yes'])
 		expect(saveAs).toHaveBeenCalledTimes(1)
+    expect(saveAs.mock.calls[0][1]).not.toContain(':')
 	})
 })
