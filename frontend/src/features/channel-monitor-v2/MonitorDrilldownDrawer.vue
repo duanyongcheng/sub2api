@@ -19,7 +19,24 @@
         <div class="tabs flex flex-wrap" role="tablist" :aria-label="t('channelMonitorV2.operations.drillTabs')">
           <button v-for="item in (['overview', 'errors', 'history'] as const)" :key="item" type="button" role="tab" class="tab" :class="tab === item ? 'tab-active' : ''" :aria-selected="tab === item" @click="tab = item">{{ t(`channelMonitorV2.operations.drillViews.${item}`) }}</button>
         </div>
-        <MonitorAttributionPanel v-if="tab === 'overview'" :rows="errors" :metrics="snapshot.metrics" :health="snapshot.health" @inspect="inspectOwner" />
+        <section v-if="tab === 'overview'" class="space-y-3">
+          <!-- 归因结论：占比 → 一句话结论 → 可执行动作（原型 13 号稿） -->
+          <div class="rounded-xl border border-edge bg-surface-2 p-3">
+            <p v-if="conclusionOwner" class="text-xs leading-relaxed text-ink" data-testid="drilldown-conclusion">
+              <StatusPill :tone="ownerTone(conclusionOwner)" :dot="false" :label="t(`channelMonitorV2.operations.owners.${conclusionOwner}`)" class="mr-1.5 align-middle" />{{ t(`channelMonitorV2.operations.conclusion.${conclusionOwner}`, { rate: formatMonitorPercent(conclusion.share), category: conclusionLabel }) }}
+            </p>
+            <p v-else-if="sampleShort" class="text-xs leading-relaxed text-ink-2" data-testid="drilldown-conclusion">{{ t('channelMonitorV2.operations.conclusionSample', { count: snapshot.metrics.request_count, minimum: snapshot.health.minimum_sample }) }}</p>
+            <p v-else class="text-xs leading-relaxed text-ink-2" data-testid="drilldown-conclusion">{{ t('channelMonitorV2.operations.conclusionClean') }}</p>
+            <p v-if="conclusion.ignoredCount" class="mt-1 text-[11px] text-ink-3">{{ t('channelMonitorV2.operations.ignoredCount', { count: conclusion.ignoredCount }) }}</p>
+            <div v-if="conclusion.actions.length" class="mt-2 flex flex-wrap gap-2">
+              <RouterLink v-if="actions.includes('accounts') && accountLocation" :to="accountLocation" class="btn btn-secondary btn-sm" data-drill-action="accounts">{{ t('channelMonitorV2.operations.openAccounts') }}</RouterLink>
+              <RouterLink v-if="actions.includes('ops')" :to="opsLocation" class="btn btn-secondary btn-sm" data-drill-action="ops">{{ t('channelMonitorV2.operations.actionOps') }}</RouterLink>
+              <button v-if="actions.includes('ignore')" type="button" class="btn btn-secondary btn-sm" data-drill-action="ignore" @click="selectedOwner = 'client'; tab = 'errors'">{{ t('channelMonitorV2.operations.actionIgnore') }}</button>
+              <button type="button" class="btn btn-ghost btn-sm" data-drill-action="copy" @click="copySamples">{{ copied ? t('channelMonitorV2.operations.copied') : t('channelMonitorV2.operations.actionCopy') }}</button>
+            </div>
+          </div>
+          <MonitorAttributionPanel :rows="errors" :metrics="snapshot.metrics" :health="snapshot.health" @inspect="inspectOwner" />
+        </section>
         <section v-else-if="tab === 'errors'" class="space-y-3">
           <div class="flex flex-wrap items-center gap-2">
             <button v-for="owner in (['all', ...ERROR_OWNERS, 'unclassified'] as const)" :key="owner" type="button" class="btn btn-sm" :class="selectedOwner === owner ? 'btn-primary' : 'btn-secondary'" :aria-pressed="selectedOwner === owner" @click="selectedOwner = owner">{{ t(owner === 'all' ? 'channelMonitorV2.filters.allPlatforms' : `channelMonitorV2.operations.owners.${owner}`) }}</button>
@@ -59,18 +76,20 @@ import MonitorAttributionPanel from './MonitorAttributionPanel.vue'
 import { ERROR_OWNERS, errorOwner, type AttributionOwner } from './ownership'
 import { operationsState } from './monitorOperations'
 import { formatAvailability } from './monitorAvailability'
-import { formatMonitorMs } from './monitorFormat'
+import { formatMonitorMs, formatMonitorPercent } from './monitorFormat'
 import { extractApiErrorMessage } from '@/utils/apiError'
+import { drilldownConclusion } from './monitorDrilldown'
 
 export interface MonitorDrilldownContext { filter: MonitorFilter; label: string; owner?: AttributionOwner }
 const props = defineProps<{ context: MonitorDrilldownContext | null }>()
 const emit = defineEmits<{ close: [] }>()
-const { t, locale } = useI18n()
+const { t, te, locale } = useI18n()
 const snapshot = ref<MonitorSnapshot | null>(null)
 const errors = ref<MonitorErrorRow[]>([])
 const loading = ref(false)
 const error = ref('')
 const tab = ref<'overview' | 'errors' | 'history'>('overview')
+const copied = ref(false)
 const selectedOwner = ref<AttributionOwner | 'all'>('all')
 let controller: AbortController | undefined
 let sequence = 0
@@ -81,11 +100,46 @@ const summary = computed(() => snapshot.value ? [
   { label: t('channelMonitorV2.metrics.ttftP50'), value: formatMonitorMs(snapshot.value.metrics.ttft.p50_ms) },
   { label: t('channelMonitorV2.operations.healthScore'), value: snapshot.value.health.score == null ? '—' : snapshot.value.health.score.toFixed(1) },
 ] : [])
+const conclusion = computed(() => snapshot.value
+  ? drilldownConclusion(errors.value, snapshot.value.metrics, snapshot.value.health)
+  : { owner: null, share: 0, category: null, categoryCount: 0, ignoredCount: 0, actions: [] as string[] })
+const actions = computed(() => conclusion.value.actions)
+const conclusionOwner = computed(() => conclusion.value.owner)
+const sampleShort = computed(() => Boolean(snapshot.value && snapshot.value.health.error_rate === 'unknown'))
+const conclusionLabel = computed(() => {
+  const category = conclusion.value.category
+  if (!category) return ''
+  const key = `channelMonitorV2.errorCategories.${category}`
+  return te(key) ? t(key) : category
+})
+/** Internal-owner failures land in the ops error list; deep link carries the platform/group scope. */
+const opsLocation = computed(() => {
+  const filter = props.context?.filter
+  const query: Record<string, string> = { open_error_details: '1', error_type: 'request' }
+  if (filter?.platforms.length === 1) query.platform = filter.platforms[0]
+  if (filter?.groupIds.length === 1) query.group_id = String(filter.groupIds[0])
+  return { path: '/admin/ops', query }
+})
 const accountLocation = computed(() => {
   const filter = props.context?.filter
   if (!filter || filter.platforms.length > 1 || filter.groupIds.length > 1) return null
   return { path: '/admin/accounts', query: { source: 'channel-monitor', platform: filter.platforms[0], group: filter.groupIds[0]?.toString() } }
 })
+function ownerTone(owner: AttributionOwner): 'ok' | 'warn' | 'bad' | 'neutral' | 'info' {
+  return ({ upstream: 'warn', account: 'bad', client: 'neutral', internal: 'info', unclassified: 'neutral' } as const)[owner]
+}
+/** Copy the visible samples only — the prototype's 「复制请求示例」 counterpart. */
+async function copySamples() {
+  const rows = visibleErrors.value.slice(0, 10)
+  const text = rows.map(row => `${row.category}\t${row.count}`).join('\n')
+  try {
+    await navigator.clipboard.writeText(text)
+    copied.value = true
+    window.setTimeout(() => { copied.value = false }, 1500)
+  } catch {
+    copied.value = false
+  }
+}
 function inspectOwner(owner: AttributionOwner) { selectedOwner.value = owner; tab.value = 'errors' }
 function stateTone(state: HealthState) { return ({ healthy: 'ok', warning: 'warn', critical: 'bad', unknown: 'neutral' } as const)[state] }
 function formatTime(value?: string) {

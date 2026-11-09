@@ -24,7 +24,10 @@
         <FilterMultiSelect v-model="filter.models" compact :label="t('channelMonitorV2.filters.model')" :all-label="t('channelMonitorV2.filters.allModels')" :options="modelOptions" />
         <button type="button" class="btn btn-ghost btn-sm" @click="resetFilters">{{ t('channelMonitorV2.clearFilters') }}</button>
       <div v-if="evidence !== 'probes'" class="flex items-center gap-2 lg:ml-auto">
-          <button type="button" class="btn btn-secondary btn-sm" :disabled="busy" @click="reload"><Icon name="refresh" size="sm" :class="busy ? 'animate-spin' : ''" />{{ t('common.refresh') }}</button>
+          <span v-if="busy && data" class="inline-flex items-center gap-1.5 text-[11px] text-ink-3" data-testid="monitor-refreshing">
+            <LoadingSpinner size="sm" />{{ lastSuccessAt ? t('channelMonitorV2.operations.refreshing', { time: lastSuccessAt }) : t('channelMonitorV2.operations.updatingBadge') }}
+          </span>
+          <button type="button" class="btn btn-secondary btn-sm" :disabled="busy" @click="manualRefresh"><Icon name="refresh" size="sm" :class="busy ? 'animate-spin' : ''" />{{ t('common.refresh') }}</button>
           <button type="button" class="btn btn-secondary btn-sm" @click="emit('settings')"><Icon name="cog" size="sm" />{{ t('channelMonitorV2.operations.settings') }}</button>
         </div>
       </div>
@@ -52,9 +55,13 @@
           <label class="w-full sm:w-60"><input v-model="search" type="search" class="input !py-1.5 !text-xs" :aria-label="t('channelMonitorV2.availability.search')" :placeholder="t('channelMonitorV2.availability.search')" /></label>
         </div>
         <div v-if="!visibleRows.length" class="card p-10 text-center">
-          <Icon name="search" size="lg" class="mx-auto text-ink-3" /><h3 class="mt-3 text-sm font-semibold text-ink">{{ t(data.matrix.items.length || hasFilters ? 'channelMonitorV2.availability.noMatch' : 'channelMonitorV2.empty.title') }}</h3>
-          <p class="mt-2 text-xs text-ink-3">{{ t('channelMonitorV2.empty.description') }}</p>
-          <button type="button" class="btn btn-secondary btn-sm mt-4" @click="resetFilters">{{ t('channelMonitorV2.clearFilters') }}</button>
+          <Icon :name="hasFilters ? 'filter' : 'search'" size="lg" class="mx-auto text-ink-3" />
+          <h3 class="mt-3 text-sm font-semibold text-ink">{{ t(hasFilters ? 'channelMonitorV2.operations.emptyFilteredTitle' : 'channelMonitorV2.operations.emptyScopeTitle') }}</h3>
+          <p class="mt-2 text-xs text-ink-3">{{ t(hasFilters ? 'channelMonitorV2.operations.emptyFilteredHint' : 'channelMonitorV2.operations.emptyScopeHint') }}</p>
+          <div v-if="hasFilters" class="mt-4 flex flex-wrap items-center justify-center gap-2">
+            <button v-for="hint in relaxHints" :key="hint.key" type="button" class="btn btn-secondary btn-sm" :data-relax="hint.key" @click="relax(hint.key)">{{ t(hint.label) }}</button>
+            <button type="button" class="btn btn-ghost btn-sm" @click="resetFilters">{{ t('channelMonitorV2.clearFilters') }}</button>
+          </div>
         </div>
         <RelayPulseMatrix v-else :rows="visibleRows" :coverage="data.matrix.coverage" health-mode="overall" operations :load-cause="loadCause" @select="openRow" />
         <MonitorTrendChart :trend="data.snapshot.trend" :coverage="data.snapshot.coverage" operations />
@@ -66,7 +73,7 @@
       <aside v-if="evidence === 'traffic'" class="min-w-0"><MonitorAttributionPanel :rows="data.errors" :metrics="data.snapshot.metrics" :health="data.snapshot.health" @inspect="openScope" /></aside>
       <div v-if="evidence === 'probes'" class="min-w-0 2xl:col-span-2"><MonitorProbePanel :items="probeItems" :total="probeTotal" :loading="probeLoading" :error="probeError" @manage="emit('probes')" /></div>
     </div>
-    <div v-else-if="busy" class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]" aria-hidden="true"><div class="h-80 animate-pulse rounded-2xl bg-surface-3" /><div class="h-80 animate-pulse rounded-2xl bg-surface-3" /></div>
+    <div v-else-if="busy && manual" class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]" aria-hidden="true" data-testid="monitor-skeleton"><div class="h-80 animate-pulse rounded-2xl bg-surface-3" /><div class="h-80 animate-pulse rounded-2xl bg-surface-3" /></div>
     <MonitorDrilldownDrawer :context="drilldown" @close="drilldown = null" />
   </div>
 </template>
@@ -89,6 +96,7 @@ import MonitorAttributionPanel from './MonitorAttributionPanel.vue'
 import MonitorDrilldownDrawer, { type MonitorDrilldownContext } from './MonitorDrilldownDrawer.vue'
 import MonitorProbePanel from './MonitorProbePanel.vue'
 import { fixedMonitorFilter, isOperationsIssue, operationsRows, operationsState } from './monitorOperations'
+import { relaxSuggestions } from './monitorBoundaries'
 import { monitorRowKey, monitorRowLabel } from './monitorAvailability'
 import { formatMonitorPercent } from './monitorFormat'
 import type { AttributionOwner } from './ownership'
@@ -113,6 +121,10 @@ const probeTotal = ref(0)
 const probeLoading = ref(false)
 const probeError = ref('')
 const drilldown = ref<MonitorDrilldownContext | null>(null)
+/** Last successful load time, shown while a refresh keeps old data (原型 13 状态 ③). */
+const lastSuccessAt = ref('')
+/** Only an explicit click may replace the old data with a skeleton. */
+const manual = ref(false)
 const groupIds = computed({ get: () => filter.value.groupIds.map(String), set: (ids: string[]) => { filter.value.groupIds = ids.map(Number).filter(id => Number.isInteger(id) && id > 0) } })
 const groupByOptions = computed(() => (['platform', 'platform_group', 'platform_model', 'platform_group_model'] as const).map((value, index) => ({ value, label: t(`channelMonitorV2.groupBy.${['platform', 'platformGroup', 'platformModel', 'platformGroupModel'][index]}`) })))
 const inPlatform = (item: { platform?: string }) => !filter.value.platforms.length || !item.platform || filter.value.platforms.includes(item.platform)
@@ -141,6 +153,16 @@ function togglePlatform(platform: string) {
   filter.value = { ...filter.value, platforms: filter.value.platforms.includes(platform) ? filter.value.platforms.filter(item => item !== platform) : [...filter.value.platforms, platform], groupIds: [], models: [] }
 }
 function resetFilters() { search.value = ''; issuesOnly.value = false; filter.value = { ...filter.value, platforms: [], groupIds: [], models: [] } }
+/** Relax one condition instead of wiping all of them (原型 13 状态 ④). */
+const relaxHints = computed(() => relaxSuggestions({ ...filter.value, search: search.value, issuesOnly: issuesOnly.value })
+  .map(key => ({ key, label: `channelMonitorV2.operations.relax.${key}` })))
+function relax(key: 'platform' | 'group' | 'model' | 'search' | 'issues') {
+  if (key === 'platform') filter.value = { ...filter.value, platforms: [], groupIds: [], models: [] }
+  else if (key === 'group') filter.value = { ...filter.value, groupIds: [] }
+  else if (key === 'model') filter.value = { ...filter.value, models: [] }
+  else if (key === 'search') search.value = ''
+  else issuesOnly.value = false
+}
 function openScope(owner?: AttributionOwner) {
   if (!data.value || busy.value) return
   drilldown.value = { label: t('channelMonitorV2.summaryAria'), filter: fixedMonitorFilter(data.value.filter, data.value.snapshot.coverage), owner }
@@ -197,6 +219,7 @@ async function reload() {
     ])
     if (id !== sequence || request.signal.aborted) return
     data.value = { filter: selected, snapshot, matrix, models: models.items, errors: errors.items }
+    lastSuccessAt.value = formatTime(snapshot.coverage.data_through)
     dimensions.value = catalog
     probeItems.value = probes.result?.items || []
     probeTotal.value = probes.result?.total || 0
@@ -205,9 +228,10 @@ async function reload() {
   } catch (cause) {
     if (id === sequence && !request.signal.aborted) error.value = extractApiErrorMessage(cause, t('channelMonitorV2.loadFailed'))
   } finally {
-    if (id === sequence) { busy.value = false; scheduleRefresh() }
+    if (id === sequence) { busy.value = false; manual.value = false; scheduleRefresh() }
   }
 }
+function manualRefresh() { manual.value = true; drilldown.value = null; void reload() }
 watch([filter, groupBy], () => { drilldown.value = null; void reload() }, { deep: true, immediate: true })
 onBeforeUnmount(() => { ++sequence; clearTimeout(timer); controller?.abort() })
 </script>

@@ -28,6 +28,10 @@ const i18nT = (key: string, params?: Record<string, unknown>) => {
     'channelMonitorV2.matrix.warningLegend': '警告',
     'channelMonitorV2.matrix.criticalLegend': '异常',
     'channelMonitorV2.matrix.unknownLegend': '未知',
+    'channelMonitorV2.matrix.backfill': '尚未覆盖（回填中）',
+    'channelMonitorV2.matrix.backfillAt': '{time} · 尚未覆盖（回填中）',
+    'channelMonitorV2.matrix.backfillHint': '系统还在补齐这段历史',
+    'channelMonitorV2.matrix.backfillLegend': '尚未覆盖（回填中）',
   }
   const template = map[key] || key
   return template.replace(/\{(\w+)\}/g, (_, name) => String(params?.[name] ?? ''))
@@ -207,5 +211,52 @@ describe('RelayPulseMatrix admin operations mode', () => {
     expect(wrapper.find('.matrix-header').text()).not.toContain('每秒 Token')
     await cell.trigger('click')
     expect(wrapper.emitted('select')?.[0]).toEqual([selectedRow, '2026-08-01T00:00:00.000Z'])
+  })
+})
+
+describe('RelayPulseMatrix boundary states', () => {
+  const partial = {
+    requested_start: '2026-08-01T00:00:00Z',
+    requested_end: '2026-08-01T00:03:00Z',
+    coverage_start: '2026-08-01T00:01:00Z',
+    data_through: '2026-08-01T00:03:00Z',
+    computed_at: '2026-08-01T00:03:00Z',
+    aggregation_lag_seconds: 0,
+    coverage_complete: false,
+    bucket_seconds: 60,
+  }
+
+  it('separates slots still being backfilled from slots with no traffic', () => {
+    const wrapper = mount(RelayPulseMatrix, {
+      props: {
+        rows: [{ platform: 'openai', group_id: 7, group_name: '默认组', model: 'gpt-5', metrics: metrics(10), health, buckets: [] }],
+        coverage: partial,
+        healthMode: 'overall',
+      },
+    })
+    const cells = wrapper.findAll('.pulse-cell')
+    expect(cells).toHaveLength(3)
+    expect(cells[0].classes()).toContain('is-backfill')
+    expect(cells[0].attributes('data-slot-state')).toBe('backfill')
+    expect(cells[0].attributes('title')).toContain('尚未覆盖')
+    expect(cells[0].text()).toContain('系统还在补齐这段历史')
+    expect(cells[1].classes()).toContain('is-empty')
+    expect(cells[1].attributes('data-slot-state')).toBe('no-traffic')
+    expect(cells[1].attributes('title')).toContain('无流量')
+    // Backfill is not a failure: it must not borrow a status color.
+    expect(cells[0].classes()).toContain('health-unknown')
+    expect(wrapper.find('[data-testid="matrix-backfill-legend"]').exists()).toBe(true)
+  })
+
+  it('hides the backfill legend once history is complete', () => {
+    const wrapper = mount(RelayPulseMatrix, {
+      props: {
+        rows: [{ platform: 'openai', group_id: 7, group_name: '默认组', model: 'gpt-5', metrics: metrics(10), health, buckets: [] }],
+        coverage: { ...partial, coverage_start: partial.requested_start, coverage_complete: true },
+        healthMode: 'overall',
+      },
+    })
+    expect(wrapper.findAll('.pulse-cell').every(cell => cell.attributes('data-slot-state') === 'no-traffic')).toBe(true)
+    expect(wrapper.find('[data-testid="matrix-backfill-legend"]').exists()).toBe(false)
   })
 })

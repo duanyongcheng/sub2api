@@ -22,8 +22,8 @@
               <span class="relative flex h-2 w-2 shrink-0">
                 <span class="relative inline-flex h-2 w-2 rounded-full" :class="loading || refreshing ? 'bg-gray-400' : bannerTone.dot" />
               </span>
-              <span v-if="refreshing" class="inline-flex items-center gap-1 text-primary-600 dark:text-primary-300">
-                <LoadingSpinner size="sm" />{{ t('channelMonitorV2.updating') }}
+              <span v-if="refreshing" class="inline-flex items-center gap-1 text-primary-600 dark:text-primary-300" data-testid="service-refreshing">
+                <LoadingSpinner size="sm" />{{ lastSuccessAt ? t('channelMonitorV2.refreshingSince', { time: lastSuccessAt }) : t('channelMonitorV2.updating') }}
               </span>
               <span v-else>{{ subtitle }}</span>
             </div>
@@ -33,9 +33,9 @@
             type="button"
             :title="t('common.refresh')"
             :disabled="loading"
-            @click="reload()"
+            @click="manualRefresh"
           >
-            <Icon name="refresh" size="sm" :class="loading ? 'animate-spin' : ''" />
+            <Icon name="refresh" size="sm" :class="loading || refreshing ? 'animate-spin' : ''" />
           </button>
         </div>
 
@@ -112,7 +112,7 @@
             @click="dimension = option.value"
           >{{ option.label }}</button>
         </div>
-        <button type="button" class="btn btn-secondary btn-sm ml-auto" :disabled="loading" @click="reload()">
+        <button type="button" class="btn btn-secondary btn-sm ml-auto" :disabled="loading" @click="manualRefresh">
           <Icon name="refresh" size="sm" :class="loading ? 'animate-spin' : ''" />{{ t('common.refresh') }}
         </button>
       </div>
@@ -122,7 +122,7 @@
         {{ error }}
         <button type="button" class="btn btn-secondary btn-sm ml-auto" @click="reload()">{{ t('common.tryAgain') }}</button>
       </div>
-      <div v-if="loading && !snapshot" class="grid gap-3" aria-hidden="true">
+      <div v-if="(loading || manual) && !snapshot" class="grid gap-3" aria-hidden="true" data-testid="service-skeleton">
         <div v-for="i in 3" :key="i" class="h-32 animate-pulse rounded-xl bg-gray-100 dark:bg-dark-800" />
       </div>
       <div
@@ -254,6 +254,10 @@ const loading = ref(false)
 const refreshing = ref(false)
 const modelsOpen = ref(false)
 const error = ref('')
+/** Timestamp of the last successful payload, shown while a refresh keeps old data. */
+const lastSuccessAt = ref('')
+/** Only an explicit refresh may blank the page into a skeleton. */
+const manual = ref(false)
 let controller: AbortController | null = null
 let sequence = 0
 let timer: number | null = null
@@ -361,6 +365,10 @@ function toneFor(health: MonitorSnapshot['health']) {
 function setRange(value: MonitorRange) {
   range.value = value
 }
+function manualRefresh() {
+  manual.value = true
+  void reload()
+}
 function clearFilters() {
   // Today the service page has no dimension filters; kept for the empty state contract.
   void reload()
@@ -395,6 +403,9 @@ async function reload(silent = false) {
     if (id !== sequence || request.signal.aborted) return
     snapshot.value = nextSnapshot
     matrix.value = nextMatrix
+    lastSuccessAt.value = nextSnapshot.coverage?.data_through
+      ? new Intl.DateTimeFormat(locale.value || undefined, { hour: '2-digit', minute: '2-digit' }).format(new Date(nextSnapshot.coverage.data_through))
+      : ''
     children.value = nextChildren
     modelRows.value = nextModels?.items || []
     schedule()
@@ -407,6 +418,7 @@ async function reload(silent = false) {
     if (id === sequence) {
       loading.value = false
       refreshing.value = false
+      manual.value = false
     }
   }
 }

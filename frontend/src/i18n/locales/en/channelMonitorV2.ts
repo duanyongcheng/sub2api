@@ -4,6 +4,7 @@ export default {
     title: 'Channel Monitor',
     updating: 'Updating data',
     updatedTo: 'Updated to {time}',
+    refreshingSince: 'Updating · last success {time}',
     partialCoverage: 'Partial historical coverage',
     bootstrap: {
       title: 'Building historical monitor data',
@@ -98,7 +99,7 @@ export default {
     empty: { title: 'No data to display', description: 'Try changing the time range or filters' },
     bucket: { minutes: '{count}-minute buckets', hours: '{count}-hour buckets', days: '{count}-day buckets' },
     matrix: {
-      title: 'Availability trend', description: 'Each row is a channel dimension and each block is an aggregate interval; hover for details', wheelZoom: 'Scroll over blocks to zoom in (narrower range, wider blocks)', wheelZoomX: 'Scroll over blocks to zoom in (narrower range, wider blocks)', dimension: 'Channel dimension', emptyTitle: 'No matrix data for the selected window', legendAria: 'Health score legend', bad: 'Bad', good: 'Good', healthyLegend: 'Healthy (≥80)', warningLegend: 'Watch (50–79)', criticalLegend: 'Critical (<50)', unknownLegend: 'No traffic / insufficient samples', noTraffic: 'No traffic in this interval', noTrafficAt: '{time} · no traffic', scoreLine: 'Health score {score}', resetZoom: 'Reset zoom'
+      title: 'Availability trend', description: 'Each row is a channel dimension and each block is an aggregate interval; hover for details', wheelZoom: 'Scroll over blocks to zoom in (narrower range, wider blocks)', wheelZoomX: 'Scroll over blocks to zoom in (narrower range, wider blocks)', dimension: 'Channel dimension', emptyTitle: 'No matrix data for the selected window', legendAria: 'Health score legend', bad: 'Bad', good: 'Good', healthyLegend: 'Healthy (≥80)', warningLegend: 'Watch (50–79)', criticalLegend: 'Critical (<50)', unknownLegend: 'No traffic / insufficient samples', noTraffic: 'No traffic in this interval', noTrafficAt: '{time} · no traffic', backfill: 'Not covered yet (backfilling)', backfillAt: '{time} · not covered yet (backfilling)', backfillHint: 'History for this interval is still being aggregated — not 0% and not a failure', backfillLegend: 'Not covered yet (backfilling)', scoreLine: 'Health score {score}', resetZoom: 'Reset zoom'
     },
     chart: {
       title: 'Availability trend', description: 'Smoothed trend: error rate · first token P50 · cache rate', emptyTitle: 'No trend data for the selected window', errorLegend: 'Error rate (left axis %)', cacheLegend: 'Cache rate (left axis %)', ttftLegend: 'First token P50 (right axis)', errorDataset: 'Error rate trend %', cacheDataset: 'Cache rate trend %', ttftDataset: 'First token trend P50 (ms)', percentAxis: 'Rate %', resetZoom: 'Reset zoom'
@@ -204,13 +205,28 @@ export default {
         internal: 'Open the error samples and triage from ops monitoring',
         unclassified: 'Review the error samples and classify the category',
       },
+      conclusion: {
+        upstream: '{rate} of failures here come from upstream {category}; your account configuration is not involved, and failover already switches accounts.',
+        account: '{rate} of failures here come from the account pool {category}; refreshing the credential clears them, and users often never notice.',
+        client: '{rate} of failures here come from clients ({category}); they are excluded from the availability users see, so they can be ignored.',
+        internal: '{rate} of failures here come from inside the platform ({category}); triage them in ops monitoring.',
+        unclassified: '{rate} of failures here cannot be attributed yet; start from the error samples.',
+      },
+      conclusionSample: 'Insufficient samples ({count} requests, minimum {minimum}); no attribution verdict is given.',
+      conclusionClean: 'No counted errors in this interval.',
+      actionOps: 'Open ops monitoring', actionIgnore: 'Ignore this category', actionCopy: 'Copy error samples',
+      copied: 'Copied', actionSimulate: 'Simulate ignoring it',
       ignorePreview: 'Preview ignoring one category', previewUnavailable: 'Insufficient samples or aggregation windows do not align yet',
+      emptyFilteredTitle: 'Nothing matches all of these conditions', emptyFilteredHint: 'Relax one condition rather than clearing every filter:',
+      relax: { platform: 'Remove the platform filter', group: 'Remove the group filter', model: 'Remove the model filter', search: 'Clear the search term', issues: 'Turn off “issues only”' },
+      emptyScopeTitle: 'No real traffic in this scope', emptyScopeHint: 'No customer requests in this window, so availability cannot be computed. That is not a failure — widen the time range, or confirm monitoring covers this group.',
       previewHint: 'Preview only. Configuration is unchanged; all requests remain in the denominator. Already ignored errors are not subtracted again or counted as successes.',
       degradedVerdict: '{count} models fluctuating or abnormal', healthyVerdict: 'No availability issues among models with sufficient samples', unknownVerdict: 'Insufficient data in this scope',
       errorShare: 'Counted errors / requests: {value}', dominantCause: 'Leading cause: {category} ({value} of all errors)', viewAttribution: 'Review attribution',
       realTraffic: 'Real traffic', settings: 'Monitor settings', scopeLabel: '{range} · {count} rows · Metrics and attribution follow API filters',
       evidence: 'Monitor evidence', evidenceModes: { traffic: 'Real traffic {count}', probes: 'Probe records {count}', all: 'All evidence {count}' },
       refreshRetained: 'Updating; previous data stays visible until metrics, matrix and attribution can be replaced together',
+      refreshing: 'Updating · last success {time}', updatingBadge: 'Updating',
       backfillHint: 'Uncovered history is gray, not 0% or a failure. Completion time is not estimated.', partialHint: 'Some history is not covered yet. Conclusions apply only to aggregated intervals.',
       insufficient: 'At least {minimum} requests are required. Gray means insufficient evidence, not healthy or failing.',
       causeLoading: 'Loading the cause for this interval…', causeUnavailable: 'Cause unavailable; select the cell to retry', noCountedErrors: 'No errors counted against availability in this interval',

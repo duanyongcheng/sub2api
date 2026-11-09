@@ -4,6 +4,7 @@ export default {
     title: '渠道监控',
     updating: '正在更新数据',
     updatedTo: '更新至 {time}',
+    refreshingSince: '正在更新 · 上次成功 {time}',
     partialCoverage: '部分历史覆盖',
     bootstrap: {
       title: '正在补齐历史监控数据',
@@ -98,7 +99,7 @@ export default {
     empty: { title: '没有可展示的数据', description: '尝试调整时间范围或筛选条件' },
     bucket: { minutes: '{count} 分钟粒度', hours: '{count} 小时粒度', days: '{count} 天粒度' },
     matrix: {
-      title: '可用性趋势', description: '每行是一种渠道组合，每个色块代表一个统计区间；悬停查看明细', wheelZoom: '在色块上滚轮放大（区间变窄、色块变宽）', wheelZoomX: '在色块上滚轮放大（区间变窄、色块变宽）', dimension: '渠道维度', emptyTitle: '当前筛选窗口没有矩阵数据', legendAria: '健康分数图例', bad: '差', good: '好', healthyLegend: '健康 (≥80)', warningLegend: '需关注 (50–79)', criticalLegend: '异常 (<50)', unknownLegend: '无流量 / 样本不足', noTraffic: '该区间无流量', noTrafficAt: '{time} · 无流量', scoreLine: '健康分 {score}', resetZoom: '重置缩放'
+      title: '可用性趋势', description: '每行是一种渠道组合，每个色块代表一个统计区间；悬停查看明细', wheelZoom: '在色块上滚轮放大（区间变窄、色块变宽）', wheelZoomX: '在色块上滚轮放大（区间变窄、色块变宽）', dimension: '渠道维度', emptyTitle: '当前筛选窗口没有矩阵数据', legendAria: '健康分数图例', bad: '差', good: '好', healthyLegend: '健康 (≥80)', warningLegend: '需关注 (50–79)', criticalLegend: '异常 (<50)', unknownLegend: '无流量 / 样本不足', noTraffic: '该区间无流量', noTrafficAt: '{time} · 无流量', backfill: '尚未覆盖（回填中）', backfillAt: '{time} · 尚未覆盖（回填中）', backfillHint: '系统还在补齐这段历史，不代表 0% 或故障', backfillLegend: '尚未覆盖（回填中）', scoreLine: '健康分 {score}', resetZoom: '重置缩放'
     },
     chart: {
       title: '可用性趋势', description: '平滑趋势：错误率 · 首 Token P50 · 缓存率', emptyTitle: '当前筛选窗口没有趋势数据', errorLegend: '错误率（左轴 %）', cacheLegend: '缓存率（左轴 %）', ttftLegend: '首 Token P50（右轴）', errorDataset: '错误率趋势 %', cacheDataset: '缓存率趋势 %', ttftDataset: '首 Token 趋势 P50 (ms)', percentAxis: '比率 %', resetZoom: '重置缩放'
@@ -199,13 +200,28 @@ export default {
         internal: '查看错误样本，去运维监控排障',
         unclassified: '查看错误样本并归类',
       },
+      conclusion: {
+        upstream: '本时段 {rate} 的失败来自上游{category}，与你的账号配置无关；系统会按失败转移规则切换账号。',
+        account: '本时段 {rate} 的失败来自账号池{category}，刷新对应凭据即可消除，用户不一定感知得到。',
+        client: '本时段 {rate} 的失败来自客户端（{category}），不计入用户看到的可用率，可直接忽略。',
+        internal: '本时段 {rate} 的失败来自平台内部（{category}），需要去运维监控排障。',
+        unclassified: '本时段 {rate} 的失败暂无法归因，先看错误样本。',
+      },
+      conclusionSample: '样本不足（{count} 次请求，阈值 {minimum}），不给出归因结论。',
+      conclusionClean: '本时段没有计入可用率的错误。',
+      actionOps: '去运维监控', actionIgnore: '设为忽略类别', actionCopy: '复制错误样本',
+      copied: '已复制', actionSimulate: '模拟忽略影响',
       ignorePreview: '模拟忽略一个类别', previewUnavailable: '样本不足或统计范围尚未对齐，暂不计算预览',
+      emptyFilteredTitle: '没有同时满足这些条件的项目', emptyFilteredHint: '试着放宽其中一个条件，而不是把所有筛选都清掉：',
+      relax: { platform: '移除「平台」筛选', group: '移除「分组」筛选', model: '移除「模型」筛选', search: '清除搜索关键词', issues: '关闭「只看异常」' },
+      emptyScopeTitle: '范围内没有真实流量', emptyScopeHint: '当前范围内没有客户请求，因此无法计算可用率。这不代表故障——可以扩大时间范围，或确认监控已覆盖该分组。',
       previewHint: '仅预览，不修改配置；分母仍是全部请求。已忽略项不会重复扣除，也不计为成功请求。',
       degradedVerdict: '{count} 个模型波动或异常', healthyVerdict: '已达样本门槛的模型未见可用率异常', unknownVerdict: '当前范围数据不足',
       errorShare: '计入错误占请求 {value}', dominantCause: '主因 {category}（占全部错误 {value}）', viewAttribution: '查看归因',
       realTraffic: '真实流量', settings: '监控设置', scopeLabel: '{range} · {count} 行 · 指标与归因基于 API 筛选范围',
       evidence: '监控证据', evidenceModes: { traffic: '真实流量 {count}', probes: '探测记录 {count}', all: '全部证据 {count}' },
       refreshRetained: '正在更新，保留上次数据；完成后统一替换指标、矩阵和归因',
+      refreshing: '正在更新 · 上次成功 {time}', updatingBadge: '正在更新',
       backfillHint: '未覆盖历史显示灰色，不代表 0% 或故障；不推测回填完成时间。', partialHint: '部分历史尚未覆盖，结论仅代表已聚合的时间段。',
       insufficient: '样本不足：至少需要 {minimum} 次请求；灰色不代表正常或故障。',
       causeLoading: '正在查询该时段主因…', causeUnavailable: '主因暂不可用，可点击重试', noCountedErrors: '该时段无计入可用率的错误',

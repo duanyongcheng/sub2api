@@ -91,14 +91,15 @@
                 class="pulse-cell relative rounded-sm border-0 p-0 outline-offset-1"
                 :class="[
                   slot.bucket ? cellClass(slot.bucket.health, slot.bucket.metrics) : 'health-unknown',
-                  slot.bucket ? 'has-data' : 'is-empty',
+                  slot.bucket ? 'has-data' : slotState(slot) === 'backfill' ? 'is-backfill' : 'is-empty',
                 ]"
+                :data-slot-state="slot.bucket ? 'data' : slotState(slot)"
                 tabindex="0"
                 :type="operations ? 'button' : undefined"
                 :role="operations ? undefined : 'img'"
                 :disabled="operations && !slot.bucket"
-                :title="slot.bucket ? bucketTooltip(slot.bucket) : t('channelMonitorV2.matrix.noTrafficAt', { time: formatBucketRange(slot.start) })"
-                :aria-label="slot.bucket ? bucketTooltip(slot.bucket) : t('channelMonitorV2.matrix.noTrafficAt', { time: formatBucketRange(slot.start) })"
+                :title="slotTitle(slot)"
+                :aria-label="slotTitle(slot)"
                 @click="selectCell(entry.row, slot.start)"
                 @mouseenter="showTooltip($event, slot, entry.row)"
                 @mousemove="moveTooltip($event)"
@@ -121,7 +122,8 @@
                   </template>
                   <template v-else>
                     <span class="pulse-tooltip-line pulse-tooltip-title">{{ formatBucketRange(slot.start) }}</span>
-                    <span class="pulse-tooltip-line">{{ t('channelMonitorV2.matrix.noTraffic') }}</span>
+                    <span class="pulse-tooltip-line">{{ slotState(slot) === 'backfill' ? t('channelMonitorV2.matrix.backfill') : t('channelMonitorV2.matrix.noTraffic') }}</span>
+                    <span v-if="slotState(slot) === 'backfill'" class="pulse-tooltip-line">{{ t('channelMonitorV2.matrix.backfillHint') }}</span>
                   </template>
                 </span>
               </component>
@@ -148,9 +150,11 @@
           <span class="inline-flex items-center gap-1.5"><i class="status-dot health-score6"></i>{{ t('channelMonitorV2.matrix.warningLegend') }}</span>
           <span class="inline-flex items-center gap-1.5"><i class="status-dot health-score2"></i>{{ t('channelMonitorV2.matrix.criticalLegend') }}</span>
           <span class="inline-flex items-center gap-1.5"><i class="status-dot health-unknown"></i>{{ t('channelMonitorV2.matrix.unknownLegend') }}</span>
+          <span v-if="hasBackfillSlots" class="inline-flex items-center gap-1.5" data-testid="matrix-backfill-legend"><i class="slot-swatch is-backfill" />{{ t('channelMonitorV2.matrix.backfillLegend') }}</span>
         </div>
         <div v-else class="flex flex-wrap gap-3 text-[11px] text-ink-3">
           <span v-for="state in (['healthy', 'warning', 'critical', 'unknown'] as const)" :key="state" class="inline-flex items-center gap-1.5"><i class="status-dot" :class="`health-${state}`" />{{ t(`channelMonitorV2.operations.bands.${state}`) }}</span>
+          <span v-if="hasBackfillSlots" class="inline-flex items-center gap-1.5" data-testid="matrix-backfill-legend"><i class="slot-swatch is-backfill" />{{ t('channelMonitorV2.matrix.backfillLegend') }}</span>
         </div>
       </div>
     </div>
@@ -190,6 +194,7 @@ import EmptyState from '@/components/common/EmptyState.vue'
 import Icon from '@/components/icons/Icon.vue'
 import StatusPill from '@/components/common/StatusPill.vue'
 import { formatAvailability, monitorBucketStarts } from './monitorAvailability'
+import { slotStateOf, type SlotState } from './monitorBoundaries'
 import { operationsState, scoreTone } from './monitorOperations'
 import { platformLabel } from '@/utils/platformColors'
 import {
@@ -312,6 +317,18 @@ const alignedRows = computed(() => {
     return { row, slots }
   })
 })
+
+/** Backfill (still-filling history) vs no traffic — 原型 13 号状态 ②. */
+const visibleSlotStates = computed(() => bucketStarts.value.map(start => slotStateOf(start, props.coverage)))
+const backfillCount = computed(() => visibleSlotStates.value.filter(state => state === 'backfill').length)
+const hasBackfillSlots = computed(() => backfillCount.value > 0)
+function slotState(slot: AlignedSlot): SlotState {
+  return slotStateOf(slot.start, props.coverage)
+}
+function slotTitle(slot: AlignedSlot): string {
+  if (slot.bucket) return bucketTooltip(slot.bucket)
+  return t(slotState(slot) === 'backfill' ? 'channelMonitorV2.matrix.backfillAt' : 'channelMonitorV2.matrix.noTrafficAt', { time: formatBucketRange(slot.start) })
+}
 
 function onMatrixWheel(event: WheelEvent) {
   const track = scrollRef.value
@@ -587,6 +604,30 @@ function formatBucketRange(value: string) {
 .pulse-cell.is-empty {
   opacity: 0.55;
   cursor: default;
+}
+/* Still filling: diagonal hatch says "we don't know yet", not "0%". */
+.pulse-cell.is-backfill,
+.slot-swatch.is-backfill {
+  background-color: transparent;
+  background-image: repeating-linear-gradient(
+    135deg,
+    rgb(var(--edge-strong) / 0.9) 0,
+    rgb(var(--edge-strong) / 0.9) 1px,
+    transparent 1px,
+    transparent 4px
+  );
+  border: 1px dashed rgb(var(--edge-strong) / 0.8);
+}
+.pulse-cell.is-backfill {
+  cursor: help;
+  opacity: 0.9;
+}
+.slot-swatch {
+  display: inline-block;
+  height: 0.625rem;
+  width: 0.875rem;
+  flex: none;
+  border-radius: 2px;
 }
 .pulse-cell.has-data:hover,
 .pulse-cell.has-data:focus-visible {
