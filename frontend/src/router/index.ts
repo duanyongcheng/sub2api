@@ -488,7 +488,7 @@ export const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: true,
-      title: 'Channel Monitor',
+      title: 'Monitoring Configuration',
       titleKey: 'admin.channelMonitor.title',
       descriptionKey: 'admin.channelMonitor.description'
     }
@@ -500,7 +500,7 @@ export const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
-      title: 'Channel Status',
+      title: 'Service Monitoring',
       titleKey: 'nav.channelStatus'
     }
   },

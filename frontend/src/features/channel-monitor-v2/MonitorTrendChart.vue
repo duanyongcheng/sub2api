@@ -1,6 +1,8 @@
 <template>
   <section
-    class="card flex min-h-[360px] flex-col overflow-hidden !rounded-3xl !border-0 !p-6 shadow-sm ring-1 ring-gray-900/5 dark:!bg-dark-800 dark:ring-dark-700"
+    class="card flex min-w-0 flex-col overflow-hidden !border-0 shadow-sm ring-1 ring-gray-900/5 dark:!bg-dark-800 dark:ring-dark-700"
+    :class="compact ? 'min-h-[280px] !rounded-2xl !p-4' : 'min-h-[360px] !rounded-3xl !p-6'"
+    :aria-label="t(operations ? 'channelMonitorV2.dashboard.trendTitle' : 'channelMonitorV2.chart.title')"
   >
     <div class="card-header mb-4 flex shrink-0 flex-wrap items-start justify-between gap-3 !border-0 !p-0">
       <div class="min-w-0">
@@ -8,7 +10,7 @@
           <span class="inline-flex h-4 w-4 text-sky-500" aria-hidden="true">
             <Icon name="chart" size="sm" />
           </span>
-          {{ t('channelMonitorV2.chart.title') }}
+          {{ t(operations ? 'channelMonitorV2.dashboard.trendTitle' : 'channelMonitorV2.chart.title') }}
         </h2>
         <p class="mt-0.5 text-xs text-gray-500 dark:text-dark-400">
           {{ t(operations ? 'channelMonitorV2.operations.chartDescription' : 'channelMonitorV2.chart.description') }}
@@ -36,18 +38,18 @@
       </div>
     </div>
     <div class="card-body min-h-0 flex-1 !p-0">
-      <div v-if="loading" class="flex h-[280px] items-center justify-center sm:h-[300px]">
+      <div v-if="loading" class="flex items-center justify-center" :class="plotHeight">
         <div class="animate-pulse text-sm text-gray-400">{{ t('common.loading') }}</div>
       </div>
       <div
         v-else-if="chartData"
         ref="chartRef"
-        class="h-[280px] sm:h-[300px]"
+        :class="plotHeight"
         @wheel="onChartWheel"
       >
-        <Line :data="chartData" :options="chartOptions" />
+        <Line :data="chartData" :options="chartOptions" role="img" :aria-label="t(operations ? 'channelMonitorV2.dashboard.trendTitle' : 'channelMonitorV2.chart.title')" />
       </div>
-      <div v-else class="flex h-[280px] items-center justify-center sm:h-[300px]">
+      <div v-else class="flex items-center justify-center" :class="plotHeight">
         <EmptyState
           :title="t('channelMonitorV2.chart.emptyTitle')"
           :description="t('channelMonitorV2.empty.description')"
@@ -59,7 +61,7 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -76,6 +78,7 @@ import EmptyState from '@/components/common/EmptyState.vue'
 import Icon from '@/components/icons/Icon.vue'
 import type { MonitorCoverage, MonitorMetric, MonitorHealth } from '@/api/channelMonitorV2'
 import { formatMonitorMs, formatMonitorPercent } from '@/features/channel-monitor-v2/monitorFormat'
+import { serviceTrendSlots } from './serviceDashboard'
 import {
   applyWheelZoom,
   clientXRatio,
@@ -93,15 +96,23 @@ const props = defineProps<{
   coverage: MonitorCoverage | null
   loading?: boolean
   operations?: boolean
+  compact?: boolean
 }>()
 
 const chartRef = ref<HTMLElement | null>(null)
 const zoom = ref<ZoomState>(resetZoom())
 const zoomed = computed(() => isZoomed(zoom.value))
 
-const isDark = computed(() =>
+const plotHeight = computed(() => props.compact ? 'h-[220px]' : 'h-[280px] sm:h-[300px]')
+const isDark = ref(
   typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
 )
+let themeObserver: MutationObserver | undefined
+onMounted(() => {
+  themeObserver = new MutationObserver(() => { isDark.value = document.documentElement.classList.contains('dark') })
+  themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
+})
+onBeforeUnmount(() => themeObserver?.disconnect())
 
 const bucketLabel = computed(() => {
   const seconds = props.coverage?.bucket_seconds || 60
@@ -123,9 +134,13 @@ const chartData = computed(() => {
       minute: '2-digit',
     }).format(new Date(p.bucket_start))
   )
-  const errorRates = props.operations ? points.map(p => p.health.error_rate === 'unknown' ? null : p.metrics.error_rate * 100) : smoothTrend(points.map((p) => (p.metrics.error_rate || 0) * 100))
-  const cacheRates = smoothTrend(points.map((p) => (p.metrics.cache_rate || 0) * 100))
-  const ttftP50 = props.operations ? points.map(p => p.health.ttft === 'unknown' ? null : p.metrics.ttft?.p50_ms ?? null) : smoothTrend(points.map((p) => p.metrics.ttft?.p50_ms ?? null))
+  const errorRates = props.operations
+    ? points.map(({ point }) => point && point.health.error_rate !== 'unknown' && Number.isFinite(point.metrics.error_rate) ? point.metrics.error_rate * 100 : null)
+    : smoothTrend(points.map(({ point }) => (point?.metrics.error_rate || 0) * 100))
+  const cacheRates = smoothTrend(points.map(({ point }) => (point?.metrics.cache_rate || 0) * 100))
+  const ttftP50 = props.operations
+    ? points.map(({ point }) => point && point.health.ttft !== 'unknown' && point.metrics.ttft?.p50_ms != null && Number.isFinite(point.metrics.ttft.p50_ms) ? point.metrics.ttft.p50_ms : null)
+    : smoothTrend(points.map(({ point }) => point?.metrics.ttft?.p50_ms ?? null))
   return {
     labels,
     datasets: [
@@ -136,12 +151,13 @@ const chartData = computed(() => {
         backgroundColor: 'rgba(239, 67, 67, 0.10)',
         yAxisID: 'yPct',
         tension: props.operations ? 0 : 0.4,
-        cubicInterpolationMode: 'monotone' as const,
+        cubicInterpolationMode: props.operations ? 'default' as const : 'monotone' as const,
         fill: 'origin' as const,
         pointRadius: 0,
         pointHoverRadius: 4,
         pointHitRadius: 10,
         borderWidth: 2,
+        spanGaps: false,
       },
       {
         label: t('channelMonitorV2.chart.cacheDataset'),
@@ -150,7 +166,7 @@ const chartData = computed(() => {
         backgroundColor: 'rgba(16, 185, 129, 0.08)',
         yAxisID: 'yPct',
         tension: props.operations ? 0 : 0.4,
-        cubicInterpolationMode: 'monotone' as const,
+        cubicInterpolationMode: props.operations ? 'default' as const : 'monotone' as const,
         fill: false,
         pointRadius: 0,
         pointHoverRadius: 4,
@@ -164,7 +180,7 @@ const chartData = computed(() => {
         backgroundColor: 'rgba(14, 165, 233, 0.08)',
         yAxisID: 'yTtft',
         tension: props.operations ? 0 : 0.4,
-        cubicInterpolationMode: 'monotone' as const,
+        cubicInterpolationMode: props.operations ? 'default' as const : 'monotone' as const,
         fill: false,
         pointRadius: 0,
         pointHoverRadius: 4,
@@ -177,7 +193,10 @@ const chartData = computed(() => {
 })
 
 /** Window the series by zoom state around the cursor — not always the last N points. */
-const visibleTrend = computed(() => sliceByZoom(props.trend || [], zoom.value))
+const sourceTrend = computed(() => props.operations
+  ? serviceTrendSlots(props.trend || [], props.coverage)
+  : (props.trend || []).map(point => ({ bucket_start: point.bucket_start, point })))
+const visibleTrend = computed(() => sliceByZoom(sourceTrend.value, zoom.value))
 
 function onChartWheel(event: WheelEvent) {
   // Plain vertical wheel zooms X (narrower time range); shift/horizontal pans.
@@ -247,7 +266,7 @@ const chartOptions = computed(() => {
         type: 'linear' as const,
         position: 'left' as const,
         min: 0,
-        suggestedMax: 100,
+        suggestedMax: props.operations ? undefined : 100,
         ticks: {
           color: text,
           font: { size: 10 },

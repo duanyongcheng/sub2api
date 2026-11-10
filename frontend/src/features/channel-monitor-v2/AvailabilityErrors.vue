@@ -1,16 +1,16 @@
 <template>
   <div>
-    <p class="mb-4 text-xs text-gray-500 dark:text-gray-400">{{ t('channelMonitorV2.availability.errorsDescription') }}</p>
-    <div class="grid gap-5 md:grid-cols-2">
-      <section v-for="ignored in [false, true]" :key="String(ignored)" class="min-w-0 space-y-3">
-        <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-200">{{ t(ignored ? 'channelMonitorV2.availability.ignoredErrors' : 'channelMonitorV2.availability.countedErrors') }}</h3>
-        <div v-for="row in rows.filter(item => Boolean(item.ignored) === ignored)" :key="row.category" class="rounded-xl bg-gray-50 p-3 dark:bg-dark-900/40">
+    <p class="text-gray-500 dark:text-gray-400" :class="compact ? 'mb-2 text-[10px] leading-relaxed' : 'mb-4 text-xs'">{{ t(compact ? 'channelMonitorV2.dashboard.errors.basis' : 'channelMonitorV2.availability.errorsDescription') }}</p>
+    <div class="grid" :class="compact ? 'gap-3' : 'gap-5 md:grid-cols-2'">
+      <section v-for="ignored in [false, true]" :key="String(ignored)" class="min-w-0" :class="compact ? 'space-y-1.5' : 'space-y-3'">
+        <h3 class="font-semibold text-gray-700 dark:text-gray-200" :class="compact ? 'text-xs' : 'text-sm'">{{ t(ignored ? 'channelMonitorV2.availability.ignoredErrors' : 'channelMonitorV2.availability.countedErrors') }}</h3>
+        <div v-for="row in rows.filter(item => Boolean(item.ignored) === ignored)" :key="row.category" class="rounded-xl" :class="compact ? 'bg-surface-2 px-2.5 py-1.5' : 'bg-gray-50 p-3 dark:bg-dark-900/40'">
           <button type="button" class="w-full text-left" :aria-expanded="expanded.has(row.category)" @click="toggle(row.category)">
             <span class="flex items-center justify-between gap-3 text-xs text-gray-600 dark:text-gray-300">
               <span class="font-medium" :class="ignored ? 'text-gray-500 dark:text-gray-400' : ''">{{ categoryLabel(row.category) }}</span>
               <span class="inline-flex items-center gap-1 tabular-nums"><span v-if="admin" class="mr-1 text-gray-400">×{{ row.count }}</span>{{ formatMonitorPercent(row.rate) }}<Icon name="chevronDown" size="sm" class="text-gray-400 transition-transform" :class="expanded.has(row.category) ? 'rotate-180' : ''" /></span>
             </span>
-            <span class="mt-2 block h-1.5 overflow-hidden rounded-full bg-gray-200/70 dark:bg-dark-700">
+            <span class="block overflow-hidden rounded-full bg-gray-200/70 dark:bg-dark-700" :class="compact ? 'mt-1 h-1' : 'mt-2 h-1.5'">
               <span class="block h-full rounded-full" :class="ignored ? 'ignored-bar bg-gray-400 dark:bg-dark-400' : 'bg-rose-400'" :style="{ width: barWidth(row.rate) }" />
             </span>
           </button>
@@ -43,7 +43,7 @@ import Icon from '@/components/icons/Icon.vue'
 import { platformLabel } from '@/utils/platformColors'
 import { formatMonitorPercent } from './monitorFormat'
 
-const props = defineProps<{ rows: MonitorErrorRow[]; admin: boolean }>()
+const props = defineProps<{ rows: MonitorErrorRow[]; admin: boolean; compact?: boolean }>()
 const { t, te } = useI18n()
 /** Bars compare categories with each other; the label keeps the absolute share. */
 const maxRate = computed(() => Math.max(0, ...props.rows.map(row => row.rate)))

@@ -13,7 +13,7 @@
 
       <!-- Main Content -->
       <main class="flex-1 px-4 pb-10 pt-5 md:px-6 lg:px-6">
-        <div class="mx-auto w-full max-w-[1440px]">
+        <div class="min-w-0 w-full">
           <slot />
         </div>
       </main>
@@ -36,8 +36,7 @@ import AppHeader from './AppHeader.vue'
  *
  * `bg-mesh-gradient` was dropped: the decorative blur sat behind every card
  * and made the flat surface scale from the redesign spec read as "muddy".
- * Page content is now centred inside a 1440px column with a 20–24px gutter so
- * ultra-wide monitors stop stretching tables to 2500px.
+ * Page content fills the available width with responsive gutters.
  */
 const appStore = useAppStore()
 const authStore = useAuthStore()

@@ -523,8 +523,8 @@ export default {
 
     // Channel Monitor
     channelMonitor: {
-      title: 'Channel Monitor',
-      description: 'Monitor channel availability, latency and status',
+      title: 'Monitoring Configuration',
+      description: 'Configure traffic aggregation, health thresholds, active probes and request templates',
       searchPlaceholder: 'Search monitor name...',
       allProviders: 'All Providers',
       allStatus: 'All Status',

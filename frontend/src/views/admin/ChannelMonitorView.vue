@@ -4,12 +4,17 @@
       <header
         class="page-header mb-0 rounded-3xl bg-white p-5 shadow-sm ring-1 ring-gray-900/5 dark:bg-dark-800 dark:ring-dark-700 sm:p-6"
       >
+        <div class="flex flex-wrap items-center justify-between gap-3">
         <h1 class="page-title flex items-center gap-2 text-xl font-black text-gray-900 dark:text-white">
           <span class="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-blue-50 text-blue-500 dark:bg-blue-900/30 dark:text-blue-400">
             <Icon name="chart" size="sm" />
           </span>
           {{ t('admin.channelMonitor.title') }}
         </h1>
+        <RouterLink class="btn btn-secondary btn-sm" to="/monitor">
+          <Icon name="chart" size="sm" />{{ t('channelMonitorV2.admin.openMonitor') }}
+        </RouterLink>
+        </div>
         <p class="page-description mt-1.5 text-xs text-gray-500 dark:text-gray-400">
           {{
             isV1Mode
@@ -23,17 +28,6 @@
             role="tablist"
             :aria-label="t('channelMonitorV2.admin.tabAria')"
           >
-            <button
-              v-if="!isV1Mode"
-              type="button"
-              role="tab"
-              class="tab flex-1 sm:flex-none"
-              :class="adminMonitorTab === 'availability' ? 'tab-active' : ''"
-              :aria-selected="adminMonitorTab === 'availability'"
-              @click="adminMonitorTab = 'availability'"
-            >
-              {{ t('channelMonitorV2.availability.title') }}
-            </button>
             <button
               type="button"
               role="tab"
@@ -58,8 +52,7 @@
         </div>
       </header>
 
-      <AdminMonitorBoard v-if="adminMonitorTab === 'availability' && !isV1Mode" @settings="adminMonitorTab = 'v2'" @probes="adminMonitorTab = 'legacy'" />
-      <MonitorSettingsPanel v-else-if="adminMonitorTab === 'v2'" />
+      <MonitorSettingsPanel v-if="adminMonitorTab === 'v2'" />
 
       <TablePageLayout v-else>
       <template #filters>
@@ -182,6 +175,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { extractApiErrorMessage } from '@/utils/apiError'
@@ -211,13 +205,19 @@ import MonitorActionsCell from '@/components/admin/monitor/MonitorActionsCell.vu
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 import { useChannelMonitorFormat } from '@/composables/useChannelMonitorFormat'
 import MonitorSettingsPanel from '@/features/channel-monitor-v2/MonitorSettingsPanel.vue'
-import AdminMonitorBoard from '@/features/channel-monitor-v2/AdminMonitorBoard.vue'
 import { isChannelMonitorV1Mode } from '@/utils/featureFlags'
 
 const { t } = useI18n()
 const appStore = useAppStore()
+const route = useRoute()
+const router = useRouter()
 const isV1Mode = computed(() => isChannelMonitorV1Mode())
-const adminMonitorTab = ref<'availability' | 'v2' | 'legacy'>(isChannelMonitorV1Mode() ? 'legacy' : 'availability')
+const adminMonitorTab = computed<'v2' | 'legacy'>({
+  get: () => route.query.tab === 'v2' || route.query.tab === 'legacy'
+    ? route.query.tab
+    : isV1Mode.value ? 'legacy' : 'v2',
+  set: (tab) => { void router.replace({ query: { ...route.query, tab } }) },
+})
 const {
   providerLabel,
   providerBadgeClass,

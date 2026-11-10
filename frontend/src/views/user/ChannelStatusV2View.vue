@@ -499,12 +499,13 @@ type Tab = 'models' | 'errors' | 'users'
 type HealthMode = 'overall' | 'success' | 'ttft' | 'cache'
 type TrendView = 'cards' | 'list' | 'pulse' | 'line'
 
-const props = withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false })
+const props = withDefaults(defineProps<{ embedded?: boolean; syncRoute?: boolean }>(), { embedded: false, syncRoute: undefined })
 const emit = defineEmits<{ settings: [] }>()
 const route = useRoute()
 const router = useRouter()
-// Embedded in the admin page: view state stays local and never touches the host URL.
-const initialQuery: LocationQuery = props.embedded ? {} : route.query
+// Layout embedding and URL persistence are independent for the /monitor tabs.
+const syncRoute = computed(() => props.syncRoute ?? !props.embedded)
+const initialQuery: LocationQuery = syncRoute.value ? route.query : {}
 const authStore = useAuthStore()
 const appStore = useAppStore()
 const { t, locale } = useI18n()
@@ -694,9 +695,8 @@ function parseTrendView(value: unknown): TrendView {
   return ['cards', 'list', 'pulse', 'line'].includes(String(value)) ? value as TrendView : 'cards'
 }
 function syncQuery() {
-  if (props.embedded) return
-  void router.replace({
-    query: {
+  if (!syncRoute.value) return
+  const query = {
       ...route.query,
       range: filter.value.range,
       platform: filter.value.platforms.join(',') || undefined,
@@ -706,8 +706,9 @@ function syncQuery() {
       health_mode: healthMode.value,
       trend_view: trendView.value === 'cards' ? undefined : trendView.value,
       tab: activeTab.value,
-    },
-  })
+  }
+  if (Object.entries(query).every(([key, value]) => route.query[key] === value)) return
+  void router.replace({ query })
 }
 /** Dimensions catalog: range only — never re-filtered by platform/group/model selection. */
 async function loadDimensions(signal?: AbortSignal, id = sequence) {
@@ -925,6 +926,20 @@ watch(showUserRanking, (allowed) => {
     activeTab.value = 'models'
   }
 })
+watch(() => route.query, (query) => {
+  if (!syncRoute.value) return
+  const nextFilter: MonitorFilter = {
+    range: parseRange(query.range),
+    platforms: csv(query.platform),
+    groupIds: csv(query.group).map(Number).filter(Boolean),
+    models: csv(query.model),
+  }
+  if (JSON.stringify(nextFilter) !== JSON.stringify(filter.value)) filter.value = nextFilter
+  matrixGroupBy.value = parseMatrixGroupBy(query.group_by)
+  healthMode.value = parseHealthMode(query.health_mode)
+  trendView.value = parseTrendView(query.trend_view)
+  activeTab.value = parseTab(query.tab, showUserRanking.value)
+}, { deep: true })
 onMounted(() => void reload(false))
 onBeforeUnmount(() => {
   sequence++
