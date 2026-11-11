@@ -14,6 +14,10 @@ export default {
       },
       title: '账号管理',
       description: '管理 AI 平台账号和 Cookie',
+      refreshUsage: '查询',
+      refreshUsageHint: '重新拉取该行的上游用量窗口',
+      pointsShort: '点数',
+      pointsPlaceholderHint: '点数额度暂无可读来源，保留占位',
       createAccount: '添加账号',
       autoRefresh: '自动刷新',
       enableAutoRefresh: '启用自动刷新',
@@ -1129,6 +1133,13 @@ export default {
 	  autoPause5hDisabled: '禁用 5h 自动暂停',
 	  autoPause7dDisabled: '禁用 7d 自动暂停',
 	  autoPauseDisabledHint: '开启后该账号永不进入自动暂停（即使全局默认阈值已配置）。',
+	      usageActions: {
+        more: '更多',
+        moreAria: '更多用量操作',
+        expand: '展开用量操作（查询 / 次数 / 重置 / 点数 / 邀请）',
+        collapse: '收起用量操作',
+        badgeHint: '最近一次查询到的数值；点图标展开操作'
+      },
 	  claudeResetCredits: {
 	    count: '次数',
 	    countTooltipLoad: '点击查询 Claude 剩余重置次数（只读，不会消耗）',

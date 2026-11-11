@@ -1,8 +1,12 @@
 <template>
-  <div>
+  <!--
+    单一根节点：调用方写在 <UsageProgressBar data-testid=...> 上的透传属性
+    （如监控页的 monitor-quota-tier）必须落在根节点上，改成多根节点会静默丢弃它们。
+  -->
+  <div class="min-w-0">
     <!-- Window stats row (above progress bar) -->
     <div
-      v-if="windowStats && (windowStats.requests > 0 || windowStats.tokens > 0)"
+      v-if="!isCompact && windowStats && (windowStats.requests > 0 || windowStats.tokens > 0)"
       class="mb-0.5 flex items-center"
     >
       <div class="flex items-center gap-1.5 text-[9px] text-gray-500 dark:text-gray-400">
@@ -33,8 +37,51 @@
       </div>
     </div>
 
+    <!-- Compact block: the account table's usage column. One aligned row per
+         window: label · track · percent · reset countdown. Fixed trailing widths
+         keep the percentages and countdowns in a clean vertical rail across rows. -->
+    <div v-if="isCompact" class="account-usage-block flex min-w-0 flex-col gap-0.5">
+      <div class="flex min-w-0 items-center gap-2">
+        <span :class="compactLabelClass">
+          {{ label }}
+        </span>
+
+        <div class="h-[6px] min-w-[40px] flex-1 overflow-hidden rounded-full bg-gray-200/90 dark:bg-dark-700">
+          <div
+            :class="['h-full rounded-full transition-all duration-300', barClass]"
+            :style="{ width: barWidth }"
+          ></div>
+        </div>
+
+        <span :class="['w-[36px] shrink-0 text-right text-[11px] font-semibold leading-4 tabular-nums', textClass]">
+          {{ displayPercent }}
+        </span>
+
+        <span
+          class="w-[54px] shrink-0 truncate text-right text-[10px] leading-4 tabular-nums text-gray-400 dark:text-gray-500"
+          :title="resetTimeTitle"
+        >
+          {{ formatResetTime }}
+        </span>
+      </div>
+    </div>
+
+    <!-- 窗口用量：独立成块并紧跟在本条进度条之后，渲染顺序即视觉顺序；
+         多个窗口之间不会被大量灰色小字隔开（父容器的 order 规则只作用于窗口条）。 -->
+    <div
+      v-if="isCompact && denseStatsItems.length"
+      class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 pl-0.5 text-[10px] leading-4 tabular-nums text-gray-500 sm:gap-x-1 dark:text-gray-400"
+    >
+      <template v-for="(item, index) in denseStatsItems" :key="item.key">
+        <span class="inline-flex items-center gap-1">
+          <span v-if="index > 0" class="hidden text-gray-300 sm:inline dark:text-dark-600" aria-hidden="true">·</span>
+          <span :class="item.class" :title="item.title">{{ item.text }}</span>
+        </span>
+      </template>
+    </div>
+
     <!-- Progress bar row -->
-    <div class="flex items-center gap-1">
+    <div v-if="!isCompact" class="flex items-center gap-1">
       <!-- Label badge (label-width: fixed = 定宽居中, auto = 限宽截断左对齐) -->
       <span :class="[labelSizeClass, labelClass]">
         {{ label }}
@@ -80,9 +127,20 @@ const props = withDefaults(
     remainingCapacity?: boolean
     /** fixed: 定宽居中徽章（账号页纵向对齐）；auto: 限宽截断左对齐（监控页组合标签） */
     labelWidth?: 'fixed' | 'auto'
+    /**
+     * compact: 账号表用量列的紧凑块——进度条吃满列宽，窗口用量折成一行小字。
+     * 视觉顺序由父容器（AccountUsageCell 的 .account-usage-stack）用 CSS 决定，
+     * 组件自身不写 order，避免与后台页面的样式覆盖冲突。
+     */
+    compact?: boolean
   }>(),
-  { labelWidth: 'fixed' }
+  { labelWidth: 'fixed', compact: false }
 )
+
+const isCompact = computed(() => props.compact)
+
+// 紧凑模式的标签列定宽左对齐：多窗口/多账号之间进度条起点一致。
+const compactLabelClass = 'w-[32px] shrink-0 text-left text-[10px] font-medium leading-4 text-gray-500 dark:text-gray-400'
 
 const { t } = useI18n()
 
@@ -218,6 +276,68 @@ const formatResetTime = computed(() => {
   } else {
     return `${diffMins}m`
   }
+})
+
+// 悬停显示重置的绝对时间；倒计时本身保持紧凑。
+const resetTimeTitle = computed(() => {
+  if (!props.resetsAt) return ''
+  const date = new Date(props.resetsAt)
+  return Number.isNaN(date.getTime()) ? '' : date.toLocaleString()
+})
+
+// 紧凑模式的窗口用量：拆成可单独着色的片段，金额与预计总额比请求/Token 更醒目。
+interface DenseStatsItem {
+  key: string
+  text: string
+  title: string
+  class?: string
+}
+
+const denseStatsItems = computed<DenseStatsItem[]>(() => {
+  const stats = props.windowStats
+  const items: DenseStatsItem[] = []
+  // 与旧版徽章行一致：没有请求/Token 的窗口不单独占一行；
+  // 只有 7d 的「预计总费用」可以在无统计时单独出现。
+  if (stats && stats.requests <= 0 && stats.tokens <= 0 && props.estimatedTotalCost == null) {
+    return items
+  }
+  if (stats && (stats.requests > 0 || stats.tokens > 0)) {
+    items.push({
+      key: 'requests',
+      text: `${formatCompactNumber(stats.requests, { allowBillions: false })} req`,
+      title: `${stats.requests} requests`
+    })
+    items.push({
+      key: 'tokens',
+      text: formatCompactNumber(stats.tokens),
+      title: `${stats.tokens} ${t('usage.tokens')}`
+    })
+  }
+  if (stats && stats.cost != null) {
+    items.push({
+      key: 'cost',
+      text: `A $${stats.cost.toFixed(2)}`,
+      title: t('usage.accountBilled'),
+      class: 'font-medium text-gray-600 dark:text-gray-300'
+    })
+  }
+  if (stats && stats.user_cost != null) {
+    items.push({
+      key: 'userCost',
+      text: `U $${stats.user_cost.toFixed(2)}`,
+      title: t('usage.userBilled'),
+      class: 'font-medium text-gray-600 dark:text-gray-300'
+    })
+  }
+  if (props.estimatedTotalCost != null) {
+    items.push({
+      key: 'estimate',
+      text: t('admin.accounts.usageWindow.estimatedTotalCost', { cost: props.estimatedTotalCost.toFixed(2) }),
+      title: t('admin.accounts.usageWindow.estimatedTotalCostTooltip'),
+      class: 'font-medium text-gray-700 dark:text-gray-200'
+    })
+  }
+  return items
 })
 
 // Window stats formatters

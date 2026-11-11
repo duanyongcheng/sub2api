@@ -14,6 +14,10 @@ export default {
       },
       title: 'Account Management',
       description: 'Manage AI platform accounts and credentials',
+      refreshUsage: 'Query',
+      refreshUsageHint: 'Re-fetch this row\'s upstream usage windows',
+      pointsShort: 'Points',
+      pointsPlaceholderHint: 'No readable source for points quota yet; placeholder only',
       createAccount: 'Create Account',
       autoRefresh: 'Auto Refresh',
       enableAutoRefresh: 'Enable auto refresh',
@@ -1027,6 +1031,13 @@ export default {
 	  autoPause5hDisabled: 'Disable 5h auto-pause',
 	  autoPause7dDisabled: 'Disable 7d auto-pause',
 	  autoPauseDisabledHint: 'When enabled, this account is never auto-paused (even if a global default threshold is configured).',
+	      usageActions: {
+        more: 'More',
+        moreAria: 'More usage actions',
+        expand: 'Show usage actions (query / resets / points / invites)',
+        collapse: 'Hide usage actions',
+        badgeHint: 'Last queried value; click the icon to open the actions'
+      },
 	  claudeResetCredits: {
 	    count: 'Resets',
 	    countTooltipLoad: 'Check remaining Claude resets (read-only, never consumes one)',

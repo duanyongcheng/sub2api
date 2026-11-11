@@ -216,7 +216,7 @@
           default-sort-key="name"
           default-sort-order="asc"
           :sort-storage-key="ACCOUNT_SORT_STORAGE_KEY"
-          :estimate-row-height="156"
+          :estimate-row-height="104"
           :overscan="5"
           :virtualize-threshold="50"
         >
@@ -235,67 +235,72 @@
           <template #cell-id="{ value }">
             <span class="font-mono text-xs text-gray-500 dark:text-gray-400">#{{ value }}</span>
           </template>
+          <!--
+            名称列只放「账号自身」的信息：名称、邮箱、类型 / 套餐 / 隐私 / Compact。
+            平台与分组各自独立成列（要折叠请用列设置隐藏），不再塞进名称列。
+          -->
           <template #cell-name="{ row, value }">
-            <div class="flex flex-col">
-              <HelpTooltip
-                v-if="accountHomepageUrl(row)"
-                :content="accountHomepageUrl(row)"
-                width-class="w-max max-w-sm break-all"
-                class="-ml-1 self-start"
-              >
-                <template #trigger>
-                  <a
-                    :href="accountHomepageUrl(row)"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="border-b border-dotted border-gray-300 font-medium text-gray-900 dark:border-dark-600 dark:text-white"
-                  >
-                    {{ value }}
-                  </a>
-                </template>
-              </HelpTooltip>
-              <button v-else type="button" class="truncate text-left font-semibold text-ink hover:text-primary-700" :title="t('admin.accounts.pool.details')" @click="openAccountDetail(row)">{{ value }}</button>
+            <div class="flex min-w-0 flex-col gap-1">
+              <div class="flex min-w-0 items-center gap-1">
+                <HelpTooltip
+                  v-if="accountHomepageUrl(row)"
+                  :content="accountHomepageUrl(row)"
+                  width-class="w-max max-w-sm break-all"
+                  class="-ml-1 min-w-0"
+                >
+                  <template #trigger>
+                    <a
+                      :href="accountHomepageUrl(row)"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="block truncate border-b border-dotted border-gray-300 font-semibold text-gray-900 dark:border-dark-600 dark:text-white"
+                    >
+                      {{ value }}
+                    </a>
+                  </template>
+                </HelpTooltip>
+                <button
+                  v-else
+                  type="button"
+                  class="truncate text-left font-semibold text-ink hover:text-primary-700"
+                  :title="accountIdentityTitle(row)"
+                  @click="openAccountDetail(row)"
+                >
+                  {{ value }}
+                </button>
+              </div>
+              <!-- 邮箱（含影子账号的 parent_email 兜底）：只在存在时多占一行小字 -->
               <span
                 v-if="accountDisplayEmail(row)"
-                class="text-xs text-gray-500 dark:text-gray-400 truncate max-w-[200px]"
-                :title="accountDisplayEmail(row) + (row.parent_chatgpt_account_id ? ' · ' + row.parent_chatgpt_account_id : '')"
+                class="truncate text-[11px] text-gray-500 dark:text-gray-400"
+                :title="accountIdentityTitle(row)"
               >
                 {{ accountDisplayEmail(row) }}
               </span>
-              <button v-if="accountHomepageUrl(row)" type="button" class="mt-1 self-start text-[11px] text-primary-700" @click="openAccountDetail(row)">{{ t('admin.accounts.pool.details') }}</button>
+              <div class="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
+                <AccountIdentityChips
+                  :row="row"
+                  :auth-mode="getOpenAIAuthMode(row)"
+                  :plan-type="getAccountPlanType(row)"
+                  :privacy-mode="row.extra?.privacy_mode || row.parent_privacy_mode"
+                  :subscription-expires-at="row.credentials?.subscription_expires_at || row.parent_subscription_expires_at"
+                  :tier-label="getAntigravityTierLabel(row)"
+                  :tier-class="getAntigravityTierClass(row)"
+                  :compact-meta="getOpenAICompactMeta(row)"
+                  :compact-title="getOpenAICompactTitle(row)"
+                />
+              </div>
             </div>
           </template>
           <template #cell-notes="{ value }">
             <span v-if="value" :title="value" class="block max-w-xs truncate text-sm text-gray-600 dark:text-gray-300">{{ value }}</span>
             <span v-else class="text-sm text-gray-400 dark:text-dark-500">-</span>
           </template>
-          <template #cell-platform_type="{ row }">
-            <div class="flex min-w-0 flex-col gap-1">
-              <div class="flex flex-wrap items-center gap-1">
-                <PlatformTypeBadge :platform="row.platform" :type="row.type"
-                  :auth-mode="getOpenAIAuthMode(row)"
-                  :plan-type="getAccountPlanType(row)"
-                  :privacy-mode="row.extra?.privacy_mode || row.parent_privacy_mode"
-                  :subscription-expires-at="row.credentials?.subscription_expires_at || row.parent_subscription_expires_at" />
-                <span
-                  v-if="getAntigravityTierLabel(row)"
-                  :class="['inline-block rounded px-1.5 py-0.5 text-[10px] font-medium', getAntigravityTierClass(row)]"
-                >
-                  {{ getAntigravityTierLabel(row) }}
-                </span>
-              </div>
-              <div
-                v-if="getOpenAICompactMeta(row)"
-                :class="[
-                  'inline-flex items-center gap-1.5 pl-0.5 text-[11px] font-medium leading-4',
-                  getOpenAICompactMeta(row)?.className
-                ]"
-                :title="getOpenAICompactTitle(row)"
-              >
-                <span :class="['h-1.5 w-1.5 rounded-full', getOpenAICompactMeta(row)?.dotClass]" />
-                <span>{{ getOpenAICompactMeta(row)?.label }}</span>
-              </div>
-            </div>
+          <template #cell-platform="{ row }">
+            <AccountPlatformCell :platform="row.platform" />
+          </template>
+          <template #cell-groups="{ row }">
+            <AccountGroupsCell :groups="accountGroupsForRow(row)" :max-display="4" />
           </template>
           <template #cell-capacity="{ row }">
             <AccountCapacityCell :account="row" />
@@ -317,9 +322,6 @@
               :error="todayStatsError"
             />
           </template>
-          <template #cell-groups="{ row }">
-            <AccountGroupsCell :groups="accountGroupsForRow(row)" :max-display="4" />
-          </template>
           <template #header-usage="{ column }">
             <div class="flex items-center">
               <span>{{ column.label }}</span>
@@ -328,6 +330,7 @@
           </template>
           <template #cell-usage="{ row }">
             <AccountUsageCell
+              :ref="(el: unknown) => setUsageCellRef(row.id, el)"
               :account="row"
               :today-stats="todayStatsByAccountId[String(row.id)] ?? null"
               :today-stats-loading="todayStatsLoading"
@@ -338,7 +341,33 @@
               :request-batched-usage="isDesktopViewport ? queueBatchedUsage : null"
               @account-updated="handleAccountUpdated"
               @usage-loaded="handleAccountUsageLoaded(row.id, $event)"
-            />
+            >
+              <!--
+                账号页专属的行内操作条：这些内容现在渲染在 AccountUsageCell 的
+                折叠面板（「更多 ⌄」）里，与「次数 / 重置 / 点数 / 邀请」同处一行，
+                默认收起，避免每一行都被两行小按钮撑高。
+              -->
+              <template v-if="canQueryUsageInline(row)" #actions-extra>
+                <!--
+                  折叠面板左侧的「查询」（只保留一个有效入口）：
+                  - Anthropic OAuth / setup-token：主动查询上游窗口（原用量窗格里的「查询」）
+                  - 其它支持批量查询的账号：重新拉取本行用量窗口
+                  这两种账号的单元格内部都是被动展示，不会产生第二个同名按钮；
+                  Gemini / CN 等供应商自带各自的查询入口，不在这里重复渲染。
+                  没有查询入口时不提供 actions-extra 插槽，折叠图标也就不会出现。
+                -->
+                <button
+                  type="button"
+                  class="inline-flex items-center gap-0.5 rounded px-1 py-0.5 font-medium text-blue-600 transition-colors hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50 dark:text-blue-400 dark:hover:bg-blue-900/30"
+                  :disabled="usageQueryPending(row)"
+                  :title="t('admin.accounts.refreshUsageHint')"
+                  @click.stop="handleUsageQuery(row)"
+                >
+                  <Icon name="refresh" size="xs" :class="usageQueryPending(row) ? 'animate-spin' : ''" />
+                  {{ t('admin.accounts.refreshUsage') }}
+                </button>
+              </template>
+            </AccountUsageCell>
           </template>
           <template #cell-proxy="{ row }">
             <div class="flex flex-col gap-1">
@@ -511,7 +540,6 @@ import { useIntervalFn } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { useAppStore } from '@/stores/app'
-import { useAuthStore } from '@/stores/auth'
 import { adminAPI } from '@/api/admin'
 import { CONCRETE_PLATFORM_OPTIONS } from '@/constants/platforms'
 import { useTableLoader } from '@/composables/useTableLoader'
@@ -548,7 +576,8 @@ import AccountGroupsCell from '@/components/account/AccountGroupsCell.vue'
 import AccountCapacityCell from '@/components/account/AccountCapacityCell.vue'
 import UpstreamBillingRateCell from '@/components/account/UpstreamBillingRateCell.vue'
 import AccountPriorityCell from '@/components/account/AccountPriorityCell.vue'
-import PlatformTypeBadge from '@/components/common/PlatformTypeBadge.vue'
+import AccountIdentityChips from '@/components/account/AccountIdentityChips.vue'
+import AccountPlatformCell from '@/components/account/AccountPlatformCell.vue'
 import Icon from '@/components/icons/Icon.vue'
 import ErrorPassthroughRulesModal from '@/components/admin/ErrorPassthroughRulesModal.vue'
 import TLSFingerprintProfilesModal from '@/components/admin/TLSFingerprintProfilesModal.vue'
@@ -564,7 +593,6 @@ import type { Account, AccountListItem, AccountPlatform, AccountSchedulerGroupSc
 
 const { t } = useI18n()
 const appStore = useAppStore()
-const authStore = useAuthStore()
 const accountRoute = useRoute()
 
 const proxies = ref<AccountProxy[]>([])
@@ -673,11 +701,22 @@ const accountToolsDropdownStyle = computed(() => ({
   width: `${accountToolsDropdownPosition.width}px`
 }))
 const hiddenColumns = reactive<Set<string>>(new Set())
-const DEFAULT_HIDDEN_COLUMNS = ['id', 'today_stats', 'proxy', 'notes', 'scheduler_score', 'rate_multiplier', 'upstream_billing_rate', 'created_at', 'expires_at', 'last_used_at', 'groups']
+// 平台/分组是独立列，默认显示（重要信息不该藏在列设置里）。
+const DEFAULT_HIDDEN_COLUMNS = ['id', 'today_stats', 'proxy', 'notes', 'scheduler_score', 'rate_multiplier', 'upstream_billing_rate', 'created_at', 'expires_at', 'last_used_at']
 const HIDDEN_COLUMNS_KEY = 'account-hidden-columns'
 // One-time migration: hide scheduler score for existing admins too, because showing it opt-ins to heavy backend scoring.
 const HIDDEN_COLUMNS_VERSION_KEY = 'account-hidden-columns-version'
 const HIDDEN_COLUMNS_CURRENT_VERSION = 'scheduler-score-hidden-by-default'
+// 平台/类型/分组并入名称列的一次性迁移标记（与 scheduler_score 迁移各自独立）。
+const HIDDEN_COLUMNS_MERGED_COLUMNS_KEY = 'account-hidden-columns-identity-merged'
+// 平台/类型拆列之前保存的可见性只记着一个 'platform_type'。迁移时把它展开成
+// 两列，并保证新的键都在已知列里（否则排序和列设置抽屉会拿到未知 key）。
+const LEGACY_PLATFORM_TYPE_COLUMN = 'platform_type'
+const KNOWN_COLUMN_KEYS = new Set([
+  'id', 'name', 'platform', 'groups', 'capacity', 'status', 'schedulable', 'today_stats',
+  'usage', 'proxy', 'priority', 'scheduler_score', 'rate_multiplier',
+  'upstream_billing_rate', 'last_used_at', 'created_at', 'expires_at', 'notes', 'actions'
+])
 
 // Account filter settings
 const ACCOUNT_FILTER_STORAGE_KEY = 'account-filter-values'
@@ -815,6 +854,51 @@ const setUsageBatchState = (accountID: number, usage: AccountUsageInfo | null, e
     ...usageBatchErrorByAccountId.value,
     [key]: error
   }
+}
+
+// 「查询」渲染在 AccountUsageCell 之外（行内操作条），这里通过 template ref
+// 调回单元格自己的主动查询，保证结果写回同一份 usageInfo。
+const usageCellRefs = new Map<number, { loadActiveUsage: () => Promise<void> }>()
+const activeQueryLoadingIds = ref(new Set<number>())
+
+const setUsageCellRef = (accountID: number, el: unknown) => {
+  if (!el) {
+    usageCellRefs.delete(accountID)
+    return
+  }
+  usageCellRefs.set(accountID, el as { loadActiveUsage: () => Promise<void> })
+}
+
+const isAnthropicOAuthRow = (row: Account) =>
+  row.platform === 'anthropic' && (row.type === 'oauth' || row.type === 'setup-token')
+
+// 行内「查询」只对「单元格内部没有查询按钮」的账号渲染，避免同一行出现两个同名按钮。
+const canQueryUsageInline = (row: Account) => {
+  if (isAnthropicOAuthRow(row)) return true
+  return accountSupportsBatchUsage(row) && row.platform !== 'gemini' && row.platform !== 'antigravity'
+}
+
+const usageQueryPending = (row: Account) => {
+  if (isAnthropicOAuthRow(row)) return activeQueryLoadingIds.value.has(row.id)
+  return usageBatchLoadingByAccountId.value[String(row.id)] === true
+}
+
+const handleUsageQuery = async (row: Account) => {
+  if (isAnthropicOAuthRow(row)) {
+    const cell = usageCellRefs.get(row.id)
+    if (!cell || activeQueryLoadingIds.value.has(row.id)) return
+    // 替换整个 Set 触发视图更新（Set 内部的增删不会触发响应式）。
+    activeQueryLoadingIds.value = new Set([...activeQueryLoadingIds.value, row.id])
+    try {
+      await cell.loadActiveUsage()
+    } finally {
+      const next = new Set(activeQueryLoadingIds.value)
+      next.delete(row.id)
+      activeQueryLoadingIds.value = next
+    }
+    return
+  }
+  queueBatchedUsage(row, { force: true })
 }
 
 const handleAccountUsageLoaded = (accountID: number, usage: AccountUsageInfo) => {
@@ -1010,11 +1094,26 @@ const loadSavedColumns = () => {
         hiddenColumns.add(key)
       })
       // Older saved column layouts may have scheduler_score visible; migrate them to the new safe default once.
+      // 这两步互相独立：改了版本号也不应该把用户显式显示的 scheduler_score 再藏起来。
       if (localStorage.getItem(HIDDEN_COLUMNS_VERSION_KEY) !== HIDDEN_COLUMNS_CURRENT_VERSION) {
         hiddenColumns.add('scheduler_score')
         localStorage.setItem(HIDDEN_COLUMNS_KEY, JSON.stringify([...hiddenColumns]))
         localStorage.setItem(HIDDEN_COLUMNS_VERSION_KEY, HIDDEN_COLUMNS_CURRENT_VERSION)
       }
+      // 'platform_type' 拆成 'platform' + 'groups' + 名称列里的类型标签。
+      // 旧偏好里如果显式隐藏过 'platform_type'（一个老版本的整列开关），现在拆成三处信息，
+      // 不再一刀切隐藏；只清掉已经不对应任何列的老 key，避免列设置抽屉出现点不动的幽灵项。
+      if (localStorage.getItem(HIDDEN_COLUMNS_MERGED_COLUMNS_KEY) !== '1') {
+        for (const key of [LEGACY_PLATFORM_TYPE_COLUMN, 'type']) {
+          hiddenColumns.delete(key)
+        }
+        for (const key of [...hiddenColumns]) {
+          if (!KNOWN_COLUMN_KEYS.has(key)) hiddenColumns.delete(key)
+        }
+        localStorage.setItem(HIDDEN_COLUMNS_KEY, JSON.stringify([...hiddenColumns]))
+        localStorage.setItem(HIDDEN_COLUMNS_MERGED_COLUMNS_KEY, '1')
+      }
+      hiddenColumns.delete(LEGACY_PLATFORM_TYPE_COLUMN)
     } else {
       DEFAULT_HIDDEN_COLUMNS.forEach(key => {
         hiddenColumns.add(key)
@@ -1796,6 +1895,17 @@ function accountDisplayEmail(row: any): string {
   return row.extra?.email_address || row.extra?.email || row.credentials?.email || row.parent_email || ''
 }
 
+// 名称按钮的悬停信息：邮箱 / 网页地址 / 母账号等不单独占行的信息都收在这里。
+function accountIdentityTitle(row: any): string {
+  const parts = [String(row.name ?? '')]
+  const email = accountDisplayEmail(row)
+  if (email) parts.push(email)
+  const homepage = accountHomepageUrl(row)
+  if (homepage) parts.push(homepage)
+  if (row.parent_chatgpt_account_id) parts.push(row.parent_chatgpt_account_id)
+  return parts.filter(Boolean).join('\n')
+}
+
 function accountHomepageUrl(row: Account): string {
   if (row.type !== 'apikey' || typeof row.credentials?.base_url !== 'string') return ''
   const baseUrl = sanitizeUrl(row.credentials.base_url)
@@ -1865,15 +1975,13 @@ const allColumns = computed(() => {
     { key: 'select', label: '', sortable: false },
     { key: 'name', label: t('admin.accounts.columns.name'), sortable: true, mobilePrimary: true },
     { key: 'id', label: t('admin.accounts.columns.id'), sortable: true },
-    { key: 'platform_type', label: t('admin.accounts.columns.platformType'), sortable: false },
+    { key: 'platform', label: t('admin.accounts.columns.platform'), sortable: false },
+    { key: 'groups', label: t('admin.accounts.columns.groups'), sortable: false },
     { key: 'capacity', label: t('admin.accounts.columns.capacity'), sortable: false },
     { key: 'status', label: t('admin.accounts.columns.status'), sortable: true },
     { key: 'schedulable', label: t('admin.accounts.columns.schedulable'), sortable: true },
     { key: 'today_stats', label: t('admin.accounts.columns.todayStats'), sortable: false }
   ]
-  if (!authStore.isSimpleMode) {
-    c.push({ key: 'groups', label: t('admin.accounts.columns.groups'), sortable: false })
-  }
   c.push({ key: 'usage', label: t('admin.accounts.columns.usageWindows'), sortable: false })
   c.push(
     { key: 'proxy', label: t('admin.accounts.columns.proxy'), sortable: false },
@@ -1888,8 +1996,10 @@ const allColumns = computed(() => {
     { key: 'actions', label: t('admin.accounts.columns.actions'), sortable: false }
   )
   const widths: Record<string, string> = {
-    select: '44px', name: '210px', id: '84px', platform_type: '150px', capacity: '110px',
-    status: '155px', schedulable: '76px', today_stats: '145px', groups: '180px', usage: '230px',
+    // 名称列只放账号自身信息（名称/邮箱/类型胶囊），平台与分组各自独立列；
+    // 用量列 230 → 340（进度条吃满列宽），今日统计 145 → 96（金额 + 请求/Token 两行）。
+    select: '44px', name: '250px', id: '84px', platform: '110px', groups: '160px', capacity: '96px',
+    status: '155px', schedulable: '76px', today_stats: '96px', usage: '340px',
     proxy: '180px', priority: '115px', scheduler_score: '170px', rate_multiplier: '115px',
     upstream_billing_rate: '180px', last_used_at: '120px', created_at: '140px', expires_at: '150px',
     notes: '180px', actions: '156px'

@@ -1,5 +1,10 @@
 <template>
-  <div ref="rootRef" v-if="showUsageWindows">
+  <!--
+    单一网格容器：窗口条占左列，右侧只留一个「⋯」折叠图标；展开后的操作面板
+    横跨两列，落在窗口条下方。这样短账号不会出现「一条窗口 + 两行零散按钮」，
+    行高更省，操作也不会挤在窗口条右侧。
+  -->
+  <div ref="rootRef" v-if="showUsageWindows" class="account-usage-stack">
     <!-- Anthropic OAuth and Setup Token accounts: fetch real usage data -->
     <template
       v-if="
@@ -42,6 +47,7 @@
         </div>
         <!-- 5h Window -->
         <UsageProgressBar
+          compact
           v-if="usageInfo.five_hour"
           label="5h"
           :utilization="usageInfo.five_hour.utilization"
@@ -52,6 +58,7 @@
 
         <!-- 7d Window (OAuth only) -->
         <UsageProgressBar
+          compact
           v-if="usageInfo.seven_day"
           label="7d"
           :utilization="usageInfo.seven_day.utilization"
@@ -61,6 +68,7 @@
 
         <!-- 7d Sonnet Window (OAuth only) -->
         <UsageProgressBar
+          compact
           v-if="usageInfo.seven_day_sonnet"
           label="7d S"
           :utilization="usageInfo.seven_day_sonnet.utilization"
@@ -70,6 +78,7 @@
 
         <!-- 7d Fable Window (7d_oi) -->
         <UsageProgressBar
+          compact
           v-if="usageInfo.seven_day_fable"
           label="7d F"
           :utilization="usageInfo.seven_day_fable.utilization"
@@ -84,48 +93,16 @@
         <div class="text-xs text-gray-400">-</div>
       </div>
       <!--
-        One stable instance for every usage state, so a reset-credit query started
-        while usage is still loading survives the usage response. The local query
-        button shares its row once usage data exists.
+        重置额度与「次数 / 重置」按钮已统一进底部折叠操作条（见 .account-usage-secondary-row）；
+        行内「查询」由父组件（AccountsView #actions-extra）提供，这里不再重复渲染。
       -->
-      <ClaudeResetCreditsCell :account="account" class="mt-1" @redeemed="loadActiveUsage">
-        <template v-if="usageInfo" #pre-actions>
-          <span
-            v-if="usageInfo.source === 'passive'"
-            class="text-[9px] text-gray-400 dark:text-gray-500 italic"
-          >
-            {{ t('admin.accounts.usageWindow.passiveSampled') }}
-          </span>
-          <button
-            type="button"
-            class="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-medium text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/30 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-            :disabled="activeQueryLoading"
-            @click="loadActiveUsage"
-          >
-            <svg
-              class="h-2.5 w-2.5"
-              :class="{ 'animate-spin': activeQueryLoading }"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-              />
-            </svg>
-            {{ t('admin.accounts.usageWindow.activeQuery') }}
-          </button>
-        </template>
-      </ClaudeResetCreditsCell>
     </template>
 
     <!-- OpenAI OAuth accounts: single source from /usage API -->
     <template v-else-if="account.platform === 'openai' && account.type === 'oauth'">
-      <div v-if="hasOpenAIUsageFallback" class="space-y-1">
+      <div v-if="hasOpenAIUsageFallback" class="account-usage-windows">
         <UsageProgressBar
+          compact
           v-if="usageInfo?.five_hour"
           label="5h"
           :utilization="usageInfo.five_hour.utilization"
@@ -135,6 +112,7 @@
           color="indigo"
         />
         <UsageProgressBar
+          compact
           v-if="usageInfo?.seven_day"
           label="7d"
           :utilization="usageInfo.seven_day.utilization"
@@ -145,36 +123,10 @@
           color="emerald"
         />
         <!--
-          Upstream codex /wham/usage quota query + reset. The local active-sampling
-          refresh button is rendered via the pre-actions slot so the user sees a
-          single row of related buttons instead of two stacked rows.
+          Upstream codex /wham/usage quota query + reset (次数 / 重置 / 点数 / 邀请)
+          lives in the collapsed action disclosure at the bottom of this cell, so the
+          window bars stay on their own line.
         -->
-        <OpenAIQuotaResetCell :account="account" @account-updated="handleQuotaResetAccountUpdated">
-          <template #pre-actions>
-            <button
-              type="button"
-              class="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-medium text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/30 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-              :disabled="activeQueryLoading"
-              @click="loadActiveUsage"
-            >
-              <svg
-                class="h-2.5 w-2.5"
-                :class="{ 'animate-spin': activeQueryLoading }"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                />
-              </svg>
-              {{ t('admin.accounts.usageWindow.activeQuery') }}
-            </button>
-          </template>
-        </OpenAIQuotaResetCell>
       </div>
       <div v-else-if="loading" class="space-y-1.5">
         <div class="flex items-center gap-1">
@@ -190,12 +142,10 @@
       </div>
       <div v-else>
         <div class="text-xs text-gray-400">-</div>
-        <!-- Always allow on-demand upstream quota query, even before local data exists. -->
-        <OpenAIQuotaResetCell
-          :account="account"
-          class="mt-1"
-          @account-updated="handleQuotaResetAccountUpdated"
-        />
+        <!--
+          Upstream quota query stays reachable before local data exists: the collapsed
+          action row below always renders for OpenAI OAuth accounts.
+        -->
       </div>
     </template>
 
@@ -298,6 +248,7 @@
       <div v-else-if="hasAntigravityQuotaFromAPI" class="space-y-1">
         <!-- Gemini 3 Pro -->
         <UsageProgressBar
+          compact
           v-if="antigravity3ProUsageFromAPI !== null"
           :label="t('admin.accounts.usageWindow.gemini3Pro')"
           :utilization="antigravity3ProUsageFromAPI.utilization"
@@ -307,6 +258,7 @@
 
         <!-- Gemini 3 Flash -->
         <UsageProgressBar
+          compact
           v-if="antigravity3FlashUsageFromAPI !== null"
           :label="t('admin.accounts.usageWindow.gemini3Flash')"
           :utilization="antigravity3FlashUsageFromAPI.utilization"
@@ -316,6 +268,7 @@
 
         <!-- Gemini 3 Image -->
         <UsageProgressBar
+          compact
           v-if="antigravity3ImageUsageFromAPI !== null"
           :label="t('admin.accounts.usageWindow.gemini3Image')"
           :utilization="antigravity3ImageUsageFromAPI.utilization"
@@ -325,6 +278,7 @@
 
         <!-- Claude -->
         <UsageProgressBar
+          compact
           v-if="antigravityClaudeUsageFromAPI !== null"
           :label="t('admin.accounts.usageWindow.claude')"
           :utilization="antigravityClaudeUsageFromAPI.utilization"
@@ -332,7 +286,7 @@
           color="amber"
         />
 
-        <div v-if="aiCreditsDisplay" class="mt-1 text-[10px] text-gray-500 dark:text-gray-400">
+        <div v-if="aiCreditsDisplay" class="text-[10px] text-gray-500 dark:text-gray-400">
           💳 {{ t('admin.accounts.aiCreditsBalance') }}: {{ aiCreditsDisplay }}
         </div>
       </div>
@@ -368,6 +322,7 @@
         <!-- Free: only rolling 24h soft-gate bar. Paid: 7d + 30d + prepaid money. -->
         <template v-if="grokIsFree">
           <UsageProgressBar
+            compact
             v-if="grokFreeTokenBar"
             label="24h"
             :title="t('admin.accounts.usageWindow.grokFreeQuota24hHint', { limit: formatCompactNumber(grokFreeTokenBar.limit) })"
@@ -382,6 +337,7 @@
         </template>
         <template v-else>
           <UsageProgressBar
+            compact
             v-if="grokWeeklyBillingBar"
             label="7d"
             :utilization="grokWeeklyBillingBar.utilization"
@@ -391,6 +347,7 @@
             color="indigo"
           />
           <UsageProgressBar
+            compact
             v-if="grokMonthlyBillingBar"
             label="30d"
             :utilization="grokMonthlyBillingBar.utilization"
@@ -422,17 +379,16 @@
             {{ grokQuotaUnknownLabel }}
           </div>
         </template>
-        <div v-if="usageInfo.error" class="truncate text-xs text-amber-600 dark:text-amber-400 max-w-[200px]" :title="usageInfo.error">
+        <div v-if="usageInfo.error" class="account-usage-note truncate text-xs text-amber-600 dark:text-amber-400 max-w-[200px]" :title="usageInfo.error">
           {{ usageErrorLabel }}
         </div>
-        <div v-if="grokRetryAfterLabel" class="text-[10px] text-amber-600 dark:text-amber-400">
+        <div v-if="grokRetryAfterLabel" class="account-usage-note text-[10px] text-amber-600 dark:text-amber-400">
           {{ t('admin.accounts.usageWindow.grokRetryAfter', { time: grokRetryAfterLabel }) }}
         </div>
-        <GrokQuotaProbeCell :account="account" compact @probed="handleGrokProbed" />
       </div>
       <div v-else class="space-y-1">
+        <!-- 探测按钮已移到底部折叠操作条，这里只留占位。 -->
         <div class="text-xs text-gray-400">-</div>
-        <GrokQuotaProbeCell :account="account" compact @probed="handleGrokProbed" />
       </div>
     </template>
 
@@ -557,6 +513,7 @@
         <!-- Vertex 设置了配额上限：显示配额进度条 -->
         <template v-if="isGeminiVertex">
           <UsageProgressBar
+            compact
             v-if="quotaDailyBar"
             label="1d"
             :utilization="quotaDailyBar.utilization"
@@ -564,6 +521,7 @@
             color="indigo"
           />
           <UsageProgressBar
+            compact
             v-if="quotaWeeklyBar"
             label="7d"
             :utilization="quotaWeeklyBar.utilization"
@@ -571,6 +529,7 @@
             color="emerald"
           />
           <UsageProgressBar
+            compact
             v-if="quotaTotalBar"
             label="total"
             :utilization="quotaTotalBar.utilization"
@@ -590,6 +549,7 @@
         <!-- Gemini: show daily usage bars when available -->
         <div v-else-if="geminiUsageAvailable" class="space-y-1">
           <UsageProgressBar
+            compact
             v-for="bar in geminiUsageBars"
             :key="bar.key"
             :label="bar.label"
@@ -613,6 +573,55 @@
     <template v-else>
       <div class="text-xs text-gray-400">-</div>
     </template>
+    <!--
+      操作条（折叠）：查询 / 次数 / 重置 / 点数 / 邀请 都是低频操作，逐行铺开会把
+      用量列撑成两行按钮。这里统一收进 AccountUsageActionsDisclosure，默认只留一个
+      「⋯」图标，点开才在窗口条下方铺开操作面板。
+    -->
+    <AccountUsageActionsDisclosure
+      v-if="hasSecondaryActions"
+      v-model:open="secondaryActionsOpen"
+      class="account-usage-secondary-row"
+      :badge="secondaryActionsBadge"
+      :badge-title="secondaryActionsBadgeTitle"
+    >
+      <div class="account-cell-action-row text-[10.5px] leading-4 [&_*]:!mt-0" data-testid="account-cell-action-row">
+        <!-- 没有平台自带操作行的账号（如 Anthropic setup-token）：查询单独成项。 -->
+        <slot v-if="!hasPlatformUsageActions" name="actions-extra" />
+        <!--
+          平台操作行（次数 / 重置 / 点数 / 邀请）：把父级的「查询」通过
+          pre-actions 插槽放进同一个 flex 行，按钮才能整体换行而不是分成两个块。
+        -->
+        <div
+          v-if="$slots.usageActions || hasPlatformUsageActions"
+          class="account-usage-pills"
+        >
+          <slot name="usage-actions" />
+          <ClaudeResetCreditsCell
+            v-if="account.platform === 'anthropic' && account.type === 'oauth'"
+            :account="account"
+            @redeemed="loadActiveUsage"
+          >
+            <template #pre-actions><slot name="actions-extra" /></template>
+          </ClaudeResetCreditsCell>
+          <GrokQuotaProbeCell
+            v-else-if="account.platform === 'grok' && account.type === 'oauth'"
+            :account="account"
+            compact
+            @probed="handleGrokProbed"
+          >
+            <template #pre-actions><slot name="actions-extra" /></template>
+          </GrokQuotaProbeCell>
+          <OpenAIQuotaResetCell
+            v-else-if="account.platform === 'openai' && account.type === 'oauth'"
+            :account="account"
+            @account-updated="handleQuotaResetAccountUpdated"
+          >
+            <template #pre-actions><slot name="actions-extra" /></template>
+          </OpenAIQuotaResetCell>
+        </div>
+      </div>
+    </AccountUsageActionsDisclosure>
   </div>
 
   <!-- Non-OAuth/Setup-Token accounts -->
@@ -669,6 +678,7 @@
 
       <!-- API Key accounts with quota limits: show progress bars -->
       <UsageProgressBar
+        compact
         v-if="quotaDailyBar"
         label="1d"
         :utilization="quotaDailyBar.utilization"
@@ -676,6 +686,7 @@
         color="indigo"
       />
       <UsageProgressBar
+        compact
         v-if="quotaWeeklyBar"
         label="7d"
         :utilization="quotaWeeklyBar.utilization"
@@ -683,6 +694,7 @@
         color="emerald"
       />
       <UsageProgressBar
+        compact
         v-if="quotaTotalBar"
         label="total"
         :utilization="quotaTotalBar.utilization"
@@ -698,8 +710,99 @@
   </div>
 </template>
 
+<style scoped>
+/*
+  账号表用量列：窗口条独占左列，右侧只留「更多」图标，次要操作展开后
+  在窗口条下方铺成一条工具栏。
+
+  不用 subgrid（Chrome < 117 会让按钮退化成 block 纵向堆叠），改用显式两列：
+  - 左列：窗口条（每行一条，含紧跟其后的「窗口用量」小字）；
+  - 右列：折叠条图标（16px）或平台自带的小 badge；
+  - 展开后的操作面板横跨两列，落在窗口条下方。
+*/
+.account-usage-stack {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-auto-rows: min-content;
+  align-items: start;
+  column-gap: 8px;
+  row-gap: 3px;
+}
+
+/* 左列：窗口条组。多条窗口纵向排列，宽度吃满数据列。 */
+.account-usage-stack > :deep(.account-usage-windows) {
+  grid-column: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+/* 某些分支直接渲染单条窗口，没有外层容器。 */
+.account-usage-stack > :deep(.account-usage-block) {
+  grid-column: 1;
+}
+
+/* 右列：pill / badge（tier、AI Credits 等），窄列自适应。 */
+.account-usage-stack > :deep(.account-usage-pills),
+.account-usage-stack > :deep(.account-usage-stack-group) {
+  grid-column: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+/*
+  折叠条：根节点不参与网格，图标与面板各自定位。
+  - 图标固定在首行右端，不额外占一行；
+  - 面板横跨整行，展开时把窗口条整体向下推，而不是挤在右侧。
+*/
+.account-usage-stack > :deep(.account-usage-secondary-row) {
+  display: contents;
+}
+.account-usage-stack :deep(.account-usage-actions__toggle) {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: start;
+  justify-self: end;
+}
+.account-usage-stack :deep(.account-usage-actions__panel) {
+  grid-column: 1 / -1;
+  grid-row: auto;
+  width: auto;
+  margin-top: 1px;
+}
+
+/* 操作行：横排（查询 · 次数 · 重置 · 点数 · 邀请），窄列时自然换行。 */
+.account-usage-stack :deep(.account-cell-action-row) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 6px;
+  row-gap: 2px;
+}
+.account-usage-stack :deep(.account-cell-action-row > *) {
+  min-width: 0;
+  margin-top: 0 !important;
+}
+.account-usage-stack :deep(.account-cell-action-row .account-usage-pills) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 6px;
+  row-gap: 2px;
+  min-width: 0;
+}
+/* 提示文案占整行。 */
+.account-usage-stack > :deep(.account-usage-note) {
+  grid-column: 1 / -1;
+}
+</style>
+
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, onUnmounted, useSlots, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api/admin'
 import type { Account, AccountUsageInfo, GeminiCredentials, WindowStats } from '@/types'
@@ -712,6 +815,7 @@ import UsageProgressBar from './UsageProgressBar.vue'
 import AccountQuotaInfo from './AccountQuotaInfo.vue'
 import ClaudeResetCreditsCell from './ClaudeResetCreditsCell.vue'
 import OpenAIQuotaResetCell from './OpenAIQuotaResetCell.vue'
+import AccountUsageActionsDisclosure from './AccountUsageActionsDisclosure.vue'
 import GrokQuotaProbeCell from './GrokQuotaProbeCell.vue'
 import CNProviderQuotaCell from './CNProviderQuotaCell.vue'
 import CNProviderBalanceCell from './CNProviderBalanceCell.vue'
@@ -755,6 +859,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const slots = useSlots()
 const desktopViewportQuery = '(min-width: 768px)'
 
 const unmounted = ref(false)
@@ -828,6 +933,65 @@ const cnQuotaCellVisible = computed(() => cnQuotaCellVisibleFn(props.account))
 const cnBalanceCellVisible = computed(() => cnBalanceCellVisibleFn(props.account))
 
 const isBatchManaged = computed(() => typeof props.requestBatchedUsage === 'function')
+
+// 平台自带的操作 pill（次数 / 重置 / 点数 / 邀请 / 探测）统一进底部折叠条，
+// 避免 Anthropic OAuth 等分支在窗口条右侧再排一列按钮。
+const hasPlatformUsageActions = computed(() => {
+  if (props.account.platform === 'anthropic') return props.account.type === 'oauth'
+  if (props.account.platform === 'openai' || props.account.platform === 'grok') {
+    return props.account.type === 'oauth'
+  }
+  return false
+})
+
+// 展开状态提到父级：便于在切换账号时复位（组件本身也可独立控制）。
+const secondaryActionsOpen = ref(false)
+// 切换账号时收起重置，避免同一行换账号后还停在上一个账号的展开态。
+watch(
+  () => props.account.id,
+  () => { secondaryActionsOpen.value = false }
+)
+
+// 折叠条是否出现：只有确实有操作（父级「查询」插槽或平台自带 pill）时才渲染，
+// 否则纯展示账号（如 setup-token）会多出一个点开为空的「⋯」。
+const hasSecondaryActions = computed(
+  () => !!slots['actions-extra'] || !!slots['usageActions'] || hasPlatformUsageActions.value
+)
+
+// 收起时把最值得扫一眼的数值（Codex 点数余额、Claude 剩余重置次数）摘到「更多」
+// 后面，这样折叠不会丢失关键信息；可邀请次数从不为负，不重复展示。
+// 没有数据时返回 null，摘要保持干净（与子单元格「有值才显示」一致）。
+const isCodexOAuth = computed(
+  () => props.account.platform === 'openai' && props.account.type === 'oauth'
+)
+const isAnthropicOAuth = computed(
+  () => props.account.platform === 'anthropic' && props.account.type === 'oauth'
+)
+const secondaryActionsBadge = computed(() => {
+  if (isCodexOAuth.value) {
+    const credits = props.account.extra?.codex_credits_snapshot?.credits
+    if (!credits) return null
+    if (credits.unlimited) return t('admin.accounts.openaiQuotaReset.pointsUnlimited')
+    const balance = credits.balance?.trim()
+    const display = credits.has_credits && balance && Number.isFinite(Number(balance))
+      ? balance
+      : credits.has_credits ? null : '0'
+    return display === null ? null : `${t('admin.accounts.openaiQuotaReset.points')} ${display}`
+  }
+  if (isAnthropicOAuth.value) {
+    const available = props.account.extra?.codex_reset_credit_snapshot?.available_count
+    // 该快照字段对 Codex 与 Claude 共用；值 > 0 时才值得摘出来。
+    if (typeof available !== 'number' || !Number.isFinite(available) || available <= 0) return null
+    return `${t('admin.accounts.claudeResetCredits.count')} ${available}`
+  }
+  return null
+})
+// 摘要只显示在 tooltip 里：既说清楚这个数值是什么，也提示点图标可以展开操作。
+const secondaryActionsBadgeTitle = computed(() =>
+  secondaryActionsBadge.value
+    ? `${secondaryActionsBadge.value} · ${t('admin.accounts.usageActions.badgeHint')}`
+    : ''
+)
 
 // Vertex 没有本地模拟配额，用量窗口展示今日统计
 const showGeminiTodayStats = computed(() => {
@@ -1540,6 +1704,8 @@ const attachVisibilityObserver = () => {
   visibilityObserver.observe(rootRef.value)
 }
 
+// Exposed so the account table can render the "查询" action outside the cell
+// (AccountsView queries it through a template ref for Anthropic OAuth rows).
 const loadActiveUsage = async () => {
   activeQueryLoading.value = true
   try {
@@ -1550,6 +1716,9 @@ const loadActiveUsage = async () => {
     activeQueryLoading.value = false
   }
 }
+
+// 账号表把「查询」渲染在用量单元格之外，通过 template ref 调用到这里。
+defineExpose({ loadActiveUsage })
 
 // The probe persists upstream quota state; refresh this cell so its compact
 // bars and entitlement status reflect the newly observed snapshot.

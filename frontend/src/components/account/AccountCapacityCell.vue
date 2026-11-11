@@ -1,5 +1,9 @@
 <template>
-  <div class="flex flex-col gap-0.5">
+  <!--
+    方案 A：容量指标按「并发 · 费率 · 会话 · RPM」横排，行宽不够时自然换行。
+    原来每条指标独占一行（最多 4 行），账号表这一列把行高撑到 80px 以上。
+  -->
+  <div class="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
     <!-- 并发槽位 -->
     <CapacityBadge :color-class="concurrencyClass" :current="currentConcurrency" :max="account.concurrency">
       <svg class="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">

@@ -1,5 +1,5 @@
 <template>
-  <div class="space-y-1">
+  <div class="space-y-1 account-usage-stack-group">
     <!--
       Same action row layout as OpenAIQuotaResetCell: the parent's local
       "查询" button is passed in via #pre-actions so related buttons share one

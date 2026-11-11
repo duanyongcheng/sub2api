@@ -1967,3 +1967,75 @@ describe('AccountUsageCell', () => {
     expect(wrapper.text()).not.toContain('7d F')
   })
 })
+
+describe('secondary usage actions disclosure', () => {
+  function makeOpenAIAccount(overrides: Partial<Account> = {}): Account {
+    return makeAccount({
+      platform: 'openai',
+      type: 'oauth',
+      extra: {},
+      ...overrides
+    })
+  }
+
+  it('折叠「查询 / 次数 / 重置 / 点数」直到点开「更多」', async () => {
+    getUsage.mockResolvedValue({
+      five_hour: { utilization: 10, resets_at: null },
+      seven_day: { utilization: 70, resets_at: null }
+    })
+    const wrapper = mount(AccountUsageCell, {
+      props: { account: makeOpenAIAccount() },
+      slots: { 'actions-extra': '<button data-testid="parent-query">query</button>' }
+    })
+    await flushPromises()
+
+    const toggle = wrapper.get('[data-testid="account-usage-actions-toggle"]')
+    expect(toggle.attributes('aria-expanded')).toBe('false')
+    const panel = wrapper.get('.account-usage-actions__panel')
+    expect(wrapper.find('[data-testid="account-cell-action-row"]').exists()).toBe(true)
+    // v-show：收起时操作条仍在 DOM 中，但不可见，因此不再占行高。
+    expect((panel.element as HTMLElement).style.display).toBe('none')
+    // 平台自带的重置 / 点数 pill 也在折叠面板内（不会在窗口条右侧重复出现）。
+    expect(wrapper.findAll('[data-testid="codex-credits"]')).toHaveLength(1)
+
+    await toggle.trigger('click')
+    expect(toggle.attributes('aria-expanded')).toBe('true')
+    expect((panel.element as HTMLElement).style.display).toBe('')
+    expect(wrapper.get('[data-testid="parent-query"]').exists()).toBe(true)
+  })
+
+  it('收起时的点数余额摘要放进图标按钮的 tooltip（图标本身不带文字）', async () => {
+    getUsage.mockResolvedValue({})
+    const wrapper = mount(AccountUsageCell, {
+      props: {
+        account: makeOpenAIAccount({
+          extra: {
+            codex_credits_snapshot: {
+              credits: { has_credits: true, unlimited: false, balance: '12.5' },
+              fetched_at: 1
+            }
+          }
+        })
+      }
+    })
+    await flushPromises()
+
+    const toggle = wrapper.get('[data-testid="account-usage-actions-toggle"]')
+    // 图标按钮：收起态显示「⋯」，不渲染任何文字。
+    expect(toggle.text()).toBe('')
+    // 摘要只出现在 tooltip 里（展开态的 tooltip 带最近一次查询到的余额）。
+    await toggle.trigger('click')
+    expect(toggle.attributes('title')).toContain('admin.accounts.openaiQuotaReset.points')
+    expect(toggle.attributes('title')).toContain('12.5')
+  })
+
+  it('没有可折叠操作的账号不渲染「⋯」按钮', async () => {
+    getUsage.mockResolvedValue({})
+    const wrapper = mount(AccountUsageCell, {
+      props: { account: makeAccount({ platform: 'anthropic', type: 'setup-token', extra: {} }) }
+    })
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="account-usage-actions-toggle"]').exists()).toBe(false)
+  })
+})
