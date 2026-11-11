@@ -547,8 +547,9 @@ const baseSettingsResponse = {
   },
 };
 
-function mountView() {
+function mountView(attachTo?: HTMLElement) {
   return mount(SettingsView, {
+    attachTo,
     global: {
       stubs: {
         AppLayout: AppLayoutStub,
@@ -606,6 +607,27 @@ async function openUsersTab(wrapper: ReturnType<typeof mountView>) {
   expect(usersTabButton).toBeDefined();
   await usersTabButton?.trigger("click");
   await flushPromises();
+}
+
+const settingsSectionTabs = [
+  "security", "gateway", "security", "users", "gateway", "general",
+  "agreement", "features", "payment", "email", "backup",
+];
+
+function expectActiveSettingsTab(wrapper: ReturnType<typeof mountView>, tab: string) {
+  const selectedTabs = wrapper.findAll('[role="tab"][aria-selected="true"]');
+  expect(selectedTabs).toHaveLength(1);
+  expect(selectedTabs[0].attributes("id")).toBe(`settings-tab-${tab}`);
+  expect(wrapper.findAll('[role="tab"][tabindex="0"]')).toHaveLength(1);
+  expect(selectedTabs[0].attributes("tabindex")).toBe("0");
+
+  // Security and gateway each have two sections; check both and every hidden panel.
+  const sections = wrapper.findAll("form > div").slice(1, -1);
+  expect(sections).toHaveLength(settingsSectionTabs.length);
+  expect(sections.map((section) => section.isVisible())).toEqual(
+    settingsSectionTabs.map((sectionTab) => sectionTab === tab),
+  );
+  expect(wrapper.get("form > div:last-child").isVisible()).toBe(tab !== "backup");
 }
 
 describe("admin SettingsView email domain quota copy", () => {
@@ -722,6 +744,98 @@ describe("admin SettingsView payment visible method controls", () => {
     });
     fetchPublicSettings.mockResolvedValue(undefined);
     adminSettingsFetch.mockResolvedValue(undefined);
+  });
+
+  it("switches the selected tab and visible settings sections for all nine tabs", async () => {
+    // Attaching avoids jsdom's stale computed styles on detached v-show elements.
+    const wrapper = mountView(document.body);
+    try {
+      await flushPromises();
+      expectActiveSettingsTab(wrapper, "general");
+      for (const tab of [
+        "agreement", "features", "security", "users", "gateway",
+        "payment", "email", "backup", "general",
+      ]) {
+        await wrapper.get(`#settings-tab-${tab}`).trigger("click");
+        await flushPromises();
+        expectActiveSettingsTab(wrapper, tab);
+      }
+      expect(updateSettings).not.toHaveBeenCalled();
+    } finally {
+      wrapper.unmount();
+    }
+  });
+
+  it("navigates settings tabs with arrow, Home, and End keys", async () => {
+    const requestFrame = vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+      callback(0);
+      return 0;
+    });
+    const wrapper = mountView(document.body);
+    try {
+      await flushPromises();
+      wrapper.get<HTMLButtonElement>("#settings-tab-general").element.focus();
+
+      for (const [from, key, to] of [
+        ["general", "ArrowRight", "agreement"],
+        ["agreement", "ArrowDown", "features"],
+        ["features", "ArrowLeft", "agreement"],
+        ["agreement", "ArrowUp", "general"],
+        ["general", "ArrowLeft", "backup"],
+        ["backup", "ArrowRight", "general"],
+        ["general", "End", "backup"],
+        ["backup", "Home", "general"],
+      ]) {
+        await wrapper.get(`#settings-tab-${from}`).trigger("keydown", { key });
+        await flushPromises();
+        expectActiveSettingsTab(wrapper, to);
+        expect(document.activeElement).toBe(wrapper.get(`#settings-tab-${to}`).element);
+      }
+      expect(updateSettings).not.toHaveBeenCalled();
+    } finally {
+      wrapper.unmount();
+      requestFrame.mockRestore();
+    }
+  });
+
+  it("preserves unsaved fields and mounted controls when switching settings tabs", async () => {
+    const wrapper = mountView(document.body);
+    try {
+      await flushPromises();
+      const siteName = wrapper.get<HTMLInputElement>(
+        'input[placeholder="admin.settings.site.siteNamePlaceholder"]',
+      );
+      await siteName.setValue("Unsaved site name");
+      await openSecurityTab(wrapper);
+      const secret = wrapper.get<HTMLInputElement>('[data-testid="wechat-connect-mp-app-secret"]');
+      await secret.setValue("unsaved-secret");
+      await openGatewayTab(wrapper);
+      const cooldownCard = wrapper.findAll(".card").find((card) =>
+        card.text().startsWith("admin.settings.overloadCooldown.title"),
+      );
+      expect(cooldownCard).toBeDefined();
+      const cooldownMinutes = cooldownCard!.get<HTMLInputElement>('input[type="number"]');
+      await cooldownMinutes.setValue("37");
+
+      for (const tab of ["payment", "email", "backup", "general", "security", "gateway"]) {
+        await wrapper.get(`#settings-tab-${tab}`).trigger("click");
+        await flushPromises();
+      }
+
+      expect(siteName.element.value).toBe("Unsaved site name");
+      expect(secret.element.value).toBe("unsaved-secret");
+      expect(cooldownMinutes.element.value).toBe("37");
+      expect(cooldownMinutes.isVisible()).toBe(true);
+      expect(wrapper.get('input[placeholder="admin.settings.site.siteNamePlaceholder"]').element)
+        .toBe(siteName.element);
+      expect(wrapper.get('[data-testid="wechat-connect-mp-app-secret"]').element).toBe(secret.element);
+      expect(getSettings).toHaveBeenCalledTimes(1);
+      expect(updateSettings).not.toHaveBeenCalled();
+      expect(updateWebSearchEmulationConfig).not.toHaveBeenCalled();
+      expect(updateRateLimit429CooldownSettings).not.toHaveBeenCalled();
+    } finally {
+      wrapper.unmount();
+    }
   });
 
   it("loads and saves the open button visibility for each custom menu", async () => {
