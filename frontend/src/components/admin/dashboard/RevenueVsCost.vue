@@ -88,7 +88,7 @@ import {
 } from 'chart.js'
 import { Chart } from 'vue-chartjs'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
-import type { ChartDataset } from 'chart.js'
+import type { ChartData, ChartDataset } from 'chart.js'
 import type { TrendDataPoint, GroupStat } from '@/types'
 
 ChartJS.register(
@@ -142,9 +142,9 @@ const costByPeriod = computed(() => {
   return props.trend.map((point) => Number(point.actual_cost || 0) * ratio)
 })
 
-const chartData = computed(() => {
+const chartData = computed<ChartData | null>(() => {
   if (!props.trend.length) return null
-  const datasets = [
+  const datasets: ChartDataset[] = [
     {
       type: 'bar',
       label: t('admin.dashboard.overview.revenue'),
@@ -180,7 +180,7 @@ const chartData = computed(() => {
       fill: false,
       order: 0
     }
-  ] as unknown as ChartDataset<'bar'>[]
+  ]
 
   return { labels: labels.value, datasets }
 })
