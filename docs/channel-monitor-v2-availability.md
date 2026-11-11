@@ -44,6 +44,7 @@ V2 的早期数据库默认配置只启用了六个平台。采集器支持其�
 - 新界面复用 `GET /[admin/]channel-monitor-v2/{snapshot,matrix,models,dimensions,errors}`，没有新增 API 或数据库字段。
 - `matrix?group_by=platform_group` 等服务端聚合行提供卡片主指标；另取 `platform_group_model` 子行用于展开。平台汇总的子项使用 `platform_model`。
 - 可用率为 `1 - metrics.error_rate`，但只有 `health.error_rate !== 'unknown'` 才显示数值。不能按前端 `request_count` 判断是否有数据：用户端请求量可能已被脱敏为零。
+- 模型名按去除首尾空格后的 `requested_model`、`model` 依次解析；两者均为空或解析结果为字面量 `unknown` 的流量，不进入 V2 的平台、分组、模型、用户、错误及延迟统计。聚合事实表、固定周期 rollup、历史读取及管理员错误样本遵循同一口径；错误侧先按请求去重，再过滤最终记录的模型名。这会同时减少请求数和错误数，排除全是失败的未归因流量后，错误率会降低、可用率会提高。原始 `usage_logs` / `ops_error_logs` 正常保留，Ops Dashboard、趋势和实时流量仍使用各自的统计口径。
 - **不对模型百分比求平均**；使用服务端计入请求加权的窗口结果。窗口可用率按现有 V2 口径计算，不改成 Relay Pulse 的「仅累加样本达标桶」口径。
 - 卡片及时间条按 `health.error_rate` 着色，不使用包含缓存/延迟的综合评分。平均首字延迟使用 `ttft.avg_ms`，按同一阈值中的 TTFT 预算独立着色，而非把 P50 的评分标在 AVG 上。
 - 时间条覆盖 `[coverage.requested_start, coverage.requested_end)`；历史未覆盖、无流量、样本不足为灰色。缺少 `requested_end` 的旧响应回退 `data_through`。

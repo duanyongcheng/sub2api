@@ -10,6 +10,7 @@ import (
 // Platform is derived from group/account (usage_logs has no provider column on upstream schema).
 const channelMonitorV2PlatformSQL = `lower(` + usageLogEffectivePlatformExpr + `)`
 const channelMonitorV2ModelSQL = `COALESCE(NULLIF(TRIM(ul.requested_model), ''), NULLIF(TRIM(ul.model), ''), 'unknown')`
+const channelMonitorV2ErrorModelSQL = `COALESCE(NULLIF(TRIM(current_error.requested_model), ''), NULLIF(TRIM(current_error.model), ''), 'unknown')`
 
 // Tiered retention balances UI windows against storage:
 //
@@ -184,6 +185,7 @@ FROM usage_logs ul
 LEFT JOIN groups g ON g.id = ul.group_id
 LEFT JOIN accounts a ON a.id = ul.account_id
 WHERE ul.created_at >= $1 AND ul.created_at < $2
+  AND ` + channelMonitorV2ModelSQL + ` <> 'unknown'
 GROUP BY 1, 2, 3, 4`
 
 const channelMonitorV2UserMetricsSQL = `
@@ -207,6 +209,7 @@ FROM usage_logs ul
 LEFT JOIN groups g ON g.id = ul.group_id
 LEFT JOIN accounts a ON a.id = ul.account_id
 WHERE ul.created_at >= $1 AND ul.created_at < $2 AND ul.user_id IS NOT NULL
+  AND ` + channelMonitorV2ModelSQL + ` <> 'unknown'
 GROUP BY 1, 2, 3, 4, 5`
 
 const channelMonitorV2HistogramSQL = `
@@ -221,6 +224,7 @@ LEFT JOIN accounts a ON a.id = ul.account_id
 CROSS JOIN LATERAL (VALUES (0::bigint), (ul.user_id)) audience(user_id)
 CROSS JOIN LATERAL (VALUES ('ttft'::text, ul.first_token_ms), ('duration'::text, ul.duration_ms)) latency(metric, value_ms)
 WHERE ul.created_at >= $1 AND ul.created_at < $2
+  AND ` + channelMonitorV2ModelSQL + ` <> 'unknown'
   AND audience.user_id IS NOT NULL AND latency.value_ms IS NOT NULL AND latency.value_ms >= 0
   AND ` + usageLogSuccessFilterUL + `
 GROUP BY 1, 2, 3, 4, 5, 6, 7`
@@ -259,7 +263,7 @@ WITH dedup AS (
       ELSE COALESCE(NULLIF(TRIM(current_error.platform), ''), 'unknown')
     END) AS platform,
     COALESCE(current_error.group_id, 0) AS group_id,
-    COALESCE(NULLIF(TRIM(current_error.requested_model), ''), NULLIF(TRIM(current_error.model), ''), 'unknown') AS model,
+    ` + channelMonitorV2ErrorModelSQL + ` AS model,
     current_error.user_id, current_error.error_type, current_error.error_owner, COALESCE(current_error.status_code, 0) AS status_code,
     COALESCE(current_error.upstream_status_code, 0) AS upstream_status_code,
     lower(CONCAT_WS(' ', current_error.error_type, current_error.error_source, current_error.error_message, current_error.upstream_error_message, current_error.upstream_error_detail, current_error.error_body)) AS text,
@@ -302,6 +306,9 @@ WITH dedup AS (
     ELSE 'other' END AS category
   FROM dedup
   WHERE bucket_start >= $1 AND bucket_start < $2
+    -- Filter only after dedup: an unattributed final error must not revive an
+    -- earlier named error from the same request. Ops source logs stay intact.
+    AND model <> 'unknown'
 ), metric_rows AS (
   INSERT INTO channel_monitor_v2_metrics_1m (bucket_start, platform, group_id, model, error_requests, upstream_affected_requests, upstream_attempt_count, computed_at)
   SELECT bucket_start, platform, group_id, model, COUNT(*), COUNT(*) FILTER (WHERE upstream_affected), SUM(upstream_attempts), NOW()
@@ -434,6 +441,7 @@ SELECT date_bin($1::interval, m.bucket_start, ` + channelMonitorV2DateBinOrigin 
        SUM(ttft_sum_ms), SUM(ttft_count), SUM(duration_sum_ms), SUM(duration_count), NOW()
 FROM channel_monitor_v2_metrics_1m m, bounds
 WHERE m.bucket_start >= bounds.start_at AND m.bucket_start < bounds.end_at
+  AND m.model <> 'unknown'
 GROUP BY 1, 2, 3, 4, 5`
 
 const channelMonitorV2UserMetricsRollupSQL = `
@@ -449,6 +457,7 @@ SELECT date_bin($1::interval, m.bucket_start, ` + channelMonitorV2DateBinOrigin 
        SUM(ttft_sum_ms), SUM(ttft_count), SUM(duration_sum_ms), SUM(duration_count), NOW()
 FROM channel_monitor_v2_user_metrics_1m m, bounds
 WHERE m.bucket_start >= bounds.start_at AND m.bucket_start < bounds.end_at
+  AND m.model <> 'unknown'
 GROUP BY 1, 2, 3, 4, 5, 6`
 
 const channelMonitorV2HistogramRollupSQL = `
@@ -460,6 +469,7 @@ SELECT date_bin($1::interval, h.bucket_start, ` + channelMonitorV2DateBinOrigin 
        platform, group_id, model, user_id, metric, upper_bound_ms, SUM(sample_count)
 FROM channel_monitor_v2_latency_histograms_1m h, bounds
 WHERE h.bucket_start >= bounds.start_at AND h.bucket_start < bounds.end_at
+  AND h.model <> 'unknown'
 GROUP BY 1, 2, 3, 4, 5, 6, 7, 8`
 
 const channelMonitorV2ErrorRollupSQL = `
@@ -471,4 +481,5 @@ SELECT date_bin($1::interval, e.bucket_start, ` + channelMonitorV2DateBinOrigin 
        platform, group_id, model, error_category, taxonomy_version, SUM(error_requests)
 FROM channel_monitor_v2_error_metrics_1m e, bounds
 WHERE e.bucket_start >= bounds.start_at AND e.bucket_start < bounds.end_at
+  AND e.model <> 'unknown'
 GROUP BY 1, 2, 3, 4, 5, 6, 7`

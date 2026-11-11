@@ -98,6 +98,21 @@ func TestChannelMonitorV2WhereUsesConfiguredScopeAndEmptyFilterMeansAllConfigure
 	require.Len(t, args, 4)
 }
 
+func TestChannelMonitorV2WhereExcludesUnattributedUnknownModelRows(t *testing.T) {
+	// Legacy aggregates store 'unknown' for traffic with no model name. Every
+	// read path must still drop those rows until they are rebuilt or expire.
+	filter := service.ChannelMonitorV2Filter{Start: time.Unix(1, 0), End: time.Unix(2, 0)}
+	cfg := service.ChannelMonitorV2Config{
+		Platforms: []service.ChannelMonitorV2PlatformConfig{{Platform: "openai", Enabled: true}},
+	}
+	for _, alias := range []string{"m", "h", "e"} {
+		where, args := channelMonitorV2Where(filter, cfg, alias)
+		require.Contains(t, where, alias+".model <> 'unknown'")
+		// The exclusion is a literal, so it must not shift placeholder positions.
+		require.Len(t, args, 3)
+	}
+}
+
 func TestChannelMonitorV2WhereRejectsGroupFilterOutsideConfiguredScope(t *testing.T) {
 	filter := service.ChannelMonitorV2Filter{
 		Start: time.Unix(1, 0), End: time.Unix(2, 0), GroupIDs: []int64{9},
