@@ -276,6 +276,12 @@ export interface PublicSettings {
   channel_monitor_show_quota?: boolean
   /** When true, user monitor hides the user ranking tab and /users payload. */
   channel_monitor_hide_user_ranking?: boolean
+  /**
+   * When true, V1 active probes run. Independent of channel_monitor_mode, so a
+   * v2 site can still probe groups without real traffic and the user status page
+   * can offer a probe tab next to the passive one.
+   */
+  channel_monitor_probes_enabled?: boolean
   available_channels_enabled: boolean
   /** When false, the whole user-facing subscription surface is hidden. Default true. */
   subscription_enabled: boolean
