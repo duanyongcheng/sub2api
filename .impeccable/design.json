@@ -1,0 +1,155 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-11T12:51:13.747Z",
+  "title": "Design System: Sub2API Admin",
+  "extensions": {
+    "colorMeta": {
+      "primary-500": { "role": "primary", "displayName": "Bright Teal", "tonalRamp": ["#042f2e", "#134e4a", "#115e59", "#0f766e", "#0d9488", "#2dd4bf", "#99f6e4", "#f0fdfa"] },
+      "primary-600": { "role": "primary", "displayName": "Deep Action Teal", "tonalRamp": ["#042f2e", "#134e4a", "#115e59", "#0f766e", "#0d9488", "#2dd4bf", "#99f6e4", "#f0fdfa"] },
+      "primary-50": { "role": "primary", "displayName": "Quiet Teal Selection Tint", "tonalRamp": ["#042f2e", "#134e4a", "#115e59", "#0f766e", "#0d9488", "#2dd4bf", "#99f6e4", "#f0fdfa"] },
+      "primary-700": { "role": "primary", "displayName": "Selected Teal Ink", "tonalRamp": ["#042f2e", "#134e4a", "#115e59", "#0f766e", "#0d9488", "#2dd4bf", "#99f6e4", "#f0fdfa"] },
+      "primary-50-dark": { "role": "primary", "displayName": "Dark Teal Selection Tint", "tonalRamp": ["#042f2e", "#134e4a", "#115e59", "#0f766e", "#0d9488", "#2dd4bf", "#99f6e4", "#f0fdfa"] },
+      "primary-700-dark": { "role": "primary", "displayName": "Bright Selected Teal Ink", "tonalRamp": ["#042f2e", "#134e4a", "#115e59", "#0f766e", "#0d9488", "#2dd4bf", "#99f6e4", "#f0fdfa"] },
+      "canvas": { "role": "neutral", "displayName": "Cool Page Canvas", "tonalRamp": ["#070b12", "#111a28", "#1d2838", "#475569", "#6b7b90", "#a4b2c5", "#e8edf2", "#fbfcfd"] },
+      "canvas-dark": { "role": "neutral", "displayName": "Dark Page Canvas", "tonalRamp": ["#070b12", "#111a28", "#1d2838", "#475569", "#6b7b90", "#a4b2c5", "#e8edf2", "#fbfcfd"] },
+      "surface": { "role": "neutral", "displayName": "White Working Surface", "tonalRamp": ["#070b12", "#111a28", "#1d2838", "#475569", "#6b7b90", "#a4b2c5", "#e8edf2", "#fbfcfd"] },
+      "surface-dark": { "role": "neutral", "displayName": "Dark Working Surface", "tonalRamp": ["#070b12", "#111a28", "#1d2838", "#475569", "#6b7b90", "#a4b2c5", "#e8edf2", "#fbfcfd"] },
+      "surface-2": { "role": "neutral", "displayName": "Quiet Header Surface", "tonalRamp": ["#070b12", "#111a28", "#1d2838", "#475569", "#6b7b90", "#a4b2c5", "#e8edf2", "#fbfcfd"] },
+      "surface-2-dark": { "role": "neutral", "displayName": "Dark Header Surface", "tonalRamp": ["#070b12", "#111a28", "#1d2838", "#475569", "#6b7b90", "#a4b2c5", "#e8edf2", "#fbfcfd"] },
+      "surface-3": { "role": "neutral", "displayName": "Inset Neutral Surface", "tonalRamp": ["#070b12", "#111a28", "#1d2838", "#475569", "#6b7b90", "#a4b2c5", "#e8edf2", "#fbfcfd"] },
+      "surface-3-dark": { "role": "neutral", "displayName": "Dark Inset Surface", "tonalRamp": ["#070b12", "#111a28", "#1d2838", "#475569", "#6b7b90", "#a4b2c5", "#e8edf2", "#fbfcfd"] },
+      "edge": { "role": "neutral", "displayName": "Fine Surface Edge", "tonalRamp": ["#070b12", "#111a28", "#1d2838", "#475569", "#6b7b90", "#a4b2c5", "#e8edf2", "#fbfcfd"] },
+      "edge-dark": { "role": "neutral", "displayName": "Dark Fine Edge", "tonalRamp": ["#070b12", "#111a28", "#1d2838", "#475569", "#6b7b90", "#a4b2c5", "#e8edf2", "#fbfcfd"] },
+      "edge-strong": { "role": "neutral", "displayName": "Control Outline", "tonalRamp": ["#070b12", "#111a28", "#1d2838", "#475569", "#6b7b90", "#a4b2c5", "#e8edf2", "#fbfcfd"] },
+      "edge-strong-dark": { "role": "neutral", "displayName": "Dark Control Outline", "tonalRamp": ["#070b12", "#111a28", "#1d2838", "#475569", "#6b7b90", "#a4b2c5", "#e8edf2", "#fbfcfd"] },
+      "ink": { "role": "neutral", "displayName": "Primary Slate Ink", "tonalRamp": ["#070b12", "#111a28", "#1d2838", "#475569", "#6b7b90", "#a4b2c5", "#e8edf2", "#fbfcfd"] },
+      "ink-dark": { "role": "neutral", "displayName": "Light Primary Ink", "tonalRamp": ["#070b12", "#111a28", "#1d2838", "#475569", "#6b7b90", "#a4b2c5", "#e8edf2", "#fbfcfd"] },
+      "ink-2": { "role": "neutral", "displayName": "Supporting Slate Ink", "tonalRamp": ["#070b12", "#111a28", "#1d2838", "#475569", "#6b7b90", "#a4b2c5", "#e8edf2", "#fbfcfd"] },
+      "ink-2-dark": { "role": "neutral", "displayName": "Light Supporting Ink", "tonalRamp": ["#070b12", "#111a28", "#1d2838", "#475569", "#6b7b90", "#a4b2c5", "#e8edf2", "#fbfcfd"] },
+      "ink-3": { "role": "neutral", "displayName": "Low Emphasis Slate Ink", "tonalRamp": ["#070b12", "#111a28", "#1d2838", "#475569", "#6b7b90", "#a4b2c5", "#e8edf2", "#fbfcfd"] },
+      "ink-3-dark": { "role": "neutral", "displayName": "Dark Low Emphasis Ink", "tonalRamp": ["#070b12", "#111a28", "#1d2838", "#475569", "#6b7b90", "#a4b2c5", "#e8edf2", "#fbfcfd"] },
+      "white": { "role": "neutral", "displayName": "Primary Action White", "tonalRamp": ["#070b12", "#111a28", "#1d2838", "#475569", "#6b7b90", "#a4b2c5", "#e8edf2", "#fbfcfd"] }
+    },
+    "typographyMeta": {
+      "headline": { "displayName": "Page Headline", "purpose": "Existing compact page heading with bold weight and tightened spacing." },
+      "title": { "displayName": "Section Title", "purpose": "Semibold section and drawer headings." },
+      "body": { "displayName": "Interface Body", "purpose": "Shared fields and regular operational copy." },
+      "data": { "displayName": "Configured Data Text", "purpose": "Reusable compact data ladder; individual table components retain their own measured sizes." },
+      "label": { "displayName": "Supporting Label", "purpose": "Small semibold supporting labels and pills." },
+      "button": { "displayName": "Button Label", "purpose": "Shared regular action-button typography." }
+    },
+    "shadows": [
+      { "name": "xs", "value": "0 1px 2px rgba(15, 23, 42, 0.05)", "purpose": "Tailwind shadow-xs used by shared cards and secondary buttons in the sampled source." },
+      { "name": "primary-button", "value": "inset 0 1px 0 rgba(255,255,255,0.14), 0 6px 16px -8px rgba(13,148,136,0.9)", "purpose": "Existing primary-action highlight and teal shadow." },
+      { "name": "lg", "value": "0 18px 40px -12px rgba(15, 23, 42, 0.22), 0 4px 12px -6px rgba(15, 23, 42, 0.1)", "purpose": "Configured floating menus and drawers." }
+    ],
+    "motion": [
+      { "name": "control-color-duration", "value": "150ms", "purpose": "Shared button, field and navigation state changes." },
+      { "name": "dialog-enter-duration", "value": "250ms", "purpose": "Existing modal opacity and content-entry transitions." },
+      { "name": "dialog-leave-duration", "value": "200ms", "purpose": "Existing modal dismissal transitions." },
+      { "name": "dialog-out-easing", "value": "cubic-bezier(0.22, 0.61, 0.36, 1)", "purpose": "Existing modal transform-entry curve and configured out easing." },
+      { "name": "dialog-reduced-duration", "value": "1ms", "purpose": "Observed reduced-motion modal transition with transforms removed; pool navigation separately removes its transition." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "1024px" },
+      { "name": "xl", "value": "1280px" },
+      { "name": "2xl", "value": "1536px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Shared primary action with the existing teal gradient, inner highlight and compact control geometry.",
+      "html": "<button type=\"button\" class=\"ds-button-primary\">Save changes</button>",
+      "css": ".ds-button-primary { display:inline-flex; align-items:center; justify-content:center; gap:8px; height:36px; padding:0 14px; border:0; border-radius:10px; background:linear-gradient(180deg,#14b8a6 0%,#0d9488 100%); color:#fff; font:600 13.5px/1.5 -apple-system,BlinkMacSystemFont,Inter,'Segoe UI',system-ui,'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif; white-space:nowrap; cursor:pointer; box-shadow:inset 0 1px 0 rgba(255,255,255,.14),0 6px 16px -8px rgba(13,148,136,.9); transition:color 150ms cubic-bezier(0,0,.2,1),background-color 150ms cubic-bezier(0,0,.2,1),border-color 150ms cubic-bezier(0,0,.2,1); } .ds-button-primary:hover { filter:brightness(1.06); } .ds-button-primary:focus-visible { outline:none; box-shadow:0 0 0 2px rgb(var(--surface)),0 0 0 4px rgb(20 184 166 / .4),inset 0 1px 0 rgba(255,255,255,.14),0 6px 16px -8px rgba(13,148,136,.9); } .ds-button-primary:active { transform:scale(.985); } .ds-button-primary:disabled { cursor:not-allowed; opacity:.45; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Shared bordered action using semantic surfaces and supporting ink in both themes.",
+      "html": "<button type=\"button\" class=\"ds-button-secondary\">Cancel</button>",
+      "css": ".ds-button-secondary { display:inline-flex; align-items:center; justify-content:center; gap:8px; height:36px; padding:0 14px; border:1px solid rgb(var(--edge-strong)); border-radius:10px; background:rgb(var(--surface)); color:rgb(var(--ink-2)); font:600 13.5px/1.5 -apple-system,BlinkMacSystemFont,Inter,'Segoe UI',system-ui,'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif; white-space:nowrap; cursor:pointer; box-shadow:0 1px 2px rgba(15,23,42,.05); transition:color 150ms cubic-bezier(0,0,.2,1),background-color 150ms cubic-bezier(0,0,.2,1),border-color 150ms cubic-bezier(0,0,.2,1); } .ds-button-secondary:hover { background:rgb(var(--surface-2)); color:rgb(var(--ink)); } .ds-button-secondary:focus-visible { outline:none; box-shadow:0 0 0 2px rgb(var(--surface)),0 0 0 4px rgb(20 184 166 / .4),0 1px 2px rgba(15,23,42,.05); } .ds-button-secondary:active { transform:scale(.985); } .ds-button-secondary:disabled { cursor:not-allowed; opacity:.45; }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Shared quiet action with an inset neutral hover surface.",
+      "html": "<button type=\"button\" class=\"ds-button-ghost\">Details</button>",
+      "css": ".ds-button-ghost { display:inline-flex; align-items:center; justify-content:center; gap:8px; height:36px; padding:0 14px; border:0; border-radius:10px; background:transparent; color:rgb(var(--ink-2)); font:600 13.5px/1.5 -apple-system,BlinkMacSystemFont,Inter,'Segoe UI',system-ui,'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif; white-space:nowrap; cursor:pointer; transition:color 150ms cubic-bezier(0,0,.2,1),background-color 150ms cubic-bezier(0,0,.2,1); } .ds-button-ghost:hover { background:rgb(var(--surface-3)); color:rgb(var(--ink)); } .ds-button-ghost:focus-visible { outline:none; box-shadow:0 0 0 2px rgb(var(--surface)),0 0 0 4px rgb(20 184 166 / .4); } .ds-button-ghost:active { transform:scale(.985); } .ds-button-ghost:disabled { cursor:not-allowed; opacity:.45; }"
+    },
+    {
+      "name": "Text Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Shared labeled input with semantic border, teal focus ring and native disabled state.",
+      "html": "<label class=\"ds-field-label\">Account name<input type=\"text\" class=\"ds-field\" placeholder=\"Enter account name\" /></label>",
+      "css": ".ds-field-label { display:block; max-width:100%; color:rgb(var(--ink-2)); font:600 12.5px/1.5 -apple-system,BlinkMacSystemFont,Inter,'Segoe UI',system-ui,'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif; } .ds-field { display:block; width:100%; margin-top:6px; padding:8px 14px; border:1px solid rgb(var(--edge-strong)); border-radius:10px; background:rgb(var(--surface)); color:rgb(var(--ink)); font:400 13px/19px -apple-system,BlinkMacSystemFont,Inter,'Segoe UI',system-ui,'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif; transition:border-color 150ms cubic-bezier(.4,0,.2,1),box-shadow 150ms cubic-bezier(.4,0,.2,1); } .ds-field::placeholder { color:rgb(var(--ink-3)); } .ds-field:focus,.ds-field:focus-visible { outline:none; border-color:#14b8a6; box-shadow:0 0 0 3px rgb(20 184 166 / .15); } .ds-field:disabled { cursor:not-allowed; background:rgb(var(--surface-3)); color:rgb(var(--ink-3)); }"
+    },
+    {
+      "name": "Sidebar Navigation",
+      "kind": "nav",
+      "refersTo": "navigation-selected",
+      "description": "Shared compact navigation rows with the observed selected tint; page-specific pool geometry remains in its surface brief.",
+      "html": "<nav class=\"ds-navigation\" aria-label=\"Administration example\"><a class=\"ds-navigation-link\" href=\"#accounts\" aria-current=\"page\">Accounts</a><a class=\"ds-navigation-link\" href=\"#groups\">Groups</a></nav>",
+      "css": ".ds-navigation { max-width:100%; background:rgb(var(--surface)); } .ds-navigation-link { position:relative; display:flex; align-items:center; gap:10px; height:34px; margin-bottom:2px; padding:0 10px; overflow:hidden; border-radius:8px; color:rgb(var(--ink-2)); font:500 13.2px/1.5 -apple-system,BlinkMacSystemFont,Inter,'Segoe UI',system-ui,'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif; text-decoration:none; transition:color 150ms cubic-bezier(.4,0,.2,1),background-color 150ms cubic-bezier(.4,0,.2,1); } .ds-navigation-link:hover { background:rgb(var(--surface-3)); color:rgb(var(--ink)); } .ds-navigation-link[aria-current='page'],.ds-navigation-link[aria-current='page']:hover { background:rgb(var(--primary-50)); color:rgb(var(--primary-700)); font-weight:600; } .ds-navigation-link:focus-visible { outline:2px solid rgb(var(--primary-700)); outline-offset:2px; }"
+    },
+    {
+      "name": "Metadata Chip",
+      "kind": "chip",
+      "refersTo": "chip",
+      "description": "Existing noninteractive metadata chip; it carries no artificial action or hover state.",
+      "html": "<span class=\"ds-chip\">OAuth</span>",
+      "css": ".ds-chip { display:inline-flex; align-items:center; gap:6px; border-radius:8px; padding:2px 8px; background:rgb(var(--surface-3)); color:rgb(var(--ink-2)); font:600 12px/16px -apple-system,BlinkMacSystemFont,Inter,'Segoe UI',system-ui,'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif; }"
+    },
+    {
+      "name": "Brand Pill",
+      "kind": "chip",
+      "refersTo": "pill-brand",
+      "description": "Existing teal pill with semibold tabular label typography, distinct from semantic status pills.",
+      "html": "<span class=\"ds-pill-brand\">Selected</span>",
+      "css": ".ds-pill-brand { display:inline-flex; align-items:center; gap:6px; padding:2px 8px; border-radius:9999px; background:rgb(var(--primary-50)); color:rgb(var(--primary-700)); font:600 11.5px/18px -apple-system,BlinkMacSystemFont,Inter,'Segoe UI',system-ui,'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif; font-variant-numeric:tabular-nums; white-space:nowrap; }"
+    },
+    {
+      "name": "Standard Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Shared bordered container with a fine shadow, separated header and observed body padding.",
+      "html": "<article class=\"ds-card\"><header class=\"ds-card-header\"><h3 class=\"ds-card-title\">Account configuration</h3></header><div class=\"ds-card-body\">Manage the account settings.</div></article>",
+      "css": ".ds-card { max-width:100%; border:1px solid rgb(var(--edge)); border-radius:14px; background:rgb(var(--surface)); color:rgb(var(--ink)); box-shadow:0 1px 2px rgba(15,23,42,.05); font:400 13px/19px -apple-system,BlinkMacSystemFont,Inter,'Segoe UI',system-ui,'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif; } .ds-card-header { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:16px 18px; border-bottom:1px solid rgb(var(--edge)); } .ds-card-title { margin:0; font-size:14px; line-height:20px; font-weight:600; } .ds-card-body { padding:18px; color:rgb(var(--ink-2)); }"
+    }
+  ],
+  "narrative": {
+    "overview": "Sub2API's administration interface uses teal for selection and primary actions, a cool neutral canvas, and lightly bordered surfaces. The existing system sans stack supports Chinese and English operational copy. Hierarchy comes from spacing, text weight, alignment and tabular figures.",
+    "keyCharacteristics": [
+      "Teal interaction cues over cool neutral light and dark themes.",
+      "Compact system typography with a clear distinction between names, labels and numeric values.",
+      "Fine borders, modest corner rounding and restrained elevation.",
+      "Existing shared controls with explicit selected, loading, unavailable and error states."
+    ],
+    "rules": [
+      { "name": "The Theme Pairing Rule", "body": "Resolve neutral surfaces, borders and text through their semantic variables so they change together between themes. Recheck small operational text on its actual background, including hover states.", "section": "colors" },
+      { "name": "The Local Depth Rule", "body": "Use the existing small shadow for ordinary containers and the existing elevated treatment for overlays. Preserve page-scoped flat table treatments where implemented.", "section": "elevation" },
+      { "name": "The Value Integrity Rule", "body": "Keep numeric values with their labels and units. Loading, unavailable, stale and confirmed zero remain visually distinguishable, and complete provider explanations stay contained without covering neighboring data.", "section": "components" }
+    ],
+    "dos": [
+      "**Do** use the existing semantic surface, edge and ink variables for new theme-aware UI.",
+      "**Do** reserve the teal interaction treatment for selection, focus and primary actions while preserving semantic status meanings.",
+      "**Do** use tabular figures and readable foregrounds for operational amounts, limits and counts.",
+      "**Do** preserve wrapping, disclosure space and visible keyboard focus in compact components.",
+      "**Do** consult the matching surface brief before copying a page composition or changing its responsive behavior."
+    ],
+    "donts": [
+      "**Don't** treat optional account contrast styles or compact table density as a global theme migration.",
+      "**Don't** turn missing values or failed requests into a displayed zero.",
+      "**Don't** let quota explanations or expanded actions cover adjacent cells.",
+      "**Don't** infer a new display font, named brand metaphor or decorative asset requirement from this descriptive record.",
+      "**Don't** treat sampled contrast checks or the bounded ship verdict as complete accessibility certification."
+    ]
+  }
+}

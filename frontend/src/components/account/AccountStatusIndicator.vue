@@ -1,5 +1,5 @@
 <template>
-  <div class="flex items-center gap-2">
+  <div class="flex items-center gap-2" :class="{ 'account-status-contrast': accessibleContrast }">
     <!-- Rate Limit Display (429) - Two-line layout -->
     <div v-if="isRateLimited" class="flex flex-col items-center gap-1">
       <span class="badge text-xs badge-warning">{{ t('admin.accounts.status.rateLimited') }}</span>
@@ -169,6 +169,7 @@ const { t } = useI18n()
 
 const props = defineProps<{
   account: Account
+  accessibleContrast?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -361,3 +362,13 @@ const handleTempUnschedClick = () => {
   emit('show-temp-unsched', props.account)
 }
 </script>
+
+<style scoped>
+/* Opt in only on the accounts workspace and its teleported detail drawer. */
+.account-status-contrast .badge-success { @apply text-emerald-700 dark:text-emerald-300; }
+.account-status-contrast .badge-warning { @apply text-amber-700 dark:text-amber-300; }
+.account-status-contrast .badge-danger { @apply text-red-700 dark:text-red-300; }
+.account-status-contrast .badge-gray,
+.account-status-contrast .text-gray-400,
+.account-status-contrast .text-gray-500 { @apply text-ink-2; }
+</style>

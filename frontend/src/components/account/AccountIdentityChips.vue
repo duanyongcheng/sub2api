@@ -1,5 +1,17 @@
 <template>
-  <div class="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] leading-4">
+  <div v-if="compact" class="flex min-w-0 items-center gap-1.5 text-[11px] leading-4 text-ink-2">
+    <details class="relative min-w-0 flex-1">
+      <summary class="flex min-h-4 cursor-pointer list-none items-center gap-1 rounded text-ink-2 hover:text-ink" :title="metadataTitle" :aria-label="metadataTitle">
+        <span class="truncate">{{ [typeLabel, planLabel, tierLabel].filter(Boolean).join(' · ') }}</span>
+        <Icon name="chevronDown" size="xs" class="shrink-0" aria-hidden="true" />
+      </summary>
+      <div class="absolute left-0 top-full z-50 mt-1 w-56 max-w-[75vw] space-y-1 rounded-field border border-edge bg-surface p-3 text-xs leading-5 text-ink shadow-lg">
+        <p v-for="item in metadata" :key="item">{{ item }}</p>
+      </div>
+    </details>
+    <span v-if="privacyBadge" class="shrink-0 font-medium" :class="privacyMode?.includes('failed') ? 'text-bad-600' : privacyMode?.includes('blocked') ? 'text-warn-600' : 'text-ink-2'" :title="privacyBadge.title">{{ privacyBadge.label }}</span>
+  </div>
+  <div v-else class="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] leading-4">
     <!-- 类型：Key / OAuth / Token / AWS / Vertex（平台在独立列，这里不再重复） -->
     <span :class="['inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[10.5px] font-medium', typeClass]" :title="typeTitle">
       <Icon v-if="typeIcon" :name="typeIcon" size="xs" />
@@ -70,6 +82,8 @@ const props = defineProps<{
   /** 来自 AccountsView#getOpenAICompactMeta 的 { label, className, dotClass } */
   compactMeta?: { label: string; className: string; dotClass: string } | null
   compactTitle?: string
+  /** Keep table metadata to one line; disclose all values on demand. */
+  compact?: boolean
 }>()
 
 const { t } = useI18n()
@@ -280,4 +294,13 @@ const privacyBadge = computed(() => {
       return null
   }
 })
+const metadata = computed(() => [
+  typeTitle.value,
+  planTitle.value,
+  props.tierLabel,
+  privacyBadge.value?.title,
+  props.compactTitle || props.compactMeta?.label,
+  expiresLabel.value
+].filter((item): item is string => Boolean(item)))
+const metadataTitle = computed(() => metadata.value.join(' · '))
 </script>

@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { flushPromises, mount } from '@vue/test-utils'
+import { config, flushPromises, mount } from '@vue/test-utils'
 
 import AccountsView from '../AccountsView.vue'
+
+config.global.stubs.RouterLink = { template: '<a><slot /></a>' }
 import AccountActionMenu from '@/components/admin/account/AccountActionMenu.vue'
 import AccountIdentityChips from '@/components/account/AccountIdentityChips.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
@@ -306,7 +308,7 @@ describe('admin AccountsView — 账号行展示', () => {
     wrapper.unmount()
   })
 
-  it('仅将具有安全 base_url 的 API Key 账号名称链接到站点主页', async () => {
+  it('keeps details available for every name and gives safe API-key homepages a separate link', async () => {
     listAccounts.mockResolvedValue({
       items: [
         { id: 101, name: 'relay-account', platform: 'openai', type: 'apikey', credentials: { base_url: 'https://relay.example.com/api/v1/' } },
@@ -322,25 +324,21 @@ describe('admin AccountsView — 账号行展示', () => {
     const wrapper = mountViewWithRow()
     await flushPromises()
 
-    const links = wrapper.findAll('a')
+    const links = wrapper.findAll('a[target="_blank"]')
     expect(links).toHaveLength(1)
     const [link] = links
-    expect(link.text()).toBe('relay-account')
+    expect(link.attributes('aria-label')).toBe('relay-account · https://relay.example.com')
+    expect(wrapper.findAll('button').filter(button => ['relay-account', 'oauth-account', 'invalid-url'].includes(button.text()))).toHaveLength(3)
     expect(link.attributes()).toMatchObject({
       href: 'https://relay.example.com',
       target: '_blank',
       rel: 'noopener noreferrer',
     })
-    expect(link.classes()).toEqual(expect.arrayContaining([
-      'border-dotted',
-      'text-gray-900',
-      'dark:text-white',
-    ]))
-    expect(link.classes()).not.toContain('text-primary-600')
+    expect(link.classes()).toContain('text-ink-2')
     const tooltip = wrapper.findComponent(HelpTooltip)
     expect(tooltip.props('content')).toBe('https://relay.example.com')
     expect(tooltip.props('widthClass')).toBe('w-max max-w-sm break-all')
-    expect(tooltip.classes()).toEqual(expect.arrayContaining(['min-w-0']))
+    expect(tooltip.classes()).toContain('shrink-0')
     expect(wrapper.text()).toContain('oauth-account')
     expect(wrapper.text()).toContain('invalid-url')
 

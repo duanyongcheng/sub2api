@@ -143,7 +143,7 @@ describe('AccountActionMenu viewport positioning', () => {
 
   it('still closes on Escape and backdrop clicks', async () => {
     const wrapper = await mountMenu()
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    getMenu().querySelector('button')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
     const backdrop = getMenu().previousElementSibling as HTMLElement
     backdrop.click()
 

@@ -1,19 +1,43 @@
 <template>
   <AppLayout>
-    <TablePageLayout compact>
-      <template #actions>
-        <PageHeader :title="t('admin.accounts.pool.title')" :description="t('admin.accounts.pool.description')">
+    <div class="accounts-workspace">
+      <AccountPoolNavigator
+        :groups="groups"
+        :group="params.group"
+        :platform="params.platform"
+        :capacities="capacityByGroup"
+        :loading="groupsLoading"
+        :capacity-error="capacityError"
+        :simple="workspaceSimpleMode"
+        @navigate="navigatePool"
+      />
+    <TablePageLayout compact class="accounts-main">
+      <template #filters>
+        <AccountPoolOverview
+          :groups="groups"
+          :group="params.group"
+          :platform="params.platform"
+          :accounts="accounts"
+          :now="upstreamBillingNow"
+          :total="pagination.total"
+          :capacities="capacityByGroup"
+          :usage="usageByGroup"
+          :loading="loading"
+          :summaries-loading="summariesLoading"
+          :capacity-error="capacityError"
+          :usage-error="usageError"
+          :simple="workspaceSimpleMode"
+          @retry="refreshWorkspace"
+        >
           <template #actions>
             <button type="button" class="btn btn-secondary" @click="openImportData"><Icon name="upload" size="sm" />{{ t('admin.accounts.dataImport') }}</button>
             <button type="button" class="btn btn-primary" @click="showCreate = true"><Icon name="plus" size="sm" />{{ t('admin.accounts.createAccount') }}</button>
           </template>
-        </PageHeader>
-      </template>
-      <template #filters>
-        <AccountPoolSummary class="mb-3" :accounts="accounts" :total="pagination.total" :platform="params.platform" :now="upstreamBillingNow" :loading="loading" @platform-change="changePlatformTab" />
-        <div class="flex flex-wrap-reverse items-start justify-between gap-3">
+        </AccountPoolOverview>
+        <div class="accounts-toolbar flex flex-wrap items-start justify-between gap-2">
           <AccountTableFilters
             hide-platform
+            hide-group
             v-model:searchQuery="params.search"
             :filters="params"
             :groups="groups"
@@ -21,13 +45,11 @@
             @change="debouncedReload"
             @update:searchQuery="debouncedReload"
           />
-          <AccountTableActions
-            :loading="loading"
-            :show-create="false"
-            @refresh="handleManualRefresh"
-            @create="showCreate = true"
-          >
-            <template #after>
+          <div class="accounts-table-actions flex items-center gap-2">
+            <button type="button" :disabled="loading" class="btn btn-secondary px-2" :title="t('common.refresh')" :aria-label="t('common.refresh')" @click="handleManualRefresh">
+              <Icon name="refresh" size="sm" :class="loading ? 'animate-spin motion-reduce:animate-none' : ''" />
+            </button>
+              <AccountColumnSettings :columns="toggleableColumns" :hidden-columns="hiddenColumns" @toggle="toggleColumn" @reset="resetColumns" />
               <!-- Auto Refresh Dropdown -->
               <div class="relative" ref="autoRefreshDropdownRef">
                 <button
@@ -37,9 +59,12 @@
                   "
                   class="btn btn-secondary px-2 md:px-3"
                   :title="t('admin.accounts.autoRefresh')"
+                  :aria-label="t('admin.accounts.autoRefresh')"
+                  :aria-expanded="showAutoRefreshDropdown"
+                  @keydown.esc="showAutoRefreshDropdown = false"
                 >
-                  <Icon name="refresh" size="sm" :class="[autoRefreshEnabled ? 'animate-spin' : '']" />
-                  <span class="hidden md:inline">
+                  <Icon name="refresh" size="sm" :class="autoRefreshFetching ? 'animate-spin motion-reduce:animate-none' : ''" />
+                  <span class="hidden 2xl:inline">
                     {{
                       autoRefreshEnabled
                         ? t('admin.accounts.autoRefreshCountdown', { seconds: autoRefreshCountdown })
@@ -82,9 +107,9 @@
                   :title="t('admin.accounts.moreActions')"
                   :aria-expanded="showAccountToolsDropdown"
                 >
-                  <Icon name="more" size="sm" class="md:mr-1.5" />
-                  <span class="hidden md:inline">{{ t('admin.accounts.moreActions') }}</span>
-                  <Icon name="chevronDown" size="xs" class="ml-1 hidden md:inline" />
+                  <Icon name="more" size="sm" />
+                  <span class="hidden 2xl:inline">{{ t('admin.accounts.moreActions') }}</span>
+                  <Icon name="chevronDown" size="xs" class="ml-1 hidden 2xl:inline" />
                 </button>
                 <Teleport to="body">
                   <div
@@ -99,6 +124,10 @@
                           {{ t('admin.accounts.dataActions') }}
                         </div>
                       </div>
+                      <button type="button" class="account-tools-menu-item" @click="showAccountToolsDropdown = false; openBulkEditFiltered()">
+                        <span class="account-tools-menu-icon bg-primary-50 text-primary-700"><Icon name="edit" size="sm" /></span>
+                        <span class="flex-1 text-left">{{ t('admin.accounts.bulkEdit.title') }}</span>
+                      </button>
                       <button class="account-tools-menu-item" @click="openSyncFromCrs">
                         <span class="account-tools-menu-icon bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-300">
                           <Icon name="sync" size="sm" />
@@ -145,32 +174,11 @@
                         <span class="flex-1 text-left">{{ t('admin.tlsFingerprintProfiles.title') }}</span>
                       </button>
 
-                      <div class="my-2 border-t border-gray-100 dark:border-dark-700"></div>
-                      <div class="px-2 py-2">
-                        <div class="flex items-center justify-between gap-3">
-                          <span class="text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
-                            {{ t('admin.accounts.viewColumns') }}
-                          </span>
-                          <Icon name="grid" size="sm" class="text-gray-400" />
-                        </div>
-                      </div>
-                      <div class="grid grid-cols-1 gap-1">
-                        <button
-                          v-for="col in toggleableColumns"
-                          :key="col.key"
-                          @click="toggleColumn(col.key)"
-                          class="flex w-full items-center justify-between rounded-md px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-dark-700"
-                        >
-                          <span class="truncate">{{ col.label }}</span>
-                          <Icon v-if="isColumnVisible(col.key)" name="check" size="sm" class="text-primary-500" />
-                        </button>
-                      </div>
                     </div>
                   </div>
                 </Teleport>
               </div>
-            </template>
-          </AccountTableActions>
+          </div>
         </div>
         <div
           v-if="hasPendingListSync"
@@ -187,6 +195,7 @@
       </template>
       <template #table>
         <AccountBulkActionsBar
+          v-show="selIds.length > 0"
           :selected-ids="selIds"
           :total-results="pagination.total"
           :selecting-all="selectingAllResults"
@@ -202,21 +211,21 @@
           @select-all-results="handleSelectAllResults"
           @toggle-schedulable="handleBulkToggleSchedulable"
         />
-        <div ref="accountTableRef" class="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div ref="accountTableRef" class="account-table-region flex min-h-0 flex-1 flex-col overflow-hidden">
         <DataTable
           ref="dataTableRef"
           :columns="cols"
           :data="accounts"
           :loading="loading"
           fixed-layout
-          :row-class="accountRowClass"
           row-key="id"
           :server-side-sort="true"
+          :accepted-sort-keys="acceptedAccountSortKeys"
           @sort="handleSort"
           default-sort-key="name"
           default-sort-order="asc"
           :sort-storage-key="ACCOUNT_SORT_STORAGE_KEY"
-          :estimate-row-height="104"
+          :estimate-row-height="72"
           :overscan="5"
           :virtualize-threshold="50"
         >
@@ -225,60 +234,68 @@
               type="checkbox"
               class="h-4 w-4 cursor-pointer rounded border-gray-300 text-primary-600 focus:ring-primary-500"
               :checked="allVisibleSelected"
+              :aria-label="t('common.selectAll')"
               @click.stop
               @change="toggleSelectAllVisible($event)"
             />
           </template>
           <template #cell-select="{ row }">
-            <input type="checkbox" :checked="isSelected(row.id)" @change="toggleSel(row.id)" class="rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
+            <input type="checkbox" :checked="isSelected(row.id)" :aria-label="row.name" @change="toggleSel(row.id)" class="rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
           </template>
           <template #cell-id="{ value }">
             <span class="font-mono text-xs text-gray-500 dark:text-gray-400">#{{ value }}</span>
           </template>
-          <!--
-            名称列只放「账号自身」的信息：名称、邮箱、类型 / 套餐 / 隐私 / Compact。
-            平台与分组各自独立成列（要折叠请用列设置隐藏），不再塞进名称列。
-          -->
+          <!-- Identity remains a details entry for every account; safe homepages have their own link. -->
           <template #cell-name="{ row, value }">
-            <div class="flex min-w-0 flex-col gap-1">
-              <div class="flex min-w-0 items-center gap-1">
+            <div class="account-identity flex min-w-0 items-start gap-2">
+              <input
+                type="checkbox"
+                class="mt-1 h-4 w-4 shrink-0 rounded border-gray-300 text-primary-600 focus:ring-primary-500 lg:hidden"
+                :checked="isSelected(row.id)"
+                :aria-label="row.name"
+                data-test="account-mobile-select"
+                @click.stop
+                @change="toggleSel(row.id)"
+              />
+              <div class="flex min-w-0 flex-1 flex-col gap-0.5 leading-5">
+              <div class="flex min-w-0 items-center gap-1.5">
+                <PlatformIcon :platform="row.platform" size="xs" class="shrink-0 text-ink-2" />
+                <button
+                  type="button"
+                  class="truncate text-left font-semibold leading-5 text-ink hover:text-primary-700 dark:hover:text-primary-300"
+                  :title="accountIdentityTitle(row)"
+                  @click="openAccountDetail(row)"
+                >
+                  {{ value }}
+                </button>
                 <HelpTooltip
                   v-if="accountHomepageUrl(row)"
                   :content="accountHomepageUrl(row)"
                   width-class="w-max max-w-sm break-all"
-                  class="-ml-1 min-w-0"
+                  class="shrink-0"
                 >
                   <template #trigger>
                     <a
                       :href="accountHomepageUrl(row)"
                       target="_blank"
                       rel="noopener noreferrer"
-                      class="block truncate border-b border-dotted border-gray-300 font-semibold text-gray-900 dark:border-dark-600 dark:text-white"
-                    >
-                      {{ value }}
-                    </a>
+                      class="inline-flex rounded p-1 text-ink-2 hover:text-primary-700 dark:hover:text-primary-300"
+                      :aria-label="`${value} · ${accountHomepageUrl(row)}`"
+                    ><Icon name="externalLink" size="xs" /></a>
                   </template>
                 </HelpTooltip>
-                <button
-                  v-else
-                  type="button"
-                  class="truncate text-left font-semibold text-ink hover:text-primary-700"
-                  :title="accountIdentityTitle(row)"
-                  @click="openAccountDetail(row)"
-                >
-                  {{ value }}
-                </button>
               </div>
               <!-- 邮箱（含影子账号的 parent_email 兜底）：只在存在时多占一行小字 -->
               <span
                 v-if="accountDisplayEmail(row)"
-                class="truncate text-[11px] text-gray-500 dark:text-gray-400"
+                class="truncate text-[11px] leading-4 text-gray-500 dark:text-gray-400"
                 :title="accountIdentityTitle(row)"
               >
                 {{ accountDisplayEmail(row) }}
               </span>
-              <div class="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
+              <div class="min-w-0">
                 <AccountIdentityChips
+                  compact
                   :row="row"
                   :auth-mode="getOpenAIAuthMode(row)"
                   :plan-type="getAccountPlanType(row)"
@@ -289,6 +306,7 @@
                   :compact-meta="getOpenAICompactMeta(row)"
                   :compact-title="getOpenAICompactTitle(row)"
                 />
+              </div>
               </div>
             </div>
           </template>
@@ -303,20 +321,22 @@
             <AccountGroupsCell :groups="accountGroupsForRow(row)" :max-display="4" />
           </template>
           <template #cell-capacity="{ row }">
-            <AccountCapacityCell :account="row" />
+            <AccountCapacityCell :account="row" compact />
           </template>
           <template #cell-status="{ row }">
             <div class="flex items-center gap-1.5">
-              <AccountStatusIndicator :account="row" @show-temp-unsched="handleShowTempUnsched" />
+              <AccountStatusIndicator :account="row" accessible-contrast @show-temp-unsched="handleShowTempUnsched" />
             </div>
           </template>
           <template #cell-schedulable="{ row }">
-            <button @click="handleToggleSchedulable(row)" :disabled="togglingSchedulable === row.id" class="relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:focus:ring-offset-dark-800" :class="[row.schedulable ? 'bg-primary-500 hover:bg-primary-600' : 'bg-gray-200 hover:bg-gray-300 dark:bg-dark-600 dark:hover:bg-dark-500']" :title="row.schedulable ? t('admin.accounts.schedulableEnabled') : t('admin.accounts.schedulableDisabled')">
+            <button role="switch" :aria-checked="row.schedulable" :aria-label="t('admin.accounts.columns.schedulable')" @click="handleToggleSchedulable(row)" :disabled="togglingSchedulable === row.id" class="relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:focus:ring-offset-dark-800" :class="[row.schedulable ? 'bg-primary-500 hover:bg-primary-600' : 'bg-gray-200 hover:bg-gray-300 dark:bg-dark-600 dark:hover:bg-dark-500']" :title="row.schedulable ? t('admin.accounts.schedulableEnabled') : t('admin.accounts.schedulableDisabled')">
               <span class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out" :class="[row.schedulable ? 'translate-x-4' : 'translate-x-0']" />
             </button>
           </template>
           <template #cell-today_stats="{ row }">
             <AccountTodayStatsCell
+              accessible-contrast
+              class="account-today-stats"
               :stats="todayStatsByAccountId[String(row.id)] ?? null"
               :loading="todayStatsLoading"
               :error="todayStatsError"
@@ -330,6 +350,7 @@
           </template>
           <template #cell-usage="{ row }">
             <AccountUsageCell
+              class="account-table-usage"
               :ref="(el: unknown) => setUsageCellRef(row.id, el)"
               :account="row"
               :today-stats="todayStatsByAccountId[String(row.id)] ?? null"
@@ -477,20 +498,10 @@
             </div>
           </template>
           <template #cell-actions="{ row }">
-            <div class="flex items-center gap-1">
-              <button type="button" class="btn btn-ghost btn-icon btn-sm" :title="t('admin.accounts.testConnection')" :aria-label="t('admin.accounts.testConnection')" @click="handleTest(row)"><Icon name="play" size="sm" /></button>
-              <button @click="handleEdit(row)" class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400">
-                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" /></svg>
-                <span class="text-xs">{{ t('common.edit') }}</span>
-              </button>
-              <button @click="handleDelete(row)" class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400">
-                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg>
-                <span class="text-xs">{{ t('common.delete') }}</span>
-              </button>
-              <button @click="openMenu(row, $event)" class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-dark-700 dark:hover:text-white">
-                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM12.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM18.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" /></svg>
-                <span class="text-xs">{{ t('common.more') }}</span>
-              </button>
+            <div class="account-row-actions flex items-center">
+              <button type="button" class="account-row-action" :title="t('admin.accounts.testConnection')" :aria-label="t('admin.accounts.testConnection')" @click="handleTest(row)"><Icon name="play" size="sm" /></button>
+              <button type="button" class="account-row-action" :title="t('common.edit')" :aria-label="t('common.edit')" @click="handleEdit(row)"><Icon name="edit" size="sm" /></button>
+              <button type="button" class="account-row-action" :title="t('common.more')" :aria-label="t('common.more')" :aria-expanded="menu.show && menu.acc?.id === row.id" @click="openMenu(row, $event)"><Icon name="more" size="sm" /></button>
             </div>
           </template>
         </DataTable>
@@ -498,14 +509,15 @@
       </template>
       <template #pagination><Pagination v-if="pagination.total > 0" :page="pagination.page" :total="pagination.total" :page-size="pagination.page_size" @update:page="handlePageChange" @update:pageSize="handlePageSizeChange" /></template>
     </TablePageLayout>
-    <AccountDetailDrawer :show="showAccountDetail" :account="detailAccount" @close="showAccountDetail = false" @edit="showAccountDetail = false; handleEdit($event)" @test="showAccountDetail = false; handleTest($event)" @stats="showAccountDetail = false; handleViewStats($event)" @refresh="handleRefresh" @temp-unsched="showAccountDetail = false; handleShowTempUnsched($event)" />
+    </div>
+    <AccountDetailDrawer :show="showAccountDetail" :account="detailAccount" :today-stats="detailAccount ? todayStatsByAccountId[String(detailAccount.id)] ?? null : null" :today-stats-loading="todayStatsLoading" :today-stats-error="todayStatsError" @close="showAccountDetail = false" @edit="showAccountDetail = false; handleEdit($event)" @test="showAccountDetail = false; handleTest($event)" @stats="showAccountDetail = false; handleViewStats($event)" @refresh="handleRefresh" @temp-unsched="showAccountDetail = false; handleShowTempUnsched($event)" />
     <CreateAccountModal :show="showCreate" :proxies="proxies" :groups="groups" @close="showCreate = false" @created="reload" />
     <EditAccountModal :show="showEdit" :account="edAcc" :proxies="proxies" :groups="groups" @close="showEdit = false" @updated="handleAccountUpdated" />
     <ReAuthAccountModal :show="showReAuth" :account="reAuthAcc" @close="closeReAuthModal" @reauthorized="handleAccountUpdated" />
     <AccountTestModal :show="showTest" :account="testingAcc" @close="closeTestModal" />
     <AccountStatsModal :show="showStats" :account="statsAcc" @close="closeStatsModal" />
     <ScheduledTestsPanel :show="showSchedulePanel" :account-id="scheduleAcc?.id ?? null" :model-options="scheduleModelOptions" @close="closeSchedulePanel" />
-    <AccountActionMenu :show="menu.show" :account="menu.acc" :anchor-rect="menu.anchorRect" @close="menu.show = false" @test="handleTest" @stats="handleViewStats" @schedule="handleSchedule" @duplicate="handleDuplicateAccount" @reauth="handleReAuth" @refresh-token="handleRefresh" @recover-state="handleRecoverState" @reset-quota="handleResetQuota" @set-privacy="handleSetPrivacy" @create-spark-shadow="handleCreateSparkShadow" />
+    <AccountActionMenu :show="menu.show" :account="menu.acc" :anchor-rect="menu.anchorRect" @close="menu.show = false" @test="handleTest" @stats="handleViewStats" @schedule="handleSchedule" @duplicate="handleDuplicateAccount" @reauth="handleReAuth" @refresh-token="handleRefresh" @recover-state="handleRecoverState" @reset-quota="handleResetQuota" @set-privacy="handleSetPrivacy" @create-spark-shadow="handleCreateSparkShadow" @delete="handleDelete" />
     <SyncFromCrsModal :show="showSync" @close="showSync = false" @synced="reload" />
     <ImportDataModal :show="showImportData" @close="showImportData = false" @imported="handleDataImported" />
     <BulkEditAccountModal
@@ -540,6 +552,8 @@ import { useIntervalFn } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { useAppStore } from '@/stores/app'
+import { useAuthStore } from '@/stores/auth'
+import { useAccountWorkspace } from '@/composables/useAccountWorkspace'
 import { adminAPI } from '@/api/admin'
 import { CONCRETE_PLATFORM_OPTIONS } from '@/constants/platforms'
 import { useTableLoader } from '@/composables/useTableLoader'
@@ -549,17 +563,17 @@ import { useStepUp, isStepUpBlocked, isStepUpCancelled, stepUpBlockReason } from
 import TotpStepUpDialog from '@/components/auth/TotpStepUpDialog.vue'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
-import PageHeader from '@/components/common/PageHeader.vue'
-import AccountPoolSummary from '@/components/admin/account/AccountPoolSummary.vue'
+import AccountPoolNavigator from '@/components/admin/account/AccountPoolNavigator.vue'
+import AccountPoolOverview from '@/components/admin/account/AccountPoolOverview.vue'
+import AccountColumnSettings from '@/components/admin/account/AccountColumnSettings.vue'
+import PlatformIcon from '@/components/common/PlatformIcon.vue'
 import AccountDetailDrawer from '@/components/admin/account/AccountDetailDrawer.vue'
-import { accountPoolState } from '@/components/admin/account/accountPoolState'
 import { accountMonitorContext } from '@/features/channel-monitor-v2/accountMonitorContext'
 import DataTable from '@/components/common/DataTable.vue'
 import HelpTooltip from '@/components/common/HelpTooltip.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import { CreateAccountModal, EditAccountModal, BulkEditAccountModal, SyncFromCrsModal, TempUnschedStatusModal } from '@/components/account'
-import AccountTableActions from '@/components/admin/account/AccountTableActions.vue'
 import AccountTableFilters from '@/components/admin/account/AccountTableFilters.vue'
 import AccountBulkActionsBar from '@/components/admin/account/AccountBulkActionsBar.vue'
 import AccountActionMenu from '@/components/admin/account/AccountActionMenu.vue'
@@ -593,10 +607,44 @@ import type { Account, AccountListItem, AccountPlatform, AccountSchedulerGroupSc
 
 const { t } = useI18n()
 const appStore = useAppStore()
+const authStore = useAuthStore()
+const workspaceSimpleMode = computed(() => authStore.isSimpleMode === true)
+const { capacityByGroup, usageByGroup, summariesLoading, capacityError, usageError, refreshSummaries } = useAccountWorkspace({ isSimpleMode: workspaceSimpleMode })
 const accountRoute = useRoute()
 
 const proxies = ref<AccountProxy[]>([])
 const groups = ref<AdminGroup[]>([])
+const groupsLoading = ref(true)
+let workspaceRefresh: Promise<void> | null = null
+let workspaceRefreshPending = false
+let workspaceDisposed = false
+const refreshWorkspace = (): Promise<void> => {
+  if (workspaceDisposed) return Promise.resolve()
+  // A mutation during an in-flight request invalidates that snapshot. Coalesce
+  // callers, but keep their promise pending until a fresh trailing batch completes.
+  workspaceRefreshPending = true
+  if (workspaceRefresh) return workspaceRefresh
+  groupsLoading.value = true
+  workspaceRefresh = (async () => {
+    try {
+      do {
+        workspaceRefreshPending = false
+        await Promise.allSettled([
+          Promise.resolve().then(() => workspaceDisposed ? undefined : adminAPI.groups.getAll()).then(result => {
+            if (!workspaceDisposed && !workspaceRefreshPending && result) groups.value = result
+          }).catch(error => {
+            if (!workspaceDisposed) console.error('Failed to load groups:', error)
+          }),
+          refreshSummaries()
+        ])
+      } while (!workspaceDisposed && workspaceRefreshPending)
+    } finally {
+      if (!workspaceDisposed) groupsLoading.value = false
+      workspaceRefresh = null
+    }
+  })()
+  return workspaceRefresh
+}
 const groupsByID = computed(() => new Map(groups.value.map(group => [group.id, group])))
 const accountGroupsForRow = (account: Pick<AccountListItem, 'group_ids'>): AdminGroup[] => {
   const groupIDs = account.group_ids ?? []
@@ -701,8 +749,8 @@ const accountToolsDropdownStyle = computed(() => ({
   width: `${accountToolsDropdownPosition.width}px`
 }))
 const hiddenColumns = reactive<Set<string>>(new Set())
-// 平台/分组是独立列，默认显示（重要信息不该藏在列设置里）。
-const DEFAULT_HIDDEN_COLUMNS = ['id', 'today_stats', 'proxy', 'notes', 'scheduler_score', 'rate_multiplier', 'upstream_billing_rate', 'created_at', 'expires_at', 'last_used_at']
+// Compact defaults apply only when no saved layout exists.
+const DEFAULT_HIDDEN_COLUMNS = ['id', 'platform', 'groups', 'proxy', 'notes', 'scheduler_score', 'rate_multiplier', 'upstream_billing_rate', 'created_at', 'expires_at', 'last_used_at']
 const HIDDEN_COLUMNS_KEY = 'account-hidden-columns'
 // One-time migration: hide scheduler score for existing admins too, because showing it opt-ins to heavy backend scoring.
 const HIDDEN_COLUMNS_VERSION_KEY = 'account-hidden-columns-version'
@@ -762,6 +810,7 @@ const ACCOUNT_SORTABLE_KEYS = new Set([
   'created_at',
   'expires_at'
 ])
+const acceptedAccountSortKeys = Array.from(ACCOUNT_SORTABLE_KEYS)
 const loadInitialAccountSortState = (): AccountSortState => {
   const fallback: AccountSortState = { sort_by: 'name', sort_order: 'asc' }
   try {
@@ -1213,6 +1262,16 @@ const toggleColumn = (key: string) => {
   }
 }
 
+const resetColumns = () => {
+  const hadSchedulerScore = isColumnVisible('scheduler_score')
+  hiddenColumns.clear()
+  DEFAULT_HIDDEN_COLUMNS.forEach(key => hiddenColumns.add(key))
+  saveColumnsToStorage()
+  syncAccountListDerivedParams()
+  void refreshTodayStatsBatch()
+  if (hadSchedulerScore) void load({ refreshTodayStats: false })
+}
+
 const isColumnVisible = (key: string) => !hiddenColumns.has(key)
 const shouldIncludeSchedulerScore = () => isColumnVisible('scheduler_score')
 const syncAccountListDerivedParams = () => {
@@ -1320,6 +1379,7 @@ const load = async (options: AccountLoadOptions = {}) => {
 }
 
 const reload = async () => {
+  void refreshWorkspace()
   syncAccountListDerivedParams()
   hasPendingListSync.value = false
   resetAutoRefreshCache()
@@ -1463,15 +1523,11 @@ const debouncedReload = () => {
   baseDebouncedReload()
 }
 
-const changePlatformTab = (platform: string) => {
-  if (params.platform === platform) return
-  params.platform = platform
+const navigatePool = (scope: { group: string; platform: string }) => {
+  if (params.group === scope.group && params.platform === scope.platform) return
+  params.group = scope.group
+  params.platform = scope.platform
   debouncedReload()
-}
-
-const accountRowClass = (account: AccountListItem) => {
-  const state = accountPoolState(account, upstreamBillingNow.value)
-  return state === 'error' ? 'bg-red-500/5' : state === 'degraded' ? 'bg-amber-500/5' : ''
 }
 
 const handlePageChange = (page: number) => {
@@ -1658,7 +1714,7 @@ const refreshAccountsIncrementally = async () => {
 }
 
 const handleManualRefresh = async () => {
-  await Promise.all([load(), loadUpstreamBillingProbeGlobalState()])
+  await Promise.all([load(), loadUpstreamBillingProbeGlobalState(), refreshWorkspace()])
   // Force usage cells to refetch /usage on explicit user refresh.
   usageManualRefreshToken.value += 1
 }
@@ -1977,12 +2033,12 @@ const allColumns = computed(() => {
     { key: 'id', label: t('admin.accounts.columns.id'), sortable: true },
     { key: 'platform', label: t('admin.accounts.columns.platform'), sortable: false },
     { key: 'groups', label: t('admin.accounts.columns.groups'), sortable: false },
-    { key: 'capacity', label: t('admin.accounts.columns.capacity'), sortable: false },
-    { key: 'status', label: t('admin.accounts.columns.status'), sortable: true },
-    { key: 'schedulable', label: t('admin.accounts.columns.schedulable'), sortable: true },
+    { key: 'capacity', label: t('admin.accounts.columns.capacity'), sortable: false, mobileAlways: true },
+    { key: 'status', label: t('admin.accounts.columns.status'), sortable: true, mobileAlways: true },
+    { key: 'schedulable', label: t('admin.accounts.columns.schedulable'), sortable: true, mobileAlways: true },
     { key: 'today_stats', label: t('admin.accounts.columns.todayStats'), sortable: false }
   ]
-  c.push({ key: 'usage', label: t('admin.accounts.columns.usageWindows'), sortable: false })
+  c.push({ key: 'usage', label: t('admin.accounts.columns.usageWindows'), sortable: false, mobileAlways: true })
   c.push(
     { key: 'proxy', label: t('admin.accounts.columns.proxy'), sortable: false },
     { key: 'priority', label: t('admin.accounts.columns.priority'), sortable: true },
@@ -1996,15 +2052,18 @@ const allColumns = computed(() => {
     { key: 'actions', label: t('admin.accounts.columns.actions'), sortable: false }
   )
   const widths: Record<string, string> = {
-    // 名称列只放账号自身信息（名称/邮箱/类型胶囊），平台与分组各自独立列；
-    // 用量列 230 → 340（进度条吃满列宽），今日统计 145 → 96（金额 + 请求/Token 两行）。
-    select: '44px', name: '250px', id: '84px', platform: '110px', groups: '160px', capacity: '96px',
-    status: '155px', schedulable: '76px', today_stats: '96px', usage: '340px',
-    proxy: '180px', priority: '115px', scheduler_score: '170px', rate_multiplier: '115px',
+    select: '36px', name: '172px', id: '84px', platform: '110px', groups: '160px', capacity: '64px',
+    status: '88px', schedulable: '56px', today_stats: '108px', usage: '220px',
+    proxy: '180px', priority: '80px', scheduler_score: '170px', rate_multiplier: '115px',
     upstream_billing_rate: '180px', last_used_at: '120px', created_at: '140px', expires_at: '150px',
-    notes: '180px', actions: '156px'
+    notes: '180px', actions: '70px'
   }
-  return c.map(column => ({ ...column, width: widths[column.key] }))
+  const primaryOrder = ['select', 'name', 'status', 'usage', 'capacity', 'today_stats', 'priority', 'schedulable']
+  const ordered = [
+    ...primaryOrder.flatMap(key => c.filter(column => column.key === key)),
+    ...c.filter(column => !primaryOrder.includes(column.key))
+  ]
+  return ordered.map(column => ({ ...column, width: widths[column.key] }))
 })
 
 // Columns that can be toggled (exclude select, name, and actions)
@@ -2153,6 +2212,7 @@ const updateSchedulableInList = (accountIds: number[], schedulable: boolean) => 
   if (accountIds.length === 0) return
   const idSet = new Set(accountIds)
   accounts.value = accounts.value.map((account) => (idSet.has(account.id) ? { ...account, schedulable } : account))
+  void refreshWorkspace()
 }
 const normalizeBulkSchedulableResult = (
   result: {
@@ -2456,7 +2516,14 @@ const handleProbeUpstreamBilling = async (account: Account) => {
   }
 }
 const handleAccountUpdated = (updatedAccount: Account) => {
+  const previous = accounts.value.find(account => account.id === updatedAccount.id)
+  // Provider quota refreshes also emit account-updated; only membership or availability changes invalidate pool summaries.
+  const poolFields = ['platform', 'status', 'schedulable', 'concurrency', 'max_sessions', 'base_rpm', 'expires_at', 'auto_pause_on_expired', 'rate_limit_reset_at', 'overload_until', 'temp_unschedulable_until'] as const
+  const groupIds = (account: AccountListItem | Account) => account.group_ids ?? ('groups' in account ? account.groups?.map(group => group.id) : []) ?? []
+  const poolChanged = !previous || poolFields.some(key => updatedAccount[key] !== previous[key])
+    || JSON.stringify(groupIds(previous).slice().sort()) !== JSON.stringify(groupIds(updatedAccount).slice().sort())
   patchAccountInList(updatedAccount)
+  if (poolChanged) void refreshWorkspace()
   enterAutoRefreshSilentWindow()
 }
 const formatExportTimestamp = () => {
@@ -2560,8 +2627,7 @@ const handleDuplicateAccount = async (a: Account) => {
 const handleRefresh = async (a: Account) => {
   try {
     const result = await adminAPI.accounts.refreshCredentials(a.id)
-    patchAccountInList(result.account)
-    enterAutoRefreshSilentWindow()
+    handleAccountUpdated(result.account)
     if (result.warning) appStore.showWarning(result.message)
   } catch (error) {
     console.error('Failed to refresh credentials:', error)
@@ -2570,8 +2636,7 @@ const handleRefresh = async (a: Account) => {
 const handleRecoverState = async (a: Account) => {
   try {
     const updated = await adminAPI.accounts.recoverState(a.id)
-    patchAccountInList(updated)
-    enterAutoRefreshSilentWindow()
+    handleAccountUpdated(updated)
     appStore.showSuccess(t('admin.accounts.recoverStateSuccess'))
   } catch (error: any) {
     console.error('Failed to recover account state:', error)
@@ -2581,8 +2646,7 @@ const handleRecoverState = async (a: Account) => {
 const handleResetQuota = async (a: Account) => {
   try {
     const updated = await adminAPI.accounts.resetAccountQuota(a.id)
-    patchAccountInList(updated)
-    enterAutoRefreshSilentWindow()
+    handleAccountUpdated(updated)
     appStore.showSuccess(t('common.success'))
   } catch (error) {
     console.error('Failed to reset quota:', error)
@@ -2674,8 +2738,7 @@ const handleShowTempUnsched = (a: Account) => { tempUnschedAcc.value = a; showTe
 const handleTempUnschedReset = async (updated: Account) => {
   showTempUnsched.value = false
   tempUnschedAcc.value = null
-  patchAccountInList(updated)
-  enterAutoRefreshSilentWindow()
+  handleAccountUpdated(updated)
 }
 const formatExpiresAt = (value: number | null) => {
   if (!value) return '-'
@@ -2725,7 +2788,7 @@ const handleClickOutside = (event: MouseEvent) => {
   }
 }
 
-onMounted(async () => {
+onMounted(() => {
   if (typeof window !== 'undefined') {
     desktopViewportMediaQuery = window.matchMedia(desktopViewportQuery)
     isDesktopViewport.value = desktopViewportMediaQuery.matches
@@ -2739,25 +2802,18 @@ onMounted(async () => {
     }
   }
 
-  load()
-  loadUpstreamBillingProbeGlobalState()
-  const [proxiesResult, groupsResult] = await Promise.allSettled([
-    adminAPI.proxies.getAll(),
-    adminAPI.groups.getAll()
-  ])
-  if (proxiesResult.status === 'fulfilled') {
-    proxies.value = proxiesResult.value
-  } else {
-    console.error('Failed to load proxies:', proxiesResult.reason)
-  }
-  if (groupsResult.status === 'fulfilled') {
-    groups.value = groupsResult.value
-  } else {
-    console.error('Failed to load groups:', groupsResult.reason)
-  }
   window.addEventListener('scroll', handleScroll, true)
   window.addEventListener('resize', handleViewportResize)
   document.addEventListener('click', handleClickOutside)
+
+  void load()
+  void loadUpstreamBillingProbeGlobalState()
+  void refreshWorkspace()
+  void adminAPI.proxies.getAll().then(result => {
+    if (!workspaceDisposed) proxies.value = result
+  }).catch(error => {
+    if (!workspaceDisposed) console.error('Failed to load proxies:', error)
+  })
 
   if (autoRefreshEnabled.value) {
     autoRefreshCountdown.value = autoRefreshIntervalSeconds.value
@@ -2768,6 +2824,8 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  workspaceDisposed = true
+  workspaceRefreshPending = false
   upstreamBillingRateAbortController?.abort()
   if (usageBatchFlushTimer !== null) {
     clearTimeout(usageBatchFlushTimer)
@@ -2790,6 +2848,89 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+.accounts-workspace {
+  display: grid;
+  grid-template-columns: 216px minmax(0, 1fr);
+  gap: 20px;
+  min-height: 0;
+  height: calc(100dvh - 7.75rem);
+}
+.accounts-main { min-width: 0; min-height: 0; height: 100%; }
+.accounts-toolbar { margin-top: 12px; }
+/* Filters keep a zero flex-basis so their selects wrap inside their own area and the action buttons stay on the first row. */
+.accounts-table-actions { flex-shrink: 0; }
+/* The custom selection column must share its real width with the sticky identity offset. */
+.accounts-main :deep(.table-wrapper) { --select-col-width: 36px; }
+.accounts-main :deep(.table-scroll-container) {
+  border-radius: 10px;
+  box-shadow: none;
+}
+.accounts-main :deep(.table-scroll-container th),
+.accounts-main :deep(.table-scroll-container td) { padding-left: 8px; padding-right: 8px; }
+.accounts-main :deep(.table-scroll-container th) { font-size: 12px; white-space: normal; }
+.accounts-main :deep(.table-scroll-container td) { padding-top: 7px; padding-bottom: 7px; }
+.accounts-main :deep(.table-scroll-container thead),
+.accounts-main :deep(.table-scroll-container .sticky-header-cell) { background-color: rgb(var(--surface-2)); backdrop-filter: none; }
+.accounts-main :deep(.table-scroll-container tbody),
+.accounts-main :deep(.table-scroll-container tbody .sticky-col) { background-color: rgb(var(--surface)); }
+.accounts-main :deep(.table-scroll-container tbody tr:hover),
+.accounts-main :deep(.table-scroll-container tbody tr:hover .sticky-col) { background-color: rgb(var(--surface-2)); }
+/* Keep complete quota tracks and their trailing disclosure inside the compact column. */
+.accounts-main :deep(.account-usage-block > .flex) { gap: 4px; }
+.accounts-main :deep(.account-usage-stack) { column-gap: 4px; }
+/* Operational text uses readable foregrounds; quota track fills stay provider-owned. */
+.accounts-main :deep(.account-table-usage .text-gray-400),
+.accounts-main :deep(.account-table-usage .text-gray-500),
+.accounts-main :deep(.account-table-usage .text-gray-600) { @apply text-ink-2; }
+.accounts-main :deep(.account-table-usage .text-amber-600) { @apply text-amber-700 dark:text-amber-300; }
+.accounts-main :deep(.account-table-usage .text-red-500),
+.accounts-main :deep(.account-table-usage .text-red-600) { @apply text-red-700 dark:text-red-300; }
+.accounts-main :deep(.account-table-usage [class~="text-[9px]"]) { line-height: 14px; flex-wrap: wrap; gap: 2px 4px; }
+.accounts-main :deep(.account-today-stats .items-baseline) { align-items: flex-start; flex-direction: column; gap: 0; line-height: 16px; }
+.accounts-main :deep(.account-today-stats .items-baseline > :last-child:not(:first-child)) { line-height: 14px; }
+.accounts-main :deep(.account-today-stats [title]:last-child) { line-height: 14px; }
+.accounts-main :deep(.account-today-stats .whitespace-nowrap) { white-space: normal; overflow-wrap: anywhere; }
+.accounts-main :deep([data-testid="account-priority-cell"] > button:first-child),
+.accounts-main :deep([data-testid="account-priority-cell"] > button:last-child) { width: 14px; }
+.accounts-main :deep([data-testid="account-priority-input"]),
+.accounts-main :deep([data-testid="account-priority-value"]) { width: 32px; min-width: 32px; padding: 0; }
+.accounts-workspace :deep(button:focus-visible),
+.accounts-workspace :deep(a:focus-visible),
+.accounts-workspace :deep(summary:focus-visible) { outline: 2px solid rgb(var(--primary-700)); outline-offset: 2px; }
+.account-row-action {
+  @apply inline-flex h-7 w-[18px] shrink-0 items-center justify-center rounded text-ink-2 hover:bg-surface-2 hover:text-primary-700 dark:hover:text-primary-300;
+}
+@media (max-width: 1279px) {
+  .accounts-workspace { grid-template-columns: 192px minmax(0, 1fr); gap: 14px; }
+}
+@media (max-width: 1023px) {
+  .accounts-workspace { display: flex; height: auto; flex-direction: column; gap: 12px; }
+  .accounts-main { height: auto; }
+  .accounts-toolbar { margin-top: 10px; }
+  /* On narrow screens the filter controls and the action buttons share one wrapping flow. */
+  .accounts-toolbar :deep(.account-filters),
+  .accounts-toolbar :deep(.account-primary-filters) { display: contents; }
+  .accounts-table-actions { gap: 6px; }
+  .accounts-table-actions :deep(.btn) { min-height: 36px; padding: 8px; }
+  .accounts-main :deep(.layout-section-fixed) { min-width: 0; }
+  .account-table-region :deep(.rounded-lg:has([data-test="mobile-primary"])) { padding: 12px; background-color: rgb(var(--surface)); }
+  .account-table-region :deep(.rounded-lg > .space-y-3) { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px 12px; }
+  .account-table-region :deep(.rounded-lg > .space-y-3 > *) { margin-top: 0; }
+  .account-table-region :deep(.rounded-lg > .space-y-3 > :first-child) { grid-column: 1 / -1; }
+  .account-table-region :deep([data-field="status"]) { order: 1; }
+  .account-table-region :deep([data-field="schedulable"]) { order: 2; }
+  .account-table-region :deep([data-field="usage"]) { order: 3; grid-column: 1 / -1; }
+  .account-table-region :deep([data-field="capacity"]) { order: 4; grid-column: 1 / -1; }
+  .account-table-region :deep([data-field]) { align-items: center; gap: 8px; }
+  .account-table-region :deep([data-field="usage"] > :last-child) { flex: 1; text-align: left; }
+  .account-table-region :deep([data-field="capacity"] > :last-child) { min-width: 80px; }
+  .account-table-region :deep([data-test="mobile-details"]) { order: 5; grid-column: 1 / -1; }
+  .account-table-region :deep(.rounded-lg > .space-y-3 > :last-child) { order: 6; grid-column: 1 / -1; padding-top: 8px; }
+}
+@media (max-width: 767px) {
+  .account-row-action { width: 36px; height: 36px; }
+  .accounts-main :deep(.table-scroll-container) { border: 0; }
+}
 .account-tools-menu-item {
   @apply flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-dark-700;
 }

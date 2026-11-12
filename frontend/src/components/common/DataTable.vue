@@ -517,6 +517,8 @@ interface Props {
    * will emit 'sort' events instead of performing client-side sorting.
    */
   serverSideSort?: boolean
+  /** Additional valid sort keys in server-side mode, including hidden columns. */
+  acceptedSortKeys?: string[]
   /** Emit 'rowClick' on row/card click and show pointer cursor (interactive cells should @click.stop) */
   clickableRows?: boolean
   /** Estimated row height in px for the virtualizer (default 56) */
@@ -547,6 +549,7 @@ const props = withDefaults(defineProps<Props>(), {
   expandableActions: true,
   defaultSortOrder: 'asc',
   serverSideSort: false,
+  acceptedSortKeys: () => [],
   selectable: false,
   fixedLayout: false,
   selectedKeys: () => []
@@ -576,6 +579,9 @@ const getSortableKeys = () => {
   const keys = new Set<string>()
   for (const col of props.columns) {
     if (col.sortable) keys.add(col.key)
+  }
+  if (props.serverSideSort) {
+    for (const key of props.acceptedSortKeys) keys.add(key)
   }
   return keys
 }
@@ -998,7 +1004,7 @@ const getAdaptivePaddingClass = () => {
   }
 }
 
-// Init + keep persisted sort state consistent with current columns
+// Init + keep persisted sort state consistent with the table's valid sort keys
 const didInitSort = ref(false)
 
 onMounted(() => {
@@ -1008,9 +1014,9 @@ onMounted(() => {
 })
 
 watch(
-  columnsSignature,
+  [columnsSignature, () => props.serverSideSort, () => [...props.acceptedSortKeys]],
   () => {
-    // If current sort key is no longer sortable/visible, fall back to default/persisted.
+    // If the current sort key is no longer valid, fall back to default/persisted.
     const normalized = normalizeSortKey(sortKey.value)
     if (!sortKey.value) {
       const initial = resolveInitialSortState()

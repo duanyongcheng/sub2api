@@ -331,7 +331,7 @@
             :show-now-when-idle="true"
             color="emerald"
           />
-          <div v-else-if="grokQuotaUnknown" class="text-[10px] text-gray-500 dark:text-gray-400">
+          <div v-else-if="grokQuotaUnknown" class="account-usage-note text-[10px] text-gray-500 dark:text-gray-400">
             {{ grokQuotaUnknownLabel }}
           </div>
         </template>
@@ -375,7 +375,7 @@
               {{ grokPrepaidMoneyLine.used }}/{{ grokPrepaidMoneyLine.limit }}
             </span>
           </div>
-          <div v-if="grokQuotaUnknown" class="text-[10px] text-gray-500 dark:text-gray-400">
+          <div v-if="grokQuotaUnknown" class="account-usage-note text-[10px] text-gray-500 dark:text-gray-400">
             {{ grokQuotaUnknownLabel }}
           </div>
         </template>
@@ -721,12 +721,24 @@
   - 展开后的操作面板横跨两列，落在窗口条下方。
 */
 .account-usage-stack {
+  min-width: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   grid-auto-rows: min-content;
   align-items: start;
   column-gap: 8px;
   row-gap: 3px;
+}
+
+/* Provider groups must shrink within their track, including unknown-quota notes. */
+.account-usage-stack > * {
+  min-width: 0;
+}
+.account-usage-stack :deep(.account-usage-note) {
+  min-width: 0;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: break-word;
 }
 
 /* 左列：窗口条组。多条窗口纵向排列，宽度吃满数据列。 */

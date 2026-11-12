@@ -1061,6 +1061,34 @@ describe('AccountUsageCell', () => {
     expect(wrapper.text()).not.toContain('admin.accounts.usageWindow.grokRequests|')
   })
 
+  it.each(['free', 'SuperGrok'])('keeps unknown %s quota copy and query actions without a separate usage request', async (subscriptionTier) => {
+    const requestBatchedUsage = vi.fn()
+    const wrapper = mount(AccountUsageCell, {
+      props: {
+        account: makeAccount({ id: 4490, platform: 'grok', type: 'oauth' }),
+        batchedUsage: { subscription_tier: subscriptionTier, grok_quota_snapshot_state: 'no_headers' },
+        requestBatchedUsage
+      },
+      slots: { 'actions-extra': '<button data-test="query-usage">Query usage</button>' },
+      global: {
+        stubs: {
+          UsageProgressBar: true,
+          GrokQuotaProbeCell: { template: '<div><slot name="pre-actions" /></div>' }
+        }
+      }
+    })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('admin.accounts.usageWindow.grokNoHeaders')
+    expect(wrapper.findComponent({ name: 'UsageProgressBar' }).exists()).toBe(false)
+    await wrapper.get('[data-testid="account-usage-actions-toggle"]').trigger('click')
+    expect(wrapper.get('[data-test="query-usage"]').isVisible()).toBe(true)
+    expect(wrapper.text()).toContain('admin.accounts.usageWindow.grokNoHeaders')
+    expect(requestBatchedUsage).toHaveBeenCalledTimes(1)
+    expect(getUsage).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
   it('Grok paid monthly limits show 30d bar without free 24h', async () => {
     getUsage.mockResolvedValue({
       grok_billing: {

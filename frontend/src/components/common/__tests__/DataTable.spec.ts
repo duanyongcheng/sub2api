@@ -97,6 +97,251 @@ describe('DataTable', () => {
     expect(nameHeader.findAll('svg')[1].classes()).toContain('text-primary-600')
   })
 
+  it.each(['priority', 'upstream_billing_rate'])(
+    'preserves the accepted server sort on %s when columns are hidden or reset',
+    async (key) => {
+      const columns = [
+        { key: 'name', label: 'Name', sortable: true },
+        { key, label: key, sortable: true }
+      ]
+      const wrapper = mount(DataTable, {
+        props: {
+          columns,
+          data: [{ id: 1, name: 'Beta' }, { id: 2, name: 'Alpha' }],
+          serverSideSort: true,
+          acceptedSortKeys: [key],
+          sortStorageKey: 'account-table-sort',
+          defaultSortKey: 'name'
+        }
+      })
+      await wrapper.vm.$nextTick()
+
+      await wrapper.findAll('th')[1].trigger('click')
+      await wrapper.findAll('th')[1].trigger('click')
+      const expectedSort = { key, order: 'desc' }
+      expect(wrapper.emitted('sort')).toEqual([[key, 'asc'], [key, 'desc']])
+      expect(JSON.parse(localStorage.getItem('account-table-sort')!)).toEqual(expectedSort)
+
+      // Hiding the active column must not persist a fallback or emit another server sort.
+      await wrapper.setProps({ columns: [columns[0]] })
+      expect(wrapper.get('th').attributes('aria-sort')).toBe('none')
+      expect(JSON.parse(localStorage.getItem('account-table-sort')!)).toEqual(expectedSort)
+      expect(wrapper.emitted('sort')).toHaveLength(2)
+
+      await wrapper.setProps({ columns })
+      expect(wrapper.findAll('th')[1].attributes('aria-sort')).toBe('descending')
+
+      // Restoring compact columns removes it again, and the next mount must retain it.
+      await wrapper.setProps({ columns: [columns[0]] })
+      expect(JSON.parse(localStorage.getItem('account-table-sort')!)).toEqual(expectedSort)
+      wrapper.unmount()
+      const restored = mount(DataTable, {
+        props: {
+          columns,
+          data: [{ id: 1, name: 'Beta' }, { id: 2, name: 'Alpha' }],
+          serverSideSort: true,
+          acceptedSortKeys: [key],
+          sortStorageKey: 'account-table-sort',
+          defaultSortKey: 'name'
+        }
+      })
+      await restored.vm.$nextTick()
+      expect(restored.findAll('th')[1].attributes('aria-sort')).toBe('descending')
+      expect(restored.emitted('sort')).toBeUndefined()
+      expect(restored.findAll('tbody tr[data-index]').map(row => row.attributes('data-row-id'))).toEqual(['1', '2'])
+      restored.unmount()
+    }
+  )
+
+  it.each(['priority', 'upstream_billing_rate'])(
+    'loads a persisted server sort on initially hidden %s',
+    async (key) => {
+      const expectedSort = { key, order: 'desc' }
+      localStorage.setItem('account-table-sort', JSON.stringify(expectedSort))
+      const columns = [{ key: 'name', label: 'Name', sortable: true }]
+      const wrapper = mount(DataTable, {
+        props: {
+          columns,
+          data: [{ id: 1, name: 'Account' }],
+          serverSideSort: true,
+          acceptedSortKeys: [key],
+          sortStorageKey: 'account-table-sort',
+          defaultSortKey: 'name'
+        }
+      })
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.get('th').attributes('aria-sort')).toBe('none')
+      expect(JSON.parse(localStorage.getItem('account-table-sort')!)).toEqual(expectedSort)
+      await wrapper.setProps({ columns: [...columns, { key, label: key, sortable: true }] })
+      expect(wrapper.findAll('th')[1].attributes('aria-sort')).toBe('descending')
+      expect(wrapper.emitted('sort')).toBeUndefined()
+      wrapper.unmount()
+    }
+  )
+
+  it('normalizes the order of an accepted hidden server sort', async () => {
+    localStorage.setItem('account-table-sort', JSON.stringify({ key: 'priority', order: 'invalid' }))
+    const wrapper = mount(DataTable, {
+      props: {
+        columns: [{ key: 'name', label: 'Name', sortable: true }],
+        data: [{ id: 1, name: 'Account' }],
+        serverSideSort: true,
+        acceptedSortKeys: ['priority'],
+        sortStorageKey: 'account-table-sort',
+        defaultSortKey: 'name'
+      }
+    })
+    await wrapper.vm.$nextTick()
+
+    expect(JSON.parse(localStorage.getItem('account-table-sort')!)).toEqual({ key: 'priority', order: 'asc' })
+    wrapper.unmount()
+  })
+
+  it('accepts a hidden default server sort without persisted state', async () => {
+    const wrapper = mount(DataTable, {
+      props: {
+        columns: [{ key: 'name', label: 'Name', sortable: true }],
+        data: [{ id: 1, name: 'Account' }],
+        serverSideSort: true,
+        acceptedSortKeys: ['priority'],
+        sortStorageKey: 'account-table-sort',
+        defaultSortKey: 'priority',
+        defaultSortOrder: 'desc'
+      }
+    })
+    await wrapper.vm.$nextTick()
+
+    expect(JSON.parse(localStorage.getItem('account-table-sort')!)).toEqual({ key: 'priority', order: 'desc' })
+    expect(wrapper.get('th').attributes('aria-sort')).toBe('none')
+    wrapper.unmount()
+  })
+
+  it.each([
+    { mode: 'server sorting without accepted keys', props: { serverSideSort: true } },
+    { mode: 'default client sorting', props: {} },
+    { mode: 'client sorting with accepted keys', props: { serverSideSort: false, acceptedSortKeys: ['priority'] } },
+    { mode: 'server sorting with a different accepted key', props: { serverSideSort: true, acceptedSortKeys: ['upstream_billing_rate'] } }
+  ])('rejects a hidden persisted sort for $mode', async ({ props }) => {
+    localStorage.setItem('table-sort', JSON.stringify({ key: 'priority', order: 'desc' }))
+    const wrapper = mount(DataTable, {
+      props: {
+        columns: [{ key: 'name', label: 'Name', sortable: true }],
+        data: [{ id: 1, name: 'Beta', priority: 9 }, { id: 2, name: 'Alpha', priority: 1 }],
+        sortStorageKey: 'table-sort',
+        defaultSortKey: 'name',
+        ...props
+      }
+    })
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.get('th').attributes('aria-sort')).toBe('ascending')
+    expect(JSON.parse(localStorage.getItem('table-sort')!)).toEqual({ key: 'name', order: 'asc' })
+    expect(wrapper.emitted('sort')).toBeUndefined()
+    expect(wrapper.findAll('tbody tr[data-index]').map(row => row.attributes('data-row-id'))).toEqual(
+      props.serverSideSort ? ['1', '2'] : ['2', '1']
+    )
+    wrapper.unmount()
+  })
+
+  it.each([
+    { mode: 'server sorting without accepted keys', props: { serverSideSort: true } },
+    { mode: 'client sorting with accepted keys', props: { serverSideSort: false, acceptedSortKeys: ['priority'] } }
+  ])('rejects a hidden default sort for $mode', async ({ props }) => {
+    const wrapper = mount(DataTable, {
+      props: {
+        columns: [{ key: 'name', label: 'Name', sortable: true }],
+        data: [{ id: 1, name: 'Beta', priority: 1 }, { id: 2, name: 'Alpha', priority: 9 }],
+        sortStorageKey: 'table-sort',
+        defaultSortKey: 'priority',
+        defaultSortOrder: 'desc',
+        ...props
+      }
+    })
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.get('th').attributes('aria-sort')).toBe('none')
+    expect(localStorage.getItem('table-sort')).toBeNull()
+    expect(wrapper.findAll('tbody tr[data-index]').map(row => row.attributes('data-row-id'))).toEqual(['1', '2'])
+    wrapper.unmount()
+  })
+
+  it.each([
+    { mode: 'server sorting without accepted keys', props: { serverSideSort: true } },
+    { mode: 'client sorting with accepted keys', props: { serverSideSort: false, acceptedSortKeys: ['priority'] } }
+  ])('falls back when the sorted column is hidden for $mode', async ({ props }) => {
+    const columns = [
+      { key: 'name', label: 'Name', sortable: true },
+      { key: 'priority', label: 'Priority', sortable: true }
+    ]
+    const wrapper = mount(DataTable, {
+      props: {
+        columns,
+        data: [{ id: 1, name: 'Beta', priority: 9 }, { id: 2, name: 'Alpha', priority: 1 }],
+        sortStorageKey: 'table-sort',
+        defaultSortKey: 'name',
+        ...props
+      }
+    })
+    await wrapper.vm.$nextTick()
+    await wrapper.findAll('th')[1].trigger('click')
+    await wrapper.findAll('th')[1].trigger('click')
+    expect(JSON.parse(localStorage.getItem('table-sort')!)).toEqual({ key: 'priority', order: 'desc' })
+
+    await wrapper.setProps({ columns: [columns[0]] })
+    expect(wrapper.get('th').attributes('aria-sort')).toBe('ascending')
+    expect(JSON.parse(localStorage.getItem('table-sort')!)).toEqual({ key: 'name', order: 'asc' })
+    expect(wrapper.findAll('tbody tr[data-index]').map(row => row.attributes('data-row-id'))).toEqual(
+      props.serverSideSort ? ['1', '2'] : ['2', '1']
+    )
+    wrapper.unmount()
+  })
+
+  it('revalidates a hidden server sort when accepted keys are removed in place', async () => {
+    const wrapper = mount(DataTable, {
+      props: {
+        columns: [{ key: 'name', label: 'Name', sortable: true }],
+        data: [{ id: 1, name: 'Account' }],
+        serverSideSort: true,
+        acceptedSortKeys: ['priority', 'upstream_billing_rate'],
+        sortStorageKey: 'table-sort',
+        defaultSortKey: 'priority',
+        defaultSortOrder: 'desc'
+      }
+    })
+    await wrapper.vm.$nextTick()
+    expect(JSON.parse(localStorage.getItem('table-sort')!)).toEqual({ key: 'priority', order: 'desc' })
+
+    await wrapper.setProps({ defaultSortKey: 'name', defaultSortOrder: 'asc' })
+    wrapper.props('acceptedSortKeys')!.splice(0, 1)
+    await wrapper.vm.$nextTick()
+    expect(wrapper.get('th').attributes('aria-sort')).toBe('ascending')
+    expect(JSON.parse(localStorage.getItem('table-sort')!)).toEqual({ key: 'name', order: 'asc' })
+    wrapper.unmount()
+  })
+
+  it('revalidates a hidden accepted sort when switching to client sorting', async () => {
+    localStorage.setItem('table-sort', JSON.stringify({ key: 'priority', order: 'desc' }))
+    const wrapper = mount(DataTable, {
+      props: {
+        columns: [{ key: 'name', label: 'Name', sortable: true }],
+        data: [{ id: 1, name: 'Beta', priority: 9 }, { id: 2, name: 'Alpha', priority: 1 }],
+        serverSideSort: true,
+        acceptedSortKeys: ['priority'],
+        sortStorageKey: 'table-sort',
+        defaultSortKey: 'name'
+      }
+    })
+    await wrapper.vm.$nextTick()
+    expect(JSON.parse(localStorage.getItem('table-sort')!)).toEqual({ key: 'priority', order: 'desc' })
+
+    await wrapper.setProps({ serverSideSort: false })
+    expect(wrapper.get('th').attributes('aria-sort')).toBe('ascending')
+    expect(JSON.parse(localStorage.getItem('table-sort')!)).toEqual({ key: 'name', order: 'asc' })
+    expect(wrapper.findAll('tbody tr[data-index]').map(row => row.attributes('data-row-id'))).toEqual(['2', '1'])
+    wrapper.unmount()
+  })
+
   it('renders every row with no virtual padding spacer for small datasets (virtualization off)', async () => {
     const data = Array.from({ length: 8 }, (_, i) => ({ id: i + 1, name: `Row ${i + 1}` }))
     const wrapper = mount(DataTable, {

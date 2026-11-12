@@ -7,7 +7,7 @@
     </div>
 
     <!-- Error state -->
-    <div v-else-if="props.error && !props.stats" class="text-xs text-red-500">
+    <div v-else-if="props.error && !props.stats" class="text-xs" :class="props.accessibleContrast ? 'text-red-700 dark:text-red-300' : 'text-red-500'">
       {{ props.error }}
     </div>
 
@@ -18,15 +18,17 @@
     -->
     <div v-else-if="props.stats" class="flex flex-col gap-0.5 text-left">
       <div class="flex items-baseline gap-1 whitespace-nowrap">
-        <span class="text-[12.5px] font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">{{ formatCurrency(props.stats.cost) }}</span>
+        <span class="text-[12.5px] font-semibold tabular-nums" :class="props.accessibleContrast ? 'text-emerald-700 dark:text-emerald-300' : 'text-emerald-600 dark:text-emerald-400'">{{ formatCurrency(props.stats.cost) }}</span>
         <span
           v-if="props.stats.user_cost != null"
-          class="text-[10.5px] tabular-nums text-gray-400 dark:text-gray-500"
+          class="text-[10.5px] tabular-nums"
+          :class="props.accessibleContrast ? 'text-ink-2' : 'text-gray-400 dark:text-gray-500'"
           :title="t('usage.userBilled')"
         >U {{ formatCurrency(props.stats.user_cost) }}</span>
       </div>
       <div
-        class="whitespace-nowrap text-[10.5px] tabular-nums text-gray-500 dark:text-gray-400"
+        class="whitespace-nowrap text-[10.5px] tabular-nums"
+        :class="props.accessibleContrast ? 'text-ink-2' : 'text-gray-500 dark:text-gray-400'"
         :title="statsTitle"
       >
         {{ formatNumber(props.stats.requests) }} req · {{ formatTokens(props.stats.tokens) }}
@@ -34,7 +36,7 @@
     </div>
 
     <!-- No data -->
-    <div v-else class="text-xs text-gray-400">-</div>
+    <div v-else class="text-xs" :class="props.accessibleContrast ? 'text-ink-2' : 'text-gray-400'">-</div>
   </div>
 </template>
 
@@ -49,11 +51,13 @@ const props = withDefaults(
     stats?: WindowStats | null
     loading?: boolean
     error?: string | null
+    accessibleContrast?: boolean
   }>(),
   {
     stats: null,
     loading: false,
-    error: null
+    error: null,
+    accessibleContrast: false
   }
 )
 

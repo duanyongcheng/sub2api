@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { flushPromises, mount } from '@vue/test-utils'
+import { config, flushPromises, mount } from '@vue/test-utils'
 
 import AccountsView from '../AccountsView.vue'
+
+config.global.stubs.RouterLink = { template: '<a><slot /></a>' }
 
 const {
   listAccounts,
@@ -100,7 +102,8 @@ const AccountTableFiltersStub = {
   template: '<button data-test="change-filter" @click="$emit(\'change\')">change filter</button>'
 }
 
-const mountView = () => mount(AccountsView, {
+const mountView = (mobileIdentity = false) => mount(AccountsView, {
+  attachTo: mobileIdentity ? document.body : undefined,
   global: {
     stubs: {
       AppLayout: { template: '<div><slot /></div>' },
@@ -108,8 +111,11 @@ const mountView = () => mount(AccountsView, {
         template: '<div><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>'
       },
       DataTable: {
-        props: ['data'],
-        template: '<div data-test="data-table"><div v-for="row in data" :key="row.id"><slot name="cell-select" :row="row" /></div></div>'
+        name: 'DataTable',
+        props: ['data', 'columns'],
+        template: mobileIdentity
+          ? '<div data-test="data-table"><div v-for="row in data" :key="row.id"><slot name="cell-name" :row="row" :value="row.name" /></div></div>'
+          : '<div data-test="data-table"><div v-for="row in data" :key="row.id"><slot name="cell-select" :row="row" /></div></div>'
       },
       Pagination: true,
       ConfirmDialog: true,
@@ -165,6 +171,29 @@ describe('admin AccountsView select all filtered results', () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
+  })
+
+  it('selects accounts from phone identities and shows bulk actions only while selected', async () => {
+    listAccounts.mockResolvedValue({ items: makeAccounts(3), total: 3, page: 1, page_size: 20, pages: 1 })
+    const wrapper = mountView(true)
+    await flushPromises()
+
+    const mobileColumns = wrapper.getComponent({ name: 'DataTable' }).props('columns') as Array<{ key: string; mobileAlways?: boolean }>
+    expect(mobileColumns.filter(column => column.mobileAlways).map(column => column.key))
+      .toEqual(['status', 'usage', 'capacity', 'schedulable'])
+    const bulkBar = wrapper.getComponent(AccountBulkActionsBarStub)
+    expect(bulkBar.isVisible()).toBe(false)
+    const checkboxes = wrapper.findAll<HTMLInputElement>('[data-test="account-mobile-select"]')
+    expect(checkboxes).toHaveLength(3)
+    expect(checkboxes[0].attributes('aria-label')).toBe('account-1')
+    await checkboxes[0].setValue(true)
+    await checkboxes[2].setValue(true)
+    expect(bulkBar.props('selectedIds')).toEqual([1, 3])
+    expect(bulkBar.isVisible()).toBe(true)
+    await bulkBar.get('[data-test="clear"]').trigger('click')
+    expect(checkboxes.map(input => input.element.checked)).toEqual([false, false, false])
+    expect(bulkBar.isVisible()).toBe(false)
+    wrapper.unmount()
   })
 
   it.each([

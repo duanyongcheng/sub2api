@@ -55,6 +55,11 @@
               <Icon name="refresh" size="sm" />
               {{ t('admin.accounts.resetQuota') }}
             </button>
+            <div class="my-1 border-t border-edge"></div>
+            <button type="button" @click="$emit('delete', account); $emit('close')" class="flex w-full items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20">
+              <Icon name="trash" size="sm" />
+              {{ t('common.delete') }}
+            </button>
           </template>
         </div>
       </div>
@@ -63,7 +68,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch, onUnmounted } from 'vue'
+import { computed, nextTick, ref, watch, onUnmounted } from 'vue'
 import { useResizeObserver, useWindowSize } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@/components/icons'
@@ -71,7 +76,7 @@ import type { Account } from '@/types'
 import { supportsAccountQuota } from '@/utils/accountQuota'
 
 const props = defineProps<{ show: boolean; account: Account | null; anchorRect: DOMRect | null }>()
-const emit = defineEmits(['close', 'test', 'stats', 'schedule', 'duplicate', 'reauth', 'refresh-token', 'recover-state', 'reset-quota', 'set-privacy', 'create-spark-shadow'])
+const emit = defineEmits(['close', 'test', 'stats', 'schedule', 'duplicate', 'reauth', 'refresh-token', 'recover-state', 'reset-quota', 'set-privacy', 'create-spark-shadow', 'delete'])
 const { t } = useI18n()
 const menuRef = ref<HTMLElement | null>(null)
 const { width: viewportWidth, height: viewportHeight } = useWindowSize()
@@ -143,17 +148,46 @@ const hasQuotaLimit = computed(() => {
   )
 })
 
+let triggerElement: HTMLElement | null = null
+let restoreFocusOnClose = true
 const handleKeydown = (event: KeyboardEvent) => {
-  if (event.key === 'Escape') emit('close')
+  if (!props.show || event.defaultPrevented || !(event.target instanceof Node) || !menuRef.value?.contains(event.target)) return
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    restoreFocusOnClose = true
+    emit('close')
+    return
+  }
+  if (event.key === 'Tab') {
+    // Let the browser move from the menu item without returning to the trigger.
+    restoreFocusOnClose = false
+    emit('close')
+    return
+  }
+  if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return
+  const buttons = Array.from(menuRef.value?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') ?? [])
+  if (!buttons.length) return
+  event.preventDefault()
+  const index = buttons.indexOf(document.activeElement as HTMLButtonElement)
+  const target = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1
+    : (index + (event.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length
+  buttons[target]?.focus()
 }
 
 watch(
   () => props.show,
   (visible) => {
     if (visible) {
+      restoreFocusOnClose = true
+      triggerElement = document.activeElement instanceof HTMLElement ? document.activeElement : null
       window.addEventListener('keydown', handleKeydown)
+      void nextTick(() => {
+        if (props.show) menuRef.value?.querySelector<HTMLButtonElement>('button')?.focus()
+      })
     } else {
       window.removeEventListener('keydown', handleKeydown)
+      if (restoreFocusOnClose) triggerElement?.focus({ preventScroll: true })
+      triggerElement = null
     }
   },
   { immediate: true }

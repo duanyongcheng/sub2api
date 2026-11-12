@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { flushPromises, mount } from '@vue/test-utils'
+import { config, flushPromises, mount } from '@vue/test-utils'
 
 import AccountsView from '../AccountsView.vue'
+
+config.global.stubs.RouterLink = { template: '<a><slot /></a>' }
 
 const {
   listAccounts,
@@ -272,10 +274,8 @@ describe('admin AccountsView bulk edit scope', () => {
 
     const columnKeys = wrapper.findAll('[data-test="column-key"]').map(node => node.text())
     expect(columnKeys).not.toContain('created_at')
-    await wrapper.get('button[title="admin.accounts.moreActions"]').trigger('click')
-    const toggle = [...document.body.querySelectorAll<HTMLButtonElement>('button')]
-      .find(button => button.textContent?.trim() === 'admin.accounts.columns.createdAt')!
-    toggle.click()
+    const toggle = wrapper.findAll('label').find(label => label.text() === 'admin.accounts.columns.createdAt')!
+    await toggle.get('input').setValue(true)
     await flushPromises()
     const columns = wrapper.getComponent(DataTableStub).props('columns') as Array<{ key: string; label: string; sortable: boolean }>
     expect(columns.find(column => column.key === 'created_at')).toMatchObject({
