@@ -939,6 +939,12 @@ export default {
         totalGroups: '{count} groups',
         noMatchingGroups: 'No matching groups',
         selectGroup: 'Select a group to configure, or create a new group.',
+        selectGroupShort: 'Select a group',
+        noDescription: 'No description',
+        unsaved: 'Unsaved',
+        clearFilters: 'Clear filters',
+        accountsShort: 'available',
+        rateLimitedShort: '{count} rate-limited',
         models: 'Models',
         modelMargin: 'Today actual margin',
         modelMarginBasis: 'Based on today’s requests with exact model names. Missing samples or costs show —. Draft price changes do not rewrite historical margins.',
@@ -1402,7 +1408,7 @@ export default {
         tooltipEdit: 'Select one or more groups of the same platform. After saving, current group accounts will be replaced with accounts from these groups (deduplicated).',
         selectPlaceholder: 'Select groups to copy accounts from...',
         hint: 'Multiple groups can be selected, accounts will be deduplicated',
-        hintEdit: '⚠️ Warning: This will replace all existing account bindings'
+        hintEdit: 'Warning: This will replace all existing account bindings'
       },
       modelRouting: {
         title: 'Model Routing',

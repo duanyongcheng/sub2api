@@ -1,50 +1,51 @@
 <template>
   <AppLayout>
-    <PageHeader :title="t('admin.groups.workspace.title')" :description="t('admin.groups.workspace.description')" class="mb-4">
-      <template #actions>
-        <button type="button" class="btn btn-secondary btn-icon" :disabled="loading" :aria-label="t('common.refresh')" @click="loadGroups"><Icon name="refresh" size="sm" :class="{ 'animate-spin': loading }" /></button>
-        <button type="button" class="btn btn-secondary" :aria-pressed="groupView === 'table'" @click="groupView = groupView === 'table' ? 'workspace' : 'table'"><Icon name="grid" size="sm" />{{ t(groupView === 'table' ? 'admin.groups.workspace.configuration' : 'admin.groups.workspace.tableView') }}</button>
-        <button v-if="!authStore.isSimpleMode" type="button" class="btn btn-secondary" @click="openSortModal"><Icon name="arrowsUpDown" size="sm" />{{ t('admin.groups.sortOrder') }}</button>
-        <button type="button" class="btn btn-primary" data-tour="groups-create-btn" @click="openCreateModal"><Icon name="plus" size="sm" />{{ t('admin.groups.createGroup') }}</button>
-      </template>
-    </PageHeader>
-    <div class="grid items-start gap-4" :class="groupView === 'workspace' ? 'lg:grid-cols-[268px_minmax(0,1fr)]' : ''">
-      <aside v-if="groupView === 'workspace'" class="card min-w-0 p-3 lg:sticky lg:top-20" :aria-label="t('admin.groups.workspace.groupList')">
-        <div class="mb-3 flex items-center justify-between text-xs text-ink-3"><span>{{ t('admin.groups.workspace.totalGroups', { count: pagination.total }) }}</span><span v-if="loading">{{ t('common.loading') }}</span></div>
-        <input v-model="searchQuery" class="input mb-2" :placeholder="t('admin.groups.searchGroups')" :aria-label="t('admin.groups.searchGroups')" @input="handleSearch" />
-        <div class="mb-3 grid grid-cols-2 gap-2">
-          <Select v-model="filters.platform" :options="platformFilterOptions" :aria-label="t('admin.groups.allPlatforms')" @change="handleGroupFilterChange" />
-          <Select v-model="filters.status" :options="statusOptions" :aria-label="t('admin.groups.allStatus')" @change="handleGroupFilterChange" />
-        </div>
-        <div class="max-h-[55vh] space-y-1 overflow-y-auto">
-          <button v-for="group in groups" :key="group.id" type="button" class="flex w-full items-start gap-2 rounded-field border px-3 py-3 text-left transition-colors" :class="editingGroup?.id === group.id && showEditModal ? 'border-primary-500/30 bg-primary-50' : 'border-transparent hover:bg-surface-2'" :aria-pressed="editingGroup?.id === group.id && showEditModal" :data-group-id="group.id" @click="requestSelectGroup(group)">
-            <PlatformIcon :platform="group.platform" size="sm" class="mt-0.5 shrink-0" />
-            <span class="min-w-0 flex-1"><span class="block truncate text-[13px] font-semibold text-ink">{{ group.name }}</span><span class="mt-1 block text-[11px] text-ink-3">{{ platformLabel(group.platform) }} · ×{{ group.rate_multiplier }} · {{ group.account_count ?? 0 }}</span></span>
-            <StatusPill :tone="group.status === 'active' ? 'ok' : 'neutral'" :dot="false">{{ t(`admin.accounts.status.${group.status}`) }}</StatusPill>
-          </button>
-          <p v-if="!loading && !groups.length" class="py-8 text-center text-xs text-ink-3">{{ t('admin.groups.workspace.noMatchingGroups') }}</p>
-        </div>
-        <div v-if="pagination.pages > 1" class="mt-3 flex items-center justify-between border-t border-edge pt-3 text-xs text-ink-3"><button type="button" class="btn btn-secondary btn-icon btn-sm" :disabled="pagination.page <= 1" :aria-label="t('pagination.previous')" @click="handlePageChange(pagination.page - 1)"><Icon name="chevronLeft" size="sm" /></button><span>{{ pagination.page }} / {{ pagination.pages }}</span><button type="button" class="btn btn-secondary btn-icon btn-sm" :disabled="pagination.page >= pagination.pages" :aria-label="t('pagination.next')" @click="handlePageChange(pagination.page + 1)"><Icon name="chevronRight" size="sm" /></button></div>
-      </aside>
-      <div class="min-w-0 space-y-4">
-    <TablePageLayout v-show="groupView === 'table'">
+    <div class="grid gap-4" :class="groupView === 'workspace' ? 'lg:h-[calc(100dvh-7.75rem)] lg:grid-cols-[288px_minmax(0,1fr)]' : ''">
+      <GroupDirectory
+        v-if="groupView === 'workspace'"
+        :groups="groups"
+        :selected-id="editingGroup?.id ?? null"
+        :loading="loading"
+        :search="searchQuery"
+        :platform="filters.platform"
+        :status="filters.status"
+        :platform-options="platformFilterOptions"
+        :status-options="statusOptions"
+        :total="pagination.total"
+        :simple="authStore.isSimpleMode"
+        @select="requestSelectGroup"
+        @search="handleDirectorySearch"
+        @platform="handleDirectoryPlatform"
+        @status="handleDirectoryStatus"
+        @sort="openSortModal"
+        @clear="clearDirectoryFilters"
+        @refresh="loadGroups"
+        @view="switchGroupView('table')"
+        @create="openCreateModal"
+      />
+      <div
+        class="min-w-0"
+        data-testid="group-workspace-detail"
+        :class="groupView === 'workspace' ? 'flex min-h-0 flex-col gap-4 lg:h-full' : ''"
+      >
+    <TablePageLayout v-show="groupView === 'table'" compact>
       <template #filters>
         <div
-          class="flex flex-col justify-between gap-4 lg:flex-row lg:items-start"
+          class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"
         >
           <!-- Left: fuzzy search + filters (can wrap to multiple lines) -->
-          <div class="flex flex-1 flex-wrap items-center gap-3">
+          <div class="flex flex-1 flex-wrap items-center gap-2.5">
             <div class="relative w-full sm:w-64">
               <Icon
                 name="search"
-                size="md"
-                class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500"
+                size="sm"
+                class="absolute left-3 top-1/2 -translate-y-1/2 text-ink-3"
               />
               <input
                 v-model="searchQuery"
                 type="text"
                 :placeholder="t('admin.groups.searchGroups')"
-                class="input pl-10"
+                class="input pl-9"
                 @input="handleSearch"
               />
             </div>
@@ -52,41 +53,63 @@
               v-model="filters.platform"
               :options="platformFilterOptions"
               :placeholder="t('admin.groups.allPlatforms')"
-              class="w-44"
-              @change="loadGroups"
+              class="w-40"
+              @change="handleGroupFilterChange"
             />
             <Select
               v-model="filters.status"
               :options="statusOptions"
               :placeholder="t('admin.groups.allStatus')"
               class="w-40"
-              @change="loadGroups"
+              @change="handleGroupFilterChange"
             />
             <Select
               v-if="!authStore.isSimpleMode"
               v-model="filters.is_exclusive"
               :options="exclusiveOptions"
               :placeholder="t('admin.groups.allGroups')"
-              class="w-44"
-              @change="loadGroups"
+              class="w-40"
+              @change="handleGroupFilterChange"
             />
+            <button
+              v-if="searchQuery || filters.platform || filters.status || filters.is_exclusive"
+              type="button"
+              class="text-xs font-medium text-ink-2 transition-colors hover:text-ink"
+              @click="clearDirectoryFilters"
+            >{{ t('admin.groups.workspace.clearFilters') }}</button>
           </div>
 
-          <!-- Right: actions -->
-          <div
-            class="flex w-full flex-shrink-0 flex-wrap items-center justify-end gap-3 lg:w-auto"
-          >
+          <!-- Right: column settings; refresh, sort and create live in the page header. -->
+          <div class="flex shrink-0 flex-wrap items-center justify-end gap-2">
             <button
-              @click="loadGroups"
+              type="button"
+              class="btn btn-secondary btn-icon"
               :disabled="loading"
-              class="btn btn-secondary"
               :title="t('common.refresh')"
+              :aria-label="t('common.refresh')"
+              @click="loadGroups"
             >
-              <Icon
-                name="refresh"
-                size="md"
-                :class="loading ? 'animate-spin' : ''"
-              />
+              <Icon name="refresh" size="sm" :class="{ 'animate-spin': loading }" />
+            </button>
+            <button
+              type="button"
+              class="btn btn-secondary"
+              :title="t('admin.groups.workspace.configuration')"
+              :aria-label="t('admin.groups.workspace.configuration')"
+              @click="switchGroupView('workspace')"
+            >
+              <Icon name="grid" size="sm" class="mr-2" />
+              <span class="hidden md:inline">{{ t("admin.groups.workspace.configuration") }}</span>
+            </button>
+            <button
+              v-if="!authStore.isSimpleMode"
+              type="button"
+              class="btn btn-secondary"
+              :title="t('admin.groups.sortOrder')"
+              @click="openSortModal"
+            >
+              <Icon name="arrowsUpDown" size="sm" class="mr-2" />
+              <span class="hidden md:inline">{{ t("admin.groups.sortOrder") }}</span>
             </button>
             <div class="relative" ref="columnDropdownRef">
               <button
@@ -94,20 +117,20 @@
                 class="btn btn-secondary"
                 :title="t('admin.groups.columnSettings')"
               >
-                <Icon name="grid" size="md" class="mr-2" />
+                <Icon name="grid" size="sm" class="mr-2" />
                 <span class="hidden md:inline">{{
                   t("admin.groups.columnSettings")
                 }}</span>
               </button>
               <div
                 v-if="showColumnDropdown"
-                class="absolute right-0 top-full z-50 mt-1 max-h-80 w-48 overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-dark-600 dark:bg-dark-800"
+                class="absolute right-0 top-full z-50 mt-1 max-h-80 w-48 overflow-y-auto rounded-field border border-edge bg-surface py-1 shadow-lg"
               >
                 <button
                   v-for="col in toggleableColumns"
                   :key="col.key"
                   @click="toggleColumn(col.key)"
-                  class="flex w-full items-center justify-between px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
+                  class="flex w-full items-center justify-between px-4 py-2 text-left text-sm text-ink-2 transition-colors hover:bg-surface-2 hover:text-ink"
                 >
                   <span>{{ col.label }}</span>
                   <Icon
@@ -120,20 +143,8 @@
                 </button>
               </div>
             </div>
-            <button
-              v-if="!authStore.isSimpleMode"
-              @click="openSortModal"
-              class="btn btn-secondary"
-              :title="t('admin.groups.sortOrder')"
-            >
-              <Icon name="arrowsUpDown" size="md" class="mr-2" />
-              {{ t("admin.groups.sortOrder") }}
-            </button>
-            <button
-              @click="openCreateModal"
-              class="btn btn-primary"
-            >
-              <Icon name="plus" size="md" class="mr-2" />
+            <button type="button" class="btn btn-primary" @click="openCreateModal">
+              <Icon name="plus" size="sm" class="mr-2" />
               {{ t("admin.groups.createGroup") }}
             </button>
           </div>
@@ -143,7 +154,7 @@
       <template #table>
         <DataTable
           :columns="columns"
-          :data="groups"
+          :data="tableGroups"
           :loading="loading"
           :server-side-sort="true"
           default-sort-key="sort_order"
@@ -151,56 +162,28 @@
           @sort="handleSort"
         >
           <template #cell-name="{ value }">
-            <span class="font-medium text-gray-900 dark:text-white">{{
-              value
-            }}</span>
+            <span class="font-semibold text-ink">{{ value }}</span>
           </template>
 
           <template #cell-id="{ value }">
-            <span class="font-mono text-xs text-gray-500 dark:text-gray-400"
-              >#{{ value }}</span
-            >
+            <span class="font-mono text-[11px] text-ink-2">#{{ value }}</span>
           </template>
 
           <template #cell-platform="{ value }">
-            <span
-              :class="[
-                'inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium',
-                value === 'anthropic'
-                  ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
-                  : value === 'openai'
-                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
-                    : value === 'antigravity'
-                      ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
-                      : value === 'grok'
-                        ? 'bg-zinc-200 text-zinc-800 dark:bg-zinc-700 dark:text-zinc-100'
-                        : value === 'kimi'
-                          ? 'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400'
-                          : value === 'zhipu'
-                            ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400'
-                            : value === 'deepseek'
-                              ? 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400'
-                              : value === 'minimax'
-                                ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'
-                              : value === 'opencode_go'
-                                ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300'
-                                : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-              ]"
-            >
+            <span class="inline-flex items-center gap-1.5 rounded-md border border-edge bg-surface-2 px-2 py-0.5 text-[11.5px] font-medium text-ink-2">
               <PlatformIcon :platform="value" size="xs" />
               {{ t("admin.groups.platforms." + value, platformLabel(value)) }}
             </span>
           </template>
 
           <template #cell-billing_type="{ row }">
-            <div class="space-y-1">
-              <!-- Type Badge -->
+            <div class="max-w-[210px] space-y-1 whitespace-normal">
               <span
                 :class="[
-                  'inline-block rounded-full px-2 py-0.5 text-xs font-medium',
+                  'pill',
                   row.subscription_type === 'subscription'
-                    ? 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400'
-                    : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300',
+                    ? 'pill-violet'
+                    : 'pill-neutral',
                 ]"
               >
                 {{
@@ -212,7 +195,7 @@
               <!-- Subscription Limits - compact single line -->
               <div
                 v-if="row.subscription_type === 'subscription'"
-                class="space-y-0.5 text-xs text-gray-500 dark:text-gray-400"
+                class="space-y-0.5 text-[11px] leading-4 text-ink-2"
               >
                 <div
                   v-if="
@@ -223,11 +206,7 @@
                   class="flex flex-wrap items-center gap-x-1 gap-y-0.5"
                 >
                   <span v-if="row.daily_limit_usd" class="whitespace-nowrap">
-                    <span
-                      v-if="usageLoading"
-                      class="font-medium text-gray-400 dark:text-gray-500"
-                      >—</span
-                    >
+                    <span v-if="usageLoading" class="text-ink-2">—</span>
                     <span
                       v-else
                       :class="
@@ -240,7 +219,7 @@
                         formatUsd(usageMap.get(row.id)?.today_cost ?? 0)
                       }}</span
                     >
-                    <span class="text-gray-400 dark:text-gray-500">
+                    <span class="text-ink-2">
                       / {{ formatUsd(row.daily_limit_usd) }}/{{
                         t("admin.groups.limitDay")
                       }}</span
@@ -251,7 +230,7 @@
                       row.daily_limit_usd &&
                       (row.weekly_limit_usd || row.monthly_limit_usd)
                     "
-                    class="mx-1 text-gray-300 dark:text-gray-600"
+                    class="mx-1 text-ink-3/60"
                     >·</span
                   >
                   <span v-if="row.weekly_limit_usd" class="whitespace-nowrap"
@@ -261,7 +240,7 @@
                   >
                   <span
                     v-if="row.weekly_limit_usd && row.monthly_limit_usd"
-                    class="mx-1 text-gray-300 dark:text-gray-600"
+                    class="mx-1 text-ink-3/60"
                     >·</span
                   >
                   <span v-if="row.monthly_limit_usd" class="whitespace-nowrap"
@@ -270,31 +249,29 @@
                     }}</span
                   >
                 </div>
-                <span v-else class="text-gray-400 dark:text-gray-500">{{
+                <span v-else class="text-ink-2">{{
                   t("admin.groups.subscription.noLimit")
                 }}</span>
-                <div class="text-gray-400 dark:text-gray-500">
+                <div class="text-ink-2">
                   {{ t("admin.groups.usageTotal") }}
-                  <span class="ml-1 font-medium text-gray-600 dark:text-gray-300"
-                    >{{
-                      usageLoading
-                        ? "—"
-                        : formatUsd(usageMap.get(row.id)?.total_cost ?? 0)
-                    }}</span
-                  >
+                  <span class="ml-1 font-medium tabular-nums text-ink-2">{{
+                    usageLoading
+                      ? "—"
+                      : formatUsd(usageMap.get(row.id)?.total_cost ?? 0)
+                  }}</span>
                 </div>
               </div>
             </div>
           </template>
 
           <template #cell-rate_multiplier="{ value }">
-            <span class="text-sm text-gray-700 dark:text-gray-300"
-              >{{ value }}x</span
+            <span class="text-[13px] font-semibold tabular-nums text-ink"
+              >{{ value }}×</span
             >
           </template>
 
           <template #cell-is_exclusive="{ value }">
-            <span :class="['badge', value ? 'badge-primary' : 'badge-gray']">
+            <span :class="['pill', value ? 'pill-brand' : 'pill-neutral']">
               {{
                 value ? t("admin.groups.exclusive") : t("admin.groups.public")
               }}
@@ -302,45 +279,27 @@
           </template>
 
           <template #cell-account_count="{ row }">
-            <div class="space-y-0.5 text-xs">
-              <div>
-                <span class="text-gray-500 dark:text-gray-400">{{
-                  t("admin.groups.accountsAvailable")
+            <div class="space-y-0.5">
+              <div class="flex items-baseline gap-1.5">
+                <span class="text-[13px] font-semibold tabular-nums text-ink">{{
+                  row.active_account_count || 0
                 }}</span>
-                <span
-                  class="ml-1 font-medium text-emerald-600 dark:text-emerald-400"
-                  >{{ row.active_account_count || 0 }}</span
+                <span class="text-[11px] tabular-nums text-ink-2"
+                  >/ {{ row.account_count || 0 }}</span
                 >
-                <span
-                  class="ml-1 inline-flex items-center rounded bg-gray-100 px-1.5 py-0.5 font-medium text-gray-800 dark:bg-dark-600 dark:text-gray-300"
-                  >{{ t("admin.groups.accountsUnit") }}</span
-                >
+                <span class="text-[10.5px] text-ink-2">{{
+                  t("admin.groups.workspace.accountsShort")
+                }}</span>
               </div>
-              <div v-if="row.rate_limited_account_count">
-                <span class="text-gray-500 dark:text-gray-400">{{
-                  t("admin.groups.accountsRateLimited")
-                }}</span>
-                <span
-                  class="ml-1 font-medium text-amber-600 dark:text-amber-400"
-                  >{{ row.rate_limited_account_count }}</span
-                >
-                <span
-                  class="ml-1 inline-flex items-center rounded bg-gray-100 px-1.5 py-0.5 font-medium text-gray-800 dark:bg-dark-600 dark:text-gray-300"
-                  >{{ t("admin.groups.accountsUnit") }}</span
-                >
-              </div>
-              <div>
-                <span class="text-gray-500 dark:text-gray-400">{{
-                  t("admin.groups.accountsTotal")
-                }}</span>
-                <span
-                  class="ml-1 font-medium text-gray-700 dark:text-gray-300"
-                  >{{ row.account_count || 0 }}</span
-                >
-                <span
-                  class="ml-1 inline-flex items-center rounded bg-gray-100 px-1.5 py-0.5 font-medium text-gray-800 dark:bg-dark-600 dark:text-gray-300"
-                  >{{ t("admin.groups.accountsUnit") }}</span
-                >
+              <div
+                v-if="row.rate_limited_account_count"
+                class="text-[11px] tabular-nums text-amber-600 dark:text-amber-400"
+              >
+                {{
+                  t("admin.groups.workspace.rateLimitedShort", {
+                    count: row.rate_limited_account_count,
+                  })
+                }}
               </div>
             </div>
           </template>
@@ -355,37 +314,35 @@
               :rpm-used="capacityMap.get(row.id)!.rpmUsed"
               :rpm-max="capacityMap.get(row.id)!.rpmMax"
             />
-            <span v-else class="text-xs text-gray-400">—</span>
+            <span v-else class="text-xs text-ink-2">—</span>
           </template>
 
           <template #cell-usage="{ row }">
-            <div v-if="usageLoading" class="text-xs text-gray-400">—</div>
-            <div v-else class="space-y-0.5 text-xs">
-              <div class="text-gray-500 dark:text-gray-400">
-                <span class="text-gray-400 dark:text-gray-500">{{
+            <div v-if="usageLoading" class="text-xs text-ink-2">—</div>
+            <div v-else class="space-y-0.5 text-[11px] leading-4">
+              <div class="flex items-baseline justify-between gap-2">
+                <span class="text-ink-2">{{
                   t("admin.groups.usageToday")
                 }}</span>
-                <span class="ml-1 font-medium text-gray-700 dark:text-gray-300"
-                  >${{
-                    formatCost(usageMap.get(row.id)?.today_cost ?? 0)
-                  }}</span
+                <span class="font-medium tabular-nums text-ink-2"
+                  >${{ formatCost(usageMap.get(row.id)?.today_cost ?? 0) }}</span
                 >
               </div>
-              <div class="text-gray-500 dark:text-gray-400">
-                <span class="text-gray-400 dark:text-gray-500">{{
+              <div class="flex items-baseline justify-between gap-2">
+                <span class="text-ink-2">{{
                   t("admin.groups.usageYesterday")
                 }}</span>
-                <span class="ml-1 font-medium text-gray-700 dark:text-gray-300"
+                <span class="font-medium tabular-nums text-ink-2"
                   >${{
                     formatCost(usageMap.get(row.id)?.yesterday_cost ?? 0)
                   }}</span
                 >
               </div>
-              <div class="text-gray-500 dark:text-gray-400">
-                <span class="text-gray-400 dark:text-gray-500">{{
+              <div class="flex items-baseline justify-between gap-2">
+                <span class="text-ink-2">{{
                   t("admin.groups.usageTotal")
                 }}</span>
-                <span class="ml-1 font-medium text-gray-700 dark:text-gray-300"
+                <span class="font-medium tabular-nums text-ink-2"
                   >${{
                     formatCost(usageMap.get(row.id)?.total_cost ?? 0)
                   }}</span
@@ -395,24 +352,21 @@
           </template>
 
           <template #cell-status="{ value }">
-            <span
-              :class="[
-                'badge',
-                value === 'active' ? 'badge-success' : 'badge-danger',
-              ]"
-            >
+            <StatusPill :tone="value === 'active' ? 'ok' : 'neutral'">
               {{ t("admin.accounts.status." + value) }}
-            </span>
+            </StatusPill>
           </template>
 
           <template #cell-actions="{ row }">
-            <div class="flex items-center gap-1">
+            <div class="flex items-center gap-0.5">
               <button
                 @click="requestSelectGroup(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400"
+                class="table-action"
+                :title="t('common.edit')"
+                :aria-label="t('common.edit')"
               >
                 <Icon name="edit" size="sm" />
-                <span class="text-xs">{{ t("common.edit") }}</span>
+                <span class="sr-only">{{ t("common.edit") }}</span>
               </button>
               <button
                 v-if="!authStore.isSimpleMode"
@@ -422,58 +376,54 @@
                     ? t('admin.groups.duplicating')
                     : t('admin.groups.duplicate')
                 "
+                :aria-label="
+                  duplicatingGroupIds.has(row.id)
+                    ? t('admin.groups.duplicating')
+                    : t('admin.groups.duplicate')
+                "
                 :disabled="duplicatingGroupIds.has(row.id)"
                 @click="handleDuplicate(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-dark-700 dark:hover:text-primary-400"
+                class="table-action disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <Icon name="copy" size="sm" />
-                <span class="text-xs">
-                  {{
-                    duplicatingGroupIds.has(row.id)
-                      ? t("admin.groups.duplicating")
-                      : t("admin.groups.duplicate")
-                  }}
-                </span>
               </button>
               <button
                 v-if="!authStore.isSimpleMode && row.platform === 'composite'"
                 data-testid="group-composite-routes"
+                :title="t('admin.groups.compositeRoutes.action')"
+                :aria-label="t('admin.groups.compositeRoutes.action')"
                 @click="handleCompositeRoutes(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-cyan-600 dark:hover:bg-dark-700 dark:hover:text-cyan-400"
+                class="table-action hover:text-cyan-600 dark:hover:text-cyan-400"
               >
                 <Icon name="swap" size="sm" />
-                <span class="text-xs">{{
-                  t("admin.groups.compositeRoutes.action")
-                }}</span>
               </button>
               <button
                 v-if="!authStore.isSimpleMode"
                 data-testid="group-rate-multipliers"
+                :title="t('admin.groups.rateMultipliers')"
+                :aria-label="t('admin.groups.rateMultipliers')"
                 @click="handleRateMultipliers(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-purple-600 dark:hover:bg-dark-700 dark:hover:text-purple-400"
+                class="table-action hover:text-violet-600 dark:hover:text-violet-400"
               >
                 <Icon name="dollar" size="sm" />
-                <span class="text-xs">{{
-                  t("admin.groups.rateMultipliers")
-                }}</span>
               </button>
               <button
                 v-if="!authStore.isSimpleMode"
                 data-testid="group-rpm-overrides"
+                :title="t('admin.groups.rpmOverrides')"
+                :aria-label="t('admin.groups.rpmOverrides')"
                 @click="handleRPMOverrides(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-orange-600 dark:hover:bg-dark-700 dark:hover:text-orange-400"
+                class="table-action hover:text-orange-600 dark:hover:text-orange-400"
               >
                 <Icon name="bolt" size="sm" />
-                <span class="text-xs">{{
-                  t("admin.groups.rpmOverrides")
-                }}</span>
               </button>
               <button
                 @click="handleDelete(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+                class="table-action hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+                :title="t('common.delete')"
+                :aria-label="t('common.delete')"
               >
                 <Icon name="trash" size="sm" />
-                <span class="text-xs">{{ t("common.delete") }}</span>
               </button>
             </div>
           </template>
@@ -501,33 +451,37 @@
       </template>
     </TablePageLayout>
 
-    <section v-if="editingGroup && showEditModal" class="card space-y-4 p-5">
-      <div class="flex flex-wrap items-start justify-between gap-3">
-        <div class="min-w-0"><h3 class="text-lg font-semibold text-ink">{{ editingGroup.name }}</h3><p v-if="editingGroup.description" class="mt-1 whitespace-normal text-xs text-ink-3">{{ editingGroup.description }}</p></div>
-        <div class="flex flex-wrap gap-2">
-          <button v-if="!authStore.isSimpleMode" type="button" class="btn btn-secondary btn-sm" :disabled="duplicatingGroupIds.has(editingGroup.id)" @click="handleDuplicate(editingGroup)"><Icon name="copy" size="sm" />{{ t('admin.groups.duplicate') }}</button>
-          <button v-if="!authStore.isSimpleMode" type="button" class="btn btn-secondary btn-sm" @click="handleRateMultipliers(editingGroup)">{{ t('admin.groups.rateMultipliers') }}</button>
-          <button v-if="!authStore.isSimpleMode" type="button" class="btn btn-secondary btn-sm" @click="handleRPMOverrides(editingGroup)">{{ t('admin.groups.rpmOverrides') }}</button>
-          <button type="button" class="btn btn-ghost btn-icon btn-sm text-red-600" :aria-label="t('admin.groups.deleteGroup')" @click="handleDelete(editingGroup)"><Icon name="trash" size="sm" /></button>
-        </div>
-      </div>
-      <GroupEconomicsSummary v-if="!authStore.isSimpleMode" :group="editingGroup" :draft-rate="Number(editForm.rate_multiplier)" />
-    </section>
-    <div v-if="!showCreateModal && !showEditModal && groupView === 'workspace'" class="card px-5 py-16 text-center text-sm text-ink-3">{{ t('admin.groups.workspace.selectGroup') }}</div>
+    <GroupOverview
+      v-if="groupView === 'workspace' && editingGroup && showEditModal"
+      class="shrink-0"
+      :group="editingGroup"
+      :draft-rate="Number(editForm.rate_multiplier)"
+      :simple="authStore.isSimpleMode"
+      :duplicating="duplicatingGroupIds.has(editingGroup.id)"
+      @duplicate="handleDuplicate(editingGroup)"
+      @rates="handleRateMultipliers(editingGroup)"
+      @rpm="handleRPMOverrides(editingGroup)"
+      @delete="handleDelete(editingGroup)"
+    />
+    <div v-if="!showCreateModal && !showEditModal && groupView === 'workspace'" class="card flex flex-1 items-center justify-center px-5 py-16 text-center text-sm text-ink-2">{{ t('admin.groups.workspace.selectGroup') }}</div>
 
     <!-- Create Group Modal -->
     <GroupEditorPanel
+      v-if="groupView === 'workspace'"
+      class="min-h-0 lg:flex-1"
       :show="showCreateModal"
       :title="t('admin.groups.createGroup')"
       @close="requestCloseEditor"
     >
+      <template #toolbar>
+        <GroupConfigTabs v-model="createConfigTab" :simple="authStore.isSimpleMode" :available-tabs="configurationTabs(createForm.platform, createForm.subscription_type)" />
+      </template>
       <form
         id="create-group-form"
         @submit.prevent="handleCreateGroup"
         @invalid.capture="revealInvalidGroupField($event, 'create')"
         class="space-y-5"
       >
-        <GroupConfigTabs v-model="createConfigTab" :simple="authStore.isSimpleMode" :available-tabs="configurationTabs(createForm.platform, createForm.subscription_type)" />
         <div v-if="createConfigTab === 'routes' && createForm.platform === 'composite'" class="rounded-field border border-edge p-4">
           <p class="mb-3 text-sm text-ink-2">{{ t('admin.groups.workspace.compositeHint') }}</p>
           <button type="button" class="btn btn-secondary" @click="createConfigTab = 'basic'">{{ t('admin.groups.workspace.saveFirst') }}</button>
@@ -569,7 +523,7 @@
         <!-- 从分组复制账号 -->
         <div v-show="createConfigTab === 'basic'" data-group-section="basic" v-if="!authStore.isSimpleMode && copyAccountsGroupOptions.length > 0">
           <div class="mb-1.5 flex items-center gap-1">
-            <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+            <label class="text-sm font-medium text-ink-2">
               {{ t("admin.groups.copyAccounts.title") }}
             </label>
             <div class="group relative inline-flex">
@@ -577,10 +531,10 @@
                 name="questionCircle"
                 size="sm"
                 :stroke-width="2"
-                class="cursor-help text-gray-400 transition-colors hover:text-primary-500 dark:text-gray-500 dark:hover:text-primary-400"
+                class="cursor-help text-ink-3 transition-colors hover:text-primary-500 dark:text-ink-2 dark:hover:text-primary-400"
               />
               <div
-                class="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-72 opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100"
+                class="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-60 opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100"
               >
                 <div
                   class="rounded-lg bg-gray-900 p-3 text-white shadow-lg dark:bg-gray-800"
@@ -697,7 +651,7 @@
           data-tour="group-form-exclusive"
         >
           <div class="mb-1.5 flex items-center gap-1">
-            <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+            <label class="text-sm font-medium text-ink-2">
               {{ t("admin.groups.form.exclusive") }}
             </label>
             <!-- Help Tooltip -->
@@ -706,11 +660,11 @@
                 name="questionCircle"
                 size="sm"
                 :stroke-width="2"
-                class="cursor-help text-gray-400 transition-colors hover:text-primary-500 dark:text-gray-500 dark:hover:text-primary-400"
+                class="cursor-help text-ink-3 transition-colors hover:text-primary-500 dark:text-ink-2 dark:hover:text-primary-400"
               />
               <!-- Tooltip Popover -->
               <div
-                class="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-72 opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100"
+                class="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-60 opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100"
               >
                 <div
                   class="rounded-lg bg-gray-900 p-3 text-white shadow-lg dark:bg-gray-800"
@@ -741,7 +695,7 @@
           </div>
           <div class="flex items-center gap-3">
             <Toggle v-model="createForm.is_exclusive" />
-            <span class="text-sm text-gray-500 dark:text-gray-400">
+            <span class="text-sm text-ink-2">
               {{
                 createForm.is_exclusive
                   ? t("admin.groups.exclusive")
@@ -816,10 +770,10 @@
         <div v-show="createConfigTab === 'models'" data-group-section="models" class="border-t pt-4">
           <div class="mb-3 flex items-center justify-between gap-3">
             <div>
-              <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+              <label class="text-sm font-medium text-ink-2">
                 {{ t("admin.groups.modelAllowlist.title") }}
               </label>
-              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              <p class="mt-1 text-xs text-ink-2">
                 {{ t("admin.groups.modelAllowlist.hint") }}
               </p>
             </div>
@@ -827,13 +781,13 @@
           </div>
           <div
             v-if="createModelAllowlistState.enabled"
-            class="overflow-hidden rounded-lg border border-gray-200 bg-gray-50/50 dark:border-dark-600 dark:bg-dark-800/40"
+            class="overflow-hidden rounded-lg border border-edge bg-surface-2/50 dark:border-dark-600 dark:bg-dark-800/40"
           >
             <div
               v-if="!createModelAllowlistLoading && createModelAllowlistState.items.length > 0"
-              class="flex items-center justify-between gap-2 border-b border-gray-200 bg-gray-50 px-3 py-2 text-xs dark:border-dark-600 dark:bg-dark-800"
+              class="flex items-center justify-between gap-2 border-b border-edge bg-surface-2 px-3 py-2 text-xs dark:border-dark-600 dark:bg-dark-800"
             >
-              <span class="text-gray-500 dark:text-gray-400">
+              <span class="text-ink-2">
                 {{
                   t("admin.groups.modelAllowlist.selectedSummary", {
                     selected: createModelAllowlistSelectedCount,
@@ -851,7 +805,7 @@
                 </button>
                 <button
                   type="button"
-                  class="rounded px-2 py-1 font-medium text-gray-600 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
+                  class="rounded px-2 py-1 font-medium text-ink-2 transition-colors hover:bg-surface-3 dark:text-ink-2 dark:hover:bg-dark-700"
                   @click="invertModelAllowlistSelection(createModelAllowlistState)"
                 >
                   {{ t("admin.groups.modelAllowlist.invertSelection") }}
@@ -861,26 +815,26 @@
             <div
               class="max-h-64 space-y-2 overflow-y-auto p-2"
             >
-              <p v-if="createModelAllowlistLoading" class="text-xs text-gray-500 dark:text-gray-400">
+              <p v-if="createModelAllowlistLoading" class="text-xs text-ink-2">
                 {{ t("admin.groups.modelAllowlist.loading") }}
               </p>
               <p
                 v-else-if="createModelAllowlistState.items.length === 0"
-                class="text-xs text-gray-500 dark:text-gray-400"
+                class="text-xs text-ink-2"
               >
                 {{ t("admin.groups.modelAllowlist.empty") }}
               </p>
               <div
                 v-for="(item, index) in createModelAllowlistState.items"
                 :key="item.id"
-                class="flex items-center gap-2 rounded border border-gray-200 bg-white px-3 py-2 dark:border-dark-600 dark:bg-dark-800"
+                class="flex items-center gap-2 rounded border border-edge bg-white px-3 py-2 dark:border-dark-600 dark:bg-dark-800"
               >
                 <input
                   v-model="item.selected"
                   type="checkbox"
-                  class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                  class="h-4 w-4 rounded border-edge-strong text-primary-600 focus:ring-primary-500"
                 />
-                <span class="min-w-0 flex-1 break-all text-sm text-gray-700 dark:text-gray-300">
+                <span class="min-w-0 flex-1 break-all text-sm text-ink-2">
                   {{ item.id }}
                   <span
                     v-if="item.id.includes('*')"
@@ -892,7 +846,7 @@
                 <button
                   type="button"
                   :disabled="index === 0"
-                  class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-40 dark:hover:bg-dark-600 dark:hover:text-gray-200"
+                  class="rounded p-1 text-ink-3 hover:bg-surface-3 hover:text-ink disabled:opacity-40 dark:hover:bg-dark-600 dark:hover:text-ink"
                   @click="moveCreateModelAllowlistItem(index, index - 1)"
                 >
                   <Icon name="arrowUp" size="sm" />
@@ -900,20 +854,20 @@
                 <button
                   type="button"
                   :disabled="index === createModelAllowlistState.items.length - 1"
-                  class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-40 dark:hover:bg-dark-600 dark:hover:text-gray-200"
+                  class="rounded p-1 text-ink-3 hover:bg-surface-3 hover:text-ink disabled:opacity-40 dark:hover:bg-dark-600 dark:hover:text-ink"
                   @click="moveCreateModelAllowlistItem(index, index + 1)"
                 >
                   <Icon name="arrowDown" size="sm" />
                 </button>
               </div>
             </div>
-            <div class="border-t border-gray-200 px-3 py-2 dark:border-dark-600">
+            <div class="border-t border-edge px-3 py-2 dark:border-dark-600">
               <div class="flex items-center gap-2">
                 <input
                   v-model="createAllowlistCustomEntry"
                   type="text"
                   :placeholder="t('admin.groups.modelAllowlist.customPlaceholder')"
-                  class="min-w-0 flex-1 rounded border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-700 focus:border-primary-500 focus:outline-none dark:border-dark-500 dark:bg-dark-700 dark:text-gray-200"
+                  class="min-w-0 flex-1 rounded border border-edge-strong bg-white px-2 py-1.5 text-sm text-ink-2 focus:border-primary-500 focus:outline-none dark:border-dark-500 dark:bg-dark-700 dark:text-ink"
                   @keydown.enter.prevent="submitCreateAllowlistCustomEntry"
                 />
                 <button
@@ -940,27 +894,27 @@
           class="border-t pt-4"
         >
           <label
-            class="block mb-2 font-medium text-gray-700 dark:text-gray-300"
+            class="block mb-2 font-medium text-ink-2"
           >
             {{ t(imagePricingI18nKey(createForm.platform, "title")) }}
           </label>
-          <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
+          <p class="text-xs text-ink-2 mb-3">
             {{ t(imagePricingI18nKey(createForm.platform, "description")) }}
           </p>
           <div class="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-            <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+            <label class="flex items-center gap-2 text-sm text-ink-2">
               <input
                 v-model="createForm.allow_image_generation"
                 type="checkbox"
-                class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                class="rounded border-edge-strong text-blue-600 focus:ring-blue-500"
               />
               {{ t(imagePricingI18nKey(createForm.platform, "allowImageGeneration")) }}
             </label>
-            <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+            <label class="flex items-center gap-2 text-sm text-ink-2">
               <input
                 v-model="createForm.image_rate_independent"
                 type="checkbox"
-                class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                class="rounded border-edge-strong text-blue-600 focus:ring-blue-500"
               />
               {{ t(imagePricingI18nKey(createForm.platform, "independentMultiplier")) }}
             </label>
@@ -969,12 +923,12 @@
                 createForm.allow_image_generation &&
                 (createForm.platform === 'composite' || createForm.platform === 'openai')
               "
-              class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300"
+              class="flex items-center gap-2 text-sm text-ink-2"
             >
               <input
                 v-model="createForm.image_count_billing"
                 type="checkbox"
-                class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                class="rounded border-edge-strong text-blue-600 focus:ring-blue-500"
               />
               {{ t("admin.groups.imagePricing.perImageBilling") }}
             </label>
@@ -1030,10 +984,10 @@
               />
             </div>
           </div>
-          <p class="mt-3 text-xs text-gray-500 dark:text-gray-400">
+          <p class="mt-3 text-xs text-ink-2">
             {{ t(imagePricingI18nKey(createForm.platform, "modeHint")) }}
           </p>
-          <div class="mt-2 rounded-lg bg-gray-50 p-3 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-300">
+          <div class="mt-2 rounded-lg bg-surface-2 p-3 text-xs text-ink-2 dark:bg-gray-800 dark:text-ink-2">
             <div class="mb-1 font-medium">
               {{ t(imagePricingI18nKey(createForm.platform, "finalPricePreview")) }}
             </div>
@@ -1046,18 +1000,18 @@
               </div>
             </div>
           </div>
-          <div v-if="createForm.platform === 'gemini' && createForm.allow_image_generation" class="mt-4 border-t border-dashed border-gray-200 pt-4 dark:border-dark-700">
+          <div v-if="createForm.platform === 'gemini' && createForm.allow_image_generation" class="mt-4 border-t border-dashed border-edge pt-4 dark:border-dark-700">
             <label
-              class="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300"
+              class="flex items-center gap-2 text-sm font-medium text-ink-2"
             >
               <input
                 v-model="createForm.allow_batch_image_generation"
                 type="checkbox"
-                class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                class="rounded border-edge-strong text-blue-600 focus:ring-blue-500"
               />
               {{ t("admin.groups.imagePricing.allowBatchImageGeneration") }}
             </label>
-            <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+            <p class="mt-2 text-xs text-ink-2">
               {{ t("admin.groups.imagePricing.batchSectionHint") }}
             </p>
             <div
@@ -1094,7 +1048,7 @@
           </div>
           <p
             v-else-if="createForm.platform !== 'gemini'"
-            class="mt-4 border-t border-dashed border-gray-200 pt-4 text-xs text-gray-500 dark:border-dark-700 dark:text-gray-400"
+            class="mt-4 border-t border-dashed border-edge pt-4 text-xs text-ink-2 dark:border-dark-700 dark:text-ink-2"
           >
             {{ t("admin.groups.imagePricing.batchGeminiOnlyHint") }}
           </p>
@@ -1106,19 +1060,19 @@
           class="border-t pt-4"
         >
           <label
-            class="block mb-2 font-medium text-gray-700 dark:text-gray-300"
+            class="block mb-2 font-medium text-ink-2"
           >
             {{ t(videoPricingI18nKey("title")) }}
           </label>
-          <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
+          <p class="text-xs text-ink-2 mb-3">
             {{ t(videoPricingI18nKey("description")) }}
           </p>
           <div class="mb-4">
-            <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+            <label class="flex items-center gap-2 text-sm text-ink-2">
               <input
                 v-model="createForm.video_rate_independent"
                 type="checkbox"
-                class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                class="rounded border-edge-strong text-blue-600 focus:ring-blue-500"
               />
               {{ t(videoPricingI18nKey("independentMultiplier")) }}
             </label>
@@ -1175,13 +1129,13 @@
             </div>
           </div>
           <div
-            class="mt-4 border-t border-dashed border-gray-200 pt-4 dark:border-dark-700"
+            class="mt-4 border-t border-dashed border-edge pt-4 dark:border-dark-700"
             data-testid="create-grok-video-model-prices"
           >
-            <p class="text-sm font-medium text-gray-700 dark:text-gray-300">
+            <p class="text-sm font-medium text-ink-2">
               {{ t("admin.groups.videoPricing.modelOverridesTitle") }}
             </p>
-            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            <p class="mt-1 text-xs text-ink-2">
               {{ t("admin.groups.videoPricing.modelOverridesDescription") }}
             </p>
             <div class="mt-3 space-y-3">
@@ -1190,7 +1144,7 @@
                 :key="family.key"
                 class="grid gap-2 sm:grid-cols-[minmax(0,1fr)_repeat(3,minmax(0,7rem))] sm:items-end"
               >
-                <div class="min-w-0 pb-1 font-mono text-xs text-gray-700 dark:text-gray-300">
+                <div class="min-w-0 pb-1 font-mono text-xs text-ink-2">
                   {{ family.label }}
                 </div>
                 <label
@@ -1198,7 +1152,7 @@
                   :key="resolution.key"
                   class="block"
                 >
-                  <span class="mb-1 block text-xs text-gray-500 dark:text-gray-400">
+                  <span class="mb-1 block text-xs text-ink-2">
                     {{ resolution.label }} ($/s)
                   </span>
                   <input
@@ -1213,10 +1167,10 @@
               </div>
             </div>
           </div>
-          <p class="mt-3 text-xs text-gray-500 dark:text-gray-400">
+          <p class="mt-3 text-xs text-ink-2">
             {{ t(videoPricingI18nKey("modeHint")) }}
           </p>
-          <div class="mt-2 rounded-lg bg-gray-50 p-3 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-300">
+          <div class="mt-2 rounded-lg bg-surface-2 p-3 text-xs text-ink-2 dark:bg-gray-800 dark:text-ink-2">
             <div class="mb-1 font-medium">
               {{ t(videoPricingI18nKey("finalPricePreview")) }}
             </div>
@@ -1234,11 +1188,11 @@
         <!-- 高峰时段倍率配置（仅订阅类型分组） -->
         <div v-show="createConfigTab === 'rates'" data-group-section="rates" v-if="createForm.subscription_type === 'subscription'" class="border-t pt-4">
           <div class="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-            <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+            <label class="flex items-center gap-2 text-sm text-ink-2">
               <input
                 v-model="createForm.peak_rate_enabled"
                 type="checkbox"
-                class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                class="rounded border-edge-strong text-blue-600 focus:ring-blue-500"
               />
               <span>{{ t("admin.groups.peakRate.enable") }}</span>
             </label>
@@ -1280,15 +1234,15 @@
 
         <!-- 分组利润控制（五个平台 token 请求） -->
         <div v-show="createConfigTab === 'profit'" data-group-section="profit" v-if="isProfitControlPlatform(createForm.platform)" class="border-t pt-4">
-          <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+          <label class="flex items-center gap-2 text-sm text-ink-2">
             <input
               v-model="createForm.profit_control_enabled"
               type="checkbox"
-              class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              class="rounded border-edge-strong text-blue-600 focus:ring-blue-500"
             />
             <span>{{ t("admin.groups.profitControl.enable") }}</span>
           </label>
-          <p class="mb-3 mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+          <p class="mb-3 mt-1.5 text-xs text-ink-2">
             {{
               createForm.profit_control_enabled
                 ? t("admin.groups.profitControl.enabledHint")
@@ -1331,7 +1285,7 @@
         <!-- 支持的模型系列（仅 antigravity 平台） -->
         <div v-show="createConfigTab === 'models'" data-group-section="models" v-if="createForm.platform === 'antigravity'" class="border-t pt-4">
           <div class="mb-1.5 flex items-center gap-1">
-            <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+            <label class="text-sm font-medium text-ink-2">
               {{ t("admin.groups.supportedScopes.title") }}
             </label>
             <!-- Help Tooltip -->
@@ -1340,10 +1294,10 @@
                 name="questionCircle"
                 size="sm"
                 :stroke-width="2"
-                class="cursor-help text-gray-400 transition-colors hover:text-primary-500 dark:text-gray-500 dark:hover:text-primary-400"
+                class="cursor-help text-ink-3 transition-colors hover:text-primary-500 dark:text-ink-2 dark:hover:text-primary-400"
               />
               <div
-                class="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-72 opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100"
+                class="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-60 opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100"
               >
                 <div
                   class="rounded-lg bg-gray-900 p-3 text-white shadow-lg dark:bg-gray-800"
@@ -1364,9 +1318,9 @@
                 type="checkbox"
                 :checked="createForm.supported_model_scopes.includes('claude')"
                 @change="toggleCreateScope('claude')"
-                class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 dark:border-dark-600 dark:bg-dark-700"
+                class="h-4 w-4 rounded border-edge-strong text-primary-600 focus:ring-primary-500 dark:border-dark-600 dark:bg-dark-700"
               />
-              <span class="text-sm text-gray-700 dark:text-gray-300">{{
+              <span class="text-sm text-ink-2">{{
                 t("admin.groups.supportedScopes.claude")
               }}</span>
             </label>
@@ -1377,9 +1331,9 @@
                   createForm.supported_model_scopes.includes('gemini_text')
                 "
                 @change="toggleCreateScope('gemini_text')"
-                class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 dark:border-dark-600 dark:bg-dark-700"
+                class="h-4 w-4 rounded border-edge-strong text-primary-600 focus:ring-primary-500 dark:border-dark-600 dark:bg-dark-700"
               />
-              <span class="text-sm text-gray-700 dark:text-gray-300">{{
+              <span class="text-sm text-ink-2">{{
                 t("admin.groups.supportedScopes.geminiText")
               }}</span>
             </label>
@@ -1390,14 +1344,14 @@
                   createForm.supported_model_scopes.includes('gemini_image')
                 "
                 @change="toggleCreateScope('gemini_image')"
-                class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 dark:border-dark-600 dark:bg-dark-700"
+                class="h-4 w-4 rounded border-edge-strong text-primary-600 focus:ring-primary-500 dark:border-dark-600 dark:bg-dark-700"
               />
-              <span class="text-sm text-gray-700 dark:text-gray-300">{{
+              <span class="text-sm text-ink-2">{{
                 t("admin.groups.supportedScopes.geminiImage")
               }}</span>
             </label>
           </div>
-          <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+          <p class="mt-2 text-xs text-ink-2">
             {{ t("admin.groups.supportedScopes.hint") }}
           </p>
         </div>
@@ -1405,7 +1359,7 @@
         <!-- MCP XML 协议注入（仅 antigravity 平台） -->
         <div v-show="createConfigTab === 'scheduling'" data-group-section="scheduling" v-if="createForm.platform === 'antigravity'" class="border-t pt-4">
           <div class="mb-1.5 flex items-center gap-1">
-            <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+            <label class="text-sm font-medium text-ink-2">
               {{ t("admin.groups.mcpXml.title") }}
             </label>
             <div class="group relative inline-flex">
@@ -1413,10 +1367,10 @@
                 name="questionCircle"
                 size="sm"
                 :stroke-width="2"
-                class="cursor-help text-gray-400 transition-colors hover:text-primary-500 dark:text-gray-500 dark:hover:text-primary-400"
+                class="cursor-help text-ink-3 transition-colors hover:text-primary-500 dark:text-ink-2 dark:hover:text-primary-400"
               />
               <div
-                class="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-72 opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100"
+                class="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-60 opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100"
               >
                 <div
                   class="rounded-lg bg-gray-900 p-3 text-white shadow-lg dark:bg-gray-800"
@@ -1433,7 +1387,7 @@
           </div>
           <div class="flex items-center gap-3">
             <Toggle v-model="createForm.mcp_xml_inject" />
-            <span class="text-sm text-gray-500 dark:text-gray-400">
+            <span class="text-sm text-ink-2">
               {{
                 createForm.mcp_xml_inject
                   ? t("admin.groups.mcpXml.enabled")
@@ -1446,7 +1400,7 @@
         <!-- Claude Code 客户端限制（仅 anthropic 平台） -->
         <div v-show="createConfigTab === 'scheduling'" data-group-section="scheduling" v-if="createForm.platform === 'anthropic'" class="border-t pt-4">
           <div class="mb-1.5 flex items-center gap-1">
-            <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+            <label class="text-sm font-medium text-ink-2">
               {{ t("admin.groups.claudeCode.title") }}
             </label>
             <!-- Help Tooltip -->
@@ -1455,10 +1409,10 @@
                 name="questionCircle"
                 size="sm"
                 :stroke-width="2"
-                class="cursor-help text-gray-400 transition-colors hover:text-primary-500 dark:text-gray-500 dark:hover:text-primary-400"
+                class="cursor-help text-ink-3 transition-colors hover:text-primary-500 dark:text-ink-2 dark:hover:text-primary-400"
               />
               <div
-                class="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-72 opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100"
+                class="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-60 opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100"
               >
                 <div
                   class="rounded-lg bg-gray-900 p-3 text-white shadow-lg dark:bg-gray-800"
@@ -1475,7 +1429,7 @@
           </div>
           <div class="flex items-center gap-3">
             <Toggle v-model="createForm.claude_code_only" />
-            <span class="text-sm text-gray-500 dark:text-gray-400">
+            <span class="text-sm text-ink-2">
               {{
                 createForm.claude_code_only
                   ? t("admin.groups.claudeCode.enabled")
@@ -1502,9 +1456,9 @@
         <!-- Codex 网页搜索按次计费（仅 openai 平台） -->
         <div v-show="createConfigTab === 'pricing'" data-group-section="pricing"
           v-if="createForm.platform === 'openai'"
-          class="border-t border-gray-200 dark:border-dark-400 pt-4 mt-4"
+          class="border-t border-edge dark:border-dark-400 pt-4 mt-4"
         >
-          <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+          <h4 class="text-sm font-medium text-ink-2 mb-3">
             {{ t("admin.groups.webSearchPricing.title") }}
           </h4>
           <div>
@@ -1523,7 +1477,7 @@
               {{ t("admin.groups.webSearchPricing.pricePerCallHint") }}
             </p>
             <div
-              class="mt-2 rounded-lg bg-gray-50 p-3 text-xs text-gray-600 dark:bg-dark-700 dark:text-gray-300"
+              class="mt-2 rounded-lg bg-surface-2 p-3 text-xs text-ink-2 dark:bg-dark-700 dark:text-ink-2"
             >
               {{
                 t("admin.groups.webSearchPricing.finalPricePreview", {
@@ -1535,11 +1489,11 @@
         </div>
 
 
-        <div v-show="createConfigTab === 'pricing'" data-group-section="pricing" class="border-t border-gray-200 pt-4 mt-4 dark:border-dark-400">
+        <div v-show="createConfigTab === 'pricing'" data-group-section="pricing" class="border-t border-edge pt-4 mt-4 dark:border-dark-400">
           <div class="flex flex-wrap items-start justify-between gap-3">
             <div class="min-w-0 flex-1">
-              <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t("admin.groups.modelPricing.title") }}</h4>
-              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t("admin.groups.modelPricing.description") }}</p>
+              <h4 class="text-sm font-medium text-ink-2">{{ t("admin.groups.modelPricing.title") }}</h4>
+              <p class="mt-1 text-xs text-ink-2">{{ t("admin.groups.modelPricing.description") }}</p>
             </div>
             <button type="button" class="btn btn-secondary shrink-0 whitespace-nowrap" @click="addGroupPricing(createForm.model_pricing)">
               <Icon name="plus" size="sm" class="mr-1" />{{ t("admin.groups.modelPricing.add") }}
@@ -1547,7 +1501,7 @@
           </div>
           <label class="mt-3 flex items-start gap-2">
             <input v-model="createForm.long_context_pricing_enabled" type="checkbox" class="mt-0.5" />
-            <span><span class="block text-sm text-gray-700 dark:text-gray-300">{{ t("admin.groups.modelPricing.longContext") }}</span><span class="block text-xs text-gray-500">{{ t("admin.groups.modelPricing.longContextHint") }}</span></span>
+            <span><span class="block text-sm text-ink-2">{{ t("admin.groups.modelPricing.longContext") }}</span><span class="block text-xs text-ink-2">{{ t("admin.groups.modelPricing.longContextHint") }}</span></span>
           </label>
           <div class="mt-3 space-y-2">
             <GroupPricingTable v-model="createForm.model_pricing" :platform="createForm.platform" />
@@ -1557,12 +1511,12 @@
         <!-- Grok Voice 显式定价（仅 grok 平台） -->
         <div v-show="createConfigTab === 'pricing'" data-group-section="pricing"
           v-if="createForm.platform === 'grok'"
-          class="border-t border-gray-200 dark:border-dark-400 pt-4 mt-4"
+          class="border-t border-edge dark:border-dark-400 pt-4 mt-4"
         >
-          <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          <h4 class="text-sm font-medium text-ink-2 mb-1">
             {{ t("admin.groups.explicitPricing.title") }}
           </h4>
-          <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
+          <p class="text-xs text-ink-2 mb-3">
             {{ t("admin.groups.explicitPricing.description") }}
           </p>
           <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
@@ -1619,13 +1573,13 @@
         <!-- OpenAI Fast 开关（OpenAI 与 Composite 平台） -->
         <div v-show="createConfigTab === 'scheduling'" data-group-section="scheduling"
           v-if="supportsGroupOpenAIFast(createForm.platform)"
-          class="border-t border-gray-200 dark:border-dark-400 pt-4 mt-4"
+          class="border-t border-edge dark:border-dark-400 pt-4 mt-4"
         >
-          <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+          <h4 class="text-sm font-medium text-ink-2 mb-3">
             {{ t("admin.groups.openaiFast.title") }}
           </h4>
           <div class="flex items-center justify-between gap-4">
-            <label class="text-sm text-gray-600 dark:text-gray-400">
+            <label class="text-sm text-ink-2">
               {{ t("admin.groups.openaiFast.force") }}
             </label>
             <Toggle
@@ -1634,11 +1588,11 @@
               v-model="createForm.force_openai_fast"
             />
           </div>
-          <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+          <p class="text-xs text-ink-2 mt-1">
             {{ t("admin.groups.openaiFast.hint") }}
           </p>
           <div class="flex items-center justify-between gap-4 mt-4">
-            <label class="text-sm text-gray-600 dark:text-gray-400">
+            <label class="text-sm text-ink-2">
               {{ t("admin.groups.openaiFast.free") }}
             </label>
             <Toggle
@@ -1647,7 +1601,7 @@
               v-model="createForm.free_openai_fast"
             />
           </div>
-          <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+          <p class="text-xs text-ink-2 mt-1">
             {{ t("admin.groups.openaiFast.freeHint") }}
           </p>
         </div>
@@ -1655,13 +1609,13 @@
         <!-- Codex Live 开关（OpenAI 与 Composite 平台） -->
         <div v-show="createConfigTab === 'scheduling'" data-group-section="scheduling"
           v-if="supportsLivePlatform(createForm.platform)"
-          class="border-t border-gray-200 dark:border-dark-400 pt-4 mt-4"
+          class="border-t border-edge dark:border-dark-400 pt-4 mt-4"
         >
-          <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+          <h4 class="text-sm font-medium text-ink-2 mb-3">
             {{ t("admin.groups.openaiLive.title") }}
           </h4>
           <div class="flex items-center justify-between">
-            <label class="text-sm text-gray-600 dark:text-gray-400">{{
+            <label class="text-sm text-ink-2">{{
               t("admin.groups.openaiLive.allow")
             }}</label>
             <Toggle
@@ -1669,7 +1623,7 @@
               @update:model-value="toggleLive('create')"
             />
           </div>
-          <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+          <p class="text-xs text-ink-2 mt-1">
             {{ t("admin.groups.openaiLive.hint") }}
           </p>
         </div>
@@ -1677,20 +1631,20 @@
         <!-- OpenAI Messages 调度配置（OpenAI 与 Composite 平台） -->
         <div v-show="createConfigTab === 'scheduling'" data-group-section="scheduling"
           v-if="supportsMessagesDispatchPlatform(createForm.platform)"
-          class="border-t border-gray-200 dark:border-dark-400 pt-4 mt-4"
+          class="border-t border-edge dark:border-dark-400 pt-4 mt-4"
         >
-          <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+          <h4 class="text-sm font-medium text-ink-2 mb-3">
             {{ t("admin.groups.openaiMessages.title") }}
           </h4>
 
           <!-- 允许 Messages 调度开关 -->
           <div class="flex items-center justify-between">
-            <label class="text-sm text-gray-600 dark:text-gray-400">{{
+            <label class="text-sm text-ink-2">{{
               t("admin.groups.openaiMessages.allowDispatch")
             }}</label>
             <Toggle v-model="createForm.allow_messages_dispatch" />
           </div>
-          <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+          <p class="text-xs text-ink-2 mt-1">
             {{ t("admin.groups.openaiMessages.allowDispatchHint") }}
           </p>
 
@@ -1702,21 +1656,21 @@
             class="mt-3"
           >
             <div
-              class="relative overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-dark-600 dark:bg-dark-800"
+              class="relative overflow-hidden rounded-xl border border-edge bg-white shadow-sm dark:border-dark-600 dark:bg-dark-800"
             >
               <div
-                class="border-b border-gray-100 bg-gray-50/80 px-4 py-3 dark:border-dark-700 dark:bg-dark-700/50"
+                class="border-b border-edge bg-surface-2/80 px-4 py-3 dark:border-dark-700 dark:bg-dark-700/50"
               >
                 <div class="flex items-center gap-2">
                   <div class="h-2 w-2 rounded-full bg-blue-500"></div>
                   <label
-                    class="text-sm font-medium text-gray-900 dark:text-white"
+                    class="text-sm font-medium text-ink"
                     >{{
                       t("admin.groups.openaiMessages.familyMappingTitle")
                     }}</label
                   >
                 </div>
-                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                <p class="mt-1 text-xs text-ink-2">
                   {{ t("admin.groups.openaiMessages.familyMappingHint") }}
                 </p>
               </div>
@@ -1791,7 +1745,7 @@
                 </div>
               </div>
 
-              <div class="p-4 bg-gray-50/30 dark:bg-dark-800/30">
+              <div class="p-4 bg-surface-2/30 dark:bg-dark-800/30">
                 <div
                   v-if="createForm.exact_model_mappings.length === 0"
                   class="flex items-center justify-between gap-3 rounded-xl border-2 border-dashed border-primary-200 bg-white px-5 py-4 text-sm text-primary-700 transition-colors hover:border-primary-300 dark:border-primary-900/40 dark:bg-dark-800 dark:text-primary-300 dark:hover:border-primary-800"
@@ -1813,7 +1767,7 @@
                   <div
                     v-for="row in createForm.exact_model_mappings"
                     :key="getCreateMessagesDispatchRowKey(row)"
-                    class="group relative rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-all hover:border-primary-300 hover:shadow-md dark:border-dark-600 dark:bg-dark-700 dark:hover:border-primary-700"
+                    class="group relative rounded-xl border border-edge bg-white p-4 shadow-sm transition-all hover:border-primary-300 hover:shadow-md dark:border-dark-600 dark:bg-dark-700 dark:hover:border-primary-700"
                   >
                     <div class="flex items-center gap-4">
                       <div
@@ -1831,7 +1785,7 @@
                                 'admin.groups.openaiMessages.claudeModelPlaceholder',
                               )
                             "
-                            class="input bg-gray-50 focus:bg-white dark:bg-dark-800 dark:focus:bg-dark-900"
+                            class="input bg-surface-2 focus:bg-white dark:bg-dark-800 dark:focus:bg-dark-900"
                           />
                         </div>
                         <div
@@ -1855,14 +1809,14 @@
                                 'admin.groups.openaiMessages.targetModelPlaceholder',
                               )
                             "
-                            class="input bg-gray-50 focus:bg-white dark:bg-dark-800 dark:focus:bg-dark-900"
+                            class="input bg-surface-2 focus:bg-white dark:bg-dark-800 dark:focus:bg-dark-900"
                           />
                         </div>
                       </div>
                       <button
                         type="button"
                         @click="removeCreateMessagesDispatchMapping(row)"
-                        class="mt-6 flex h-9 w-9 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+                        class="mt-6 flex h-9 w-9 items-center justify-center rounded-lg text-ink-3 transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20 dark:hover:text-red-400"
                         :title="
                           t('admin.groups.openaiMessages.removeExactMapping')
                         "
@@ -1875,7 +1829,7 @@
                   <button
                     type="button"
                     @click="addCreateMessagesDispatchMapping"
-                    class="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 bg-white py-3 text-sm font-medium text-gray-500 transition-all hover:border-primary-300 hover:bg-primary-50/50 hover:text-primary-600 dark:border-dark-600 dark:bg-dark-800 dark:text-gray-400 dark:hover:border-primary-800 dark:hover:bg-primary-900/20 dark:hover:text-primary-400"
+                    class="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-edge-strong bg-white py-3 text-sm font-medium text-ink-2 transition-all hover:border-primary-300 hover:bg-primary-50/50 hover:text-primary-600 dark:border-dark-600 dark:bg-dark-800 dark:text-ink-2 dark:hover:border-primary-800 dark:hover:bg-primary-900/20 dark:hover:text-primary-400"
                   >
                     <Icon name="plus" size="sm" />
                     {{ t("admin.groups.openaiMessages.addExactMapping") }}
@@ -1893,19 +1847,19 @@
               createForm.platform,
             )
           "
-          class="border-t border-gray-200 dark:border-dark-400 pt-4 mt-4 space-y-4"
+          class="border-t border-edge dark:border-dark-400 pt-4 mt-4 space-y-4"
         >
-          <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+          <h4 class="text-sm font-medium text-ink-2 mb-3">
             {{ t("admin.groups.accountFilters.title") }}
           </h4>
 
           <!-- require_oauth_only toggle -->
           <div class="flex items-center justify-between">
             <div>
-              <label class="text-sm text-gray-600 dark:text-gray-400"
+              <label class="text-sm text-ink-2"
                 >{{ t("admin.groups.accountFilters.oauthOnly") }}</label
               >
-              <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+              <p class="text-xs text-ink-2 mt-0.5">
                 {{
                   createForm.require_oauth_only
                     ? t("admin.groups.accountFilters.oauthOnlyEnabled")
@@ -1919,10 +1873,10 @@
           <!-- require_privacy_set toggle -->
           <div class="flex items-center justify-between">
             <div>
-              <label class="text-sm text-gray-600 dark:text-gray-400"
+              <label class="text-sm text-ink-2"
                 >{{ t("admin.groups.accountFilters.privacySetOnly") }}</label
               >
-              <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+              <p class="text-xs text-ink-2 mt-0.5">
                 {{
                   createForm.require_privacy_set
                     ? t("admin.groups.accountFilters.privacySetOnlyEnabled")
@@ -1958,7 +1912,7 @@
         <!-- 模型路由配置（仅 anthropic 平台） -->
         <div v-show="createConfigTab === 'routes'" data-group-section="routes" v-if="createForm.platform === 'anthropic'" class="border-t pt-4">
           <div class="mb-1.5 flex items-center gap-1">
-            <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+            <label class="text-sm font-medium text-ink-2">
               {{ t("admin.groups.modelRouting.title") }}
             </label>
             <!-- Help Tooltip -->
@@ -1967,7 +1921,7 @@
                 name="questionCircle"
                 size="sm"
                 :stroke-width="2"
-                class="cursor-help text-gray-400 transition-colors hover:text-primary-500 dark:text-gray-500 dark:hover:text-primary-400"
+                class="cursor-help text-ink-3 transition-colors hover:text-primary-500 dark:text-ink-2 dark:hover:text-primary-400"
               />
               <div
                 class="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-80 opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100"
@@ -1988,7 +1942,7 @@
           <!-- 启用开关 -->
           <div class="flex items-center gap-3 mb-3">
             <Toggle v-model="createForm.model_routing_enabled" />
-            <span class="text-sm text-gray-500 dark:text-gray-400">
+            <span class="text-sm text-ink-2">
               {{
                 createForm.model_routing_enabled
                   ? t("admin.groups.modelRouting.enabled")
@@ -1998,11 +1952,11 @@
           </div>
           <p
             v-if="!createForm.model_routing_enabled"
-            class="text-xs text-gray-500 dark:text-gray-400 mb-3"
+            class="text-xs text-ink-2 mb-3"
           >
             {{ t("admin.groups.modelRouting.disabledHint") }}
           </p>
-          <p v-else class="text-xs text-gray-500 dark:text-gray-400 mb-3">
+          <p v-else class="text-xs text-ink-2 mb-3">
             {{ t("admin.groups.modelRouting.noRulesHint") }}
           </p>
           <!-- 路由规则列表（仅在启用时显示） -->
@@ -2010,7 +1964,7 @@
             <div
               v-for="rule in createModelRoutingRules"
               :key="getCreateRuleRenderKey(rule)"
-              class="rounded-lg border border-gray-200 p-3 dark:border-dark-600"
+              class="rounded-lg border border-edge p-3 dark:border-dark-600"
             >
               <div class="flex items-start gap-3">
                 <div class="flex-1 space-y-2">
@@ -2083,7 +2037,7 @@
                           :key="account.id"
                           type="button"
                           @click="selectAccount(rule, account)"
-                          class="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-dark-700"
+                          class="w-full px-3 py-2 text-left text-sm hover:bg-surface-3 dark:hover:bg-dark-700"
                           :class="{
                             'opacity-50': rule.accounts.some(
                               (a) => a.id === account.id,
@@ -2094,13 +2048,13 @@
                           "
                         >
                           <span>{{ account.name }}</span>
-                          <span class="ml-2 text-xs text-gray-400"
+                          <span class="ml-2 text-xs text-ink-2"
                             >#{{ account.id }}</span
                           >
                         </button>
                       </div>
                     </div>
-                    <p class="text-xs text-gray-400 mt-1">
+                    <p class="text-xs text-ink-2 mt-1">
                       {{ t("admin.groups.modelRouting.accountsHint") }}
                     </p>
                   </div>
@@ -2108,7 +2062,7 @@
                 <button
                   type="button"
                   @click="removeCreateRoutingRule(rule)"
-                  class="mt-5 p-1.5 text-gray-400 hover:text-red-500 transition-colors"
+                  class="mt-5 p-1.5 text-ink-3 hover:text-red-500 transition-colors"
                   :title="t('admin.groups.modelRouting.removeRule')"
                 >
                   <Icon name="trash" size="sm" />
@@ -2174,10 +2128,34 @@
 
     <!-- Edit Group Modal -->
     <GroupEditorPanel
+      v-if="groupView === 'workspace'"
+      class="min-h-0 lg:flex-1"
       :show="showEditModal"
       :title="t('admin.groups.editGroup')"
+      hide-title
       @close="requestCloseEditor"
     >
+      <template #toolbar>
+        <GroupConfigTabs
+          v-model="editConfigTab"
+          class="min-w-0 flex-1"
+          :simple="authStore.isSimpleMode"
+          :available-tabs="configurationTabs(editForm.platform, editForm.subscription_type)"
+        />
+        <span
+          v-if="hasUnsavedGroupChanges"
+          class="pill pill-warn shrink-0"
+        >{{ t('admin.groups.workspace.unsaved') }}</span>
+        <button
+          type="button"
+          class="btn btn-ghost btn-icon btn-sm -mr-1 shrink-0"
+          :aria-label="t('common.close')"
+          :title="t('common.close')"
+          @click="requestCloseEditor"
+        >
+          <Icon name="x" size="sm" />
+        </button>
+      </template>
       <form
         v-if="editingGroup"
         id="edit-group-form"
@@ -2185,7 +2163,6 @@
         @invalid.capture="revealInvalidGroupField($event, 'edit')"
         class="space-y-5"
       >
-        <GroupConfigTabs v-model="editConfigTab" :simple="authStore.isSimpleMode" :available-tabs="configurationTabs(editForm.platform, editForm.subscription_type)" />
         <div v-if="editConfigTab === 'routes' && editForm.platform === 'composite'" class="rounded-field border border-edge p-4">
           <p class="mb-3 text-sm text-ink-2">{{ t('admin.groups.workspace.compositeHint') }}</p>
           <button type="button" class="btn btn-secondary" @click="handleCompositeRoutes(editingGroup!)">{{ t('admin.groups.compositeRoutes.action') }}</button>
@@ -2226,7 +2203,7 @@
         <!-- 从分组复制账号（编辑时） -->
         <div v-show="editConfigTab === 'basic'" data-group-section="basic" v-if="copyAccountsGroupOptionsForEdit.length > 0">
           <div class="mb-1.5 flex items-center gap-1">
-            <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+            <label class="text-sm font-medium text-ink-2">
               {{ t("admin.groups.copyAccounts.title") }}
             </label>
             <div class="group relative inline-flex">
@@ -2234,10 +2211,10 @@
                 name="questionCircle"
                 size="sm"
                 :stroke-width="2"
-                class="cursor-help text-gray-400 transition-colors hover:text-primary-500 dark:text-gray-500 dark:hover:text-primary-400"
+                class="cursor-help text-ink-3 transition-colors hover:text-primary-500 dark:text-ink-2 dark:hover:text-primary-400"
               />
               <div
-                class="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-72 opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100"
+                class="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-60 opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100"
               >
                 <div
                   class="rounded-lg bg-gray-900 p-3 text-white shadow-lg dark:bg-gray-800"
@@ -2310,8 +2287,9 @@
               {{ opt.label }}
             </option>
           </select>
-          <p class="input-hint">
-            {{ t("admin.groups.copyAccounts.hintEdit") }}
+          <p class="input-hint warning-hint flex items-start gap-1">
+            <Icon name="exclamationTriangle" size="xs" class="mt-0.5 shrink-0" />
+            <span>{{ t("admin.groups.copyAccounts.hintEdit") }}</span>
           </p>
         </div>
         <div v-show="editConfigTab === 'rates'" data-group-section="rates">
@@ -2351,7 +2329,7 @@
         />
         <div v-show="editConfigTab === 'basic'" data-group-section="basic" v-if="editForm.subscription_type !== 'subscription'">
           <div class="mb-1.5 flex items-center gap-1">
-            <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+            <label class="text-sm font-medium text-ink-2">
               {{ t("admin.groups.form.exclusive") }}
             </label>
             <!-- Help Tooltip -->
@@ -2360,11 +2338,11 @@
                 name="questionCircle"
                 size="sm"
                 :stroke-width="2"
-                class="cursor-help text-gray-400 transition-colors hover:text-primary-500 dark:text-gray-500 dark:hover:text-primary-400"
+                class="cursor-help text-ink-3 transition-colors hover:text-primary-500 dark:text-ink-2 dark:hover:text-primary-400"
               />
               <!-- Tooltip Popover -->
               <div
-                class="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-72 opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100"
+                class="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-60 opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100"
               >
                 <div
                   class="rounded-lg bg-gray-900 p-3 text-white shadow-lg dark:bg-gray-800"
@@ -2395,7 +2373,7 @@
           </div>
           <div class="flex items-center gap-3">
             <Toggle v-model="editForm.is_exclusive" />
-            <span class="text-sm text-gray-500 dark:text-gray-400">
+            <span class="text-sm text-ink-2">
               {{
                 editForm.is_exclusive
                   ? t("admin.groups.exclusive")
@@ -2475,10 +2453,10 @@
         <div v-show="editConfigTab === 'models'" data-group-section="models" class="border-t pt-4">
           <div class="mb-3 flex items-center justify-between gap-3">
             <div>
-              <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+              <label class="text-sm font-medium text-ink-2">
                 {{ t("admin.groups.modelAllowlist.title") }}
               </label>
-              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              <p class="mt-1 text-xs text-ink-2">
                 {{ t("admin.groups.modelAllowlist.hint") }}
               </p>
             </div>
@@ -2486,13 +2464,13 @@
           </div>
           <div
             v-if="editModelAllowlistState.enabled"
-            class="overflow-hidden rounded-lg border border-gray-200 bg-gray-50/50 dark:border-dark-600 dark:bg-dark-800/40"
+            class="overflow-hidden rounded-lg border border-edge bg-surface-2/50 dark:border-dark-600 dark:bg-dark-800/40"
           >
             <div
               v-if="!editModelAllowlistLoading && editModelAllowlistState.items.length > 0"
-              class="flex items-center justify-between gap-2 border-b border-gray-200 bg-gray-50 px-3 py-2 text-xs dark:border-dark-600 dark:bg-dark-800"
+              class="flex items-center justify-between gap-2 border-b border-edge bg-surface-2 px-3 py-2 text-xs dark:border-dark-600 dark:bg-dark-800"
             >
-              <span class="text-gray-500 dark:text-gray-400">
+              <span class="text-ink-2">
                 {{
                   t("admin.groups.modelAllowlist.selectedSummary", {
                     selected: editModelAllowlistSelectedCount,
@@ -2510,7 +2488,7 @@
                 </button>
                 <button
                   type="button"
-                  class="rounded px-2 py-1 font-medium text-gray-600 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
+                  class="rounded px-2 py-1 font-medium text-ink-2 transition-colors hover:bg-surface-3 dark:text-ink-2 dark:hover:bg-dark-700"
                   @click="invertModelAllowlistSelection(editModelAllowlistState)"
                 >
                   {{ t("admin.groups.modelAllowlist.invertSelection") }}
@@ -2520,26 +2498,26 @@
             <div
               class="max-h-64 space-y-2 overflow-y-auto p-2"
             >
-              <p v-if="editModelAllowlistLoading" class="text-xs text-gray-500 dark:text-gray-400">
+              <p v-if="editModelAllowlistLoading" class="text-xs text-ink-2">
                 {{ t("admin.groups.modelAllowlist.loading") }}
               </p>
               <p
                 v-else-if="editModelAllowlistState.items.length === 0"
-                class="text-xs text-gray-500 dark:text-gray-400"
+                class="text-xs text-ink-2"
               >
                 {{ t("admin.groups.modelAllowlist.empty") }}
               </p>
               <div
                 v-for="(item, index) in editModelAllowlistState.items"
                 :key="item.id"
-                class="flex items-center gap-2 rounded border border-gray-200 bg-white px-3 py-2 dark:border-dark-600 dark:bg-dark-800"
+                class="flex items-center gap-2 rounded border border-edge bg-white px-3 py-2 dark:border-dark-600 dark:bg-dark-800"
               >
                 <input
                   v-model="item.selected"
                   type="checkbox"
-                  class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                  class="h-4 w-4 rounded border-edge-strong text-primary-600 focus:ring-primary-500"
                 />
-                <span class="min-w-0 flex-1 break-all text-sm text-gray-700 dark:text-gray-300">
+                <span class="min-w-0 flex-1 break-all text-sm text-ink-2">
                   {{ item.id }}
                   <span
                     v-if="item.id.includes('*')"
@@ -2551,7 +2529,7 @@
                 <button
                   type="button"
                   :disabled="index === 0"
-                  class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-40 dark:hover:bg-dark-600 dark:hover:text-gray-200"
+                  class="rounded p-1 text-ink-3 hover:bg-surface-3 hover:text-ink disabled:opacity-40 dark:hover:bg-dark-600 dark:hover:text-ink"
                   @click="moveEditModelAllowlistItem(index, index - 1)"
                 >
                   <Icon name="arrowUp" size="sm" />
@@ -2559,20 +2537,20 @@
                 <button
                   type="button"
                   :disabled="index === editModelAllowlistState.items.length - 1"
-                  class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-40 dark:hover:bg-dark-600 dark:hover:text-gray-200"
+                  class="rounded p-1 text-ink-3 hover:bg-surface-3 hover:text-ink disabled:opacity-40 dark:hover:bg-dark-600 dark:hover:text-ink"
                   @click="moveEditModelAllowlistItem(index, index + 1)"
                 >
                   <Icon name="arrowDown" size="sm" />
                 </button>
               </div>
             </div>
-            <div class="border-t border-gray-200 px-3 py-2 dark:border-dark-600">
+            <div class="border-t border-edge px-3 py-2 dark:border-dark-600">
               <div class="flex items-center gap-2">
                 <input
                   v-model="editAllowlistCustomEntry"
                   type="text"
                   :placeholder="t('admin.groups.modelAllowlist.customPlaceholder')"
-                  class="min-w-0 flex-1 rounded border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-700 focus:border-primary-500 focus:outline-none dark:border-dark-500 dark:bg-dark-700 dark:text-gray-200"
+                  class="min-w-0 flex-1 rounded border border-edge-strong bg-white px-2 py-1.5 text-sm text-ink-2 focus:border-primary-500 focus:outline-none dark:border-dark-500 dark:bg-dark-700 dark:text-ink"
                   @keydown.enter.prevent="submitEditAllowlistCustomEntry"
                 />
                 <button
@@ -2599,27 +2577,27 @@
           class="border-t pt-4"
         >
           <label
-            class="block mb-2 font-medium text-gray-700 dark:text-gray-300"
+            class="block mb-2 font-medium text-ink-2"
           >
             {{ t(imagePricingI18nKey(editForm.platform, "title")) }}
           </label>
-          <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
+          <p class="text-xs text-ink-2 mb-3">
             {{ t(imagePricingI18nKey(editForm.platform, "description")) }}
           </p>
           <div class="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-            <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+            <label class="flex items-center gap-2 text-sm text-ink-2">
               <input
                 v-model="editForm.allow_image_generation"
                 type="checkbox"
-                class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                class="rounded border-edge-strong text-blue-600 focus:ring-blue-500"
               />
               {{ t(imagePricingI18nKey(editForm.platform, "allowImageGeneration")) }}
             </label>
-            <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+            <label class="flex items-center gap-2 text-sm text-ink-2">
               <input
                 v-model="editForm.image_rate_independent"
                 type="checkbox"
-                class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                class="rounded border-edge-strong text-blue-600 focus:ring-blue-500"
               />
               {{ t(imagePricingI18nKey(editForm.platform, "independentMultiplier")) }}
             </label>
@@ -2628,12 +2606,12 @@
                 editForm.allow_image_generation &&
                 (editForm.platform === 'composite' || editForm.platform === 'openai')
               "
-              class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300"
+              class="flex items-center gap-2 text-sm text-ink-2"
             >
               <input
                 v-model="editForm.image_count_billing"
                 type="checkbox"
-                class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                class="rounded border-edge-strong text-blue-600 focus:ring-blue-500"
               />
               {{ t("admin.groups.imagePricing.perImageBilling") }}
             </label>
@@ -2689,10 +2667,10 @@
               />
             </div>
           </div>
-          <p class="mt-3 text-xs text-gray-500 dark:text-gray-400">
+          <p class="mt-3 text-xs text-ink-2">
             {{ t(imagePricingI18nKey(editForm.platform, "modeHint")) }}
           </p>
-          <div class="mt-2 rounded-lg bg-gray-50 p-3 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-300">
+          <div class="mt-2 rounded-lg bg-surface-2 p-3 text-xs text-ink-2 dark:bg-gray-800 dark:text-ink-2">
             <div class="mb-1 font-medium">
               {{ t(imagePricingI18nKey(editForm.platform, "finalPricePreview")) }}
             </div>
@@ -2705,18 +2683,18 @@
               </div>
             </div>
           </div>
-          <div v-if="editForm.platform === 'gemini' && editForm.allow_image_generation" class="mt-4 border-t border-dashed border-gray-200 pt-4 dark:border-dark-700">
+          <div v-if="editForm.platform === 'gemini' && editForm.allow_image_generation" class="mt-4 border-t border-dashed border-edge pt-4 dark:border-dark-700">
             <label
-              class="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300"
+              class="flex items-center gap-2 text-sm font-medium text-ink-2"
             >
               <input
                 v-model="editForm.allow_batch_image_generation"
                 type="checkbox"
-                class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                class="rounded border-edge-strong text-blue-600 focus:ring-blue-500"
               />
               {{ t("admin.groups.imagePricing.allowBatchImageGeneration") }}
             </label>
-            <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+            <p class="mt-2 text-xs text-ink-2">
               {{ t("admin.groups.imagePricing.batchSectionHint") }}
             </p>
             <div
@@ -2753,7 +2731,7 @@
           </div>
           <p
             v-else-if="editForm.platform !== 'gemini'"
-            class="mt-4 border-t border-dashed border-gray-200 pt-4 text-xs text-gray-500 dark:border-dark-700 dark:text-gray-400"
+            class="mt-4 border-t border-dashed border-edge pt-4 text-xs text-ink-2 dark:border-dark-700 dark:text-ink-2"
           >
             {{ t("admin.groups.imagePricing.batchGeminiOnlyHint") }}
           </p>
@@ -2765,19 +2743,19 @@
           class="border-t pt-4"
         >
           <label
-            class="block mb-2 font-medium text-gray-700 dark:text-gray-300"
+            class="block mb-2 font-medium text-ink-2"
           >
             {{ t(videoPricingI18nKey("title")) }}
           </label>
-          <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
+          <p class="text-xs text-ink-2 mb-3">
             {{ t(videoPricingI18nKey("description")) }}
           </p>
           <div class="mb-4">
-            <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+            <label class="flex items-center gap-2 text-sm text-ink-2">
               <input
                 v-model="editForm.video_rate_independent"
                 type="checkbox"
-                class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                class="rounded border-edge-strong text-blue-600 focus:ring-blue-500"
               />
               {{ t(videoPricingI18nKey("independentMultiplier")) }}
             </label>
@@ -2834,13 +2812,13 @@
             </div>
           </div>
           <div
-            class="mt-4 border-t border-dashed border-gray-200 pt-4 dark:border-dark-700"
+            class="mt-4 border-t border-dashed border-edge pt-4 dark:border-dark-700"
             data-testid="edit-grok-video-model-prices"
           >
-            <p class="text-sm font-medium text-gray-700 dark:text-gray-300">
+            <p class="text-sm font-medium text-ink-2">
               {{ t("admin.groups.videoPricing.modelOverridesTitle") }}
             </p>
-            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            <p class="mt-1 text-xs text-ink-2">
               {{ t("admin.groups.videoPricing.modelOverridesDescription") }}
             </p>
             <div class="mt-3 space-y-3">
@@ -2849,7 +2827,7 @@
                 :key="family.key"
                 class="grid gap-2 sm:grid-cols-[minmax(0,1fr)_repeat(3,minmax(0,7rem))] sm:items-end"
               >
-                <div class="min-w-0 pb-1 font-mono text-xs text-gray-700 dark:text-gray-300">
+                <div class="min-w-0 pb-1 font-mono text-xs text-ink-2">
                   {{ family.label }}
                 </div>
                 <label
@@ -2857,7 +2835,7 @@
                   :key="resolution.key"
                   class="block"
                 >
-                  <span class="mb-1 block text-xs text-gray-500 dark:text-gray-400">
+                  <span class="mb-1 block text-xs text-ink-2">
                     {{ resolution.label }} ($/s)
                   </span>
                   <input
@@ -2872,10 +2850,10 @@
               </div>
             </div>
           </div>
-          <p class="mt-3 text-xs text-gray-500 dark:text-gray-400">
+          <p class="mt-3 text-xs text-ink-2">
             {{ t(videoPricingI18nKey("modeHint")) }}
           </p>
-          <div class="mt-2 rounded-lg bg-gray-50 p-3 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-300">
+          <div class="mt-2 rounded-lg bg-surface-2 p-3 text-xs text-ink-2 dark:bg-gray-800 dark:text-ink-2">
             <div class="mb-1 font-medium">
               {{ t(videoPricingI18nKey("finalPricePreview")) }}
             </div>
@@ -2893,11 +2871,11 @@
         <!-- 高峰时段倍率配置（仅订阅类型分组） -->
         <div v-show="editConfigTab === 'rates'" data-group-section="rates" v-if="editForm.subscription_type === 'subscription'" class="border-t pt-4">
           <div class="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-            <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+            <label class="flex items-center gap-2 text-sm text-ink-2">
               <input
                 v-model="editForm.peak_rate_enabled"
                 type="checkbox"
-                class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                class="rounded border-edge-strong text-blue-600 focus:ring-blue-500"
               />
               <span>{{ t("admin.groups.peakRate.enable") }}</span>
             </label>
@@ -2939,15 +2917,15 @@
 
         <!-- 分组利润控制（五个平台 token 请求） -->
         <div v-show="editConfigTab === 'profit'" data-group-section="profit" v-if="isProfitControlPlatform(editForm.platform)" class="border-t pt-4">
-          <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+          <label class="flex items-center gap-2 text-sm text-ink-2">
             <input
               v-model="editForm.profit_control_enabled"
               type="checkbox"
-              class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              class="rounded border-edge-strong text-blue-600 focus:ring-blue-500"
             />
             <span>{{ t("admin.groups.profitControl.enable") }}</span>
           </label>
-          <p class="mb-3 mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+          <p class="mb-3 mt-1.5 text-xs text-ink-2">
             {{
               editForm.profit_control_enabled
                 ? t("admin.groups.profitControl.enabledHint")
@@ -2990,7 +2968,7 @@
         <!-- 支持的模型系列（仅 antigravity 平台） -->
         <div v-show="editConfigTab === 'models'" data-group-section="models" v-if="editForm.platform === 'antigravity'" class="border-t pt-4">
           <div class="mb-1.5 flex items-center gap-1">
-            <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+            <label class="text-sm font-medium text-ink-2">
               {{ t("admin.groups.supportedScopes.title") }}
             </label>
             <!-- Help Tooltip -->
@@ -2999,10 +2977,10 @@
                 name="questionCircle"
                 size="sm"
                 :stroke-width="2"
-                class="cursor-help text-gray-400 transition-colors hover:text-primary-500 dark:text-gray-500 dark:hover:text-primary-400"
+                class="cursor-help text-ink-3 transition-colors hover:text-primary-500 dark:text-ink-2 dark:hover:text-primary-400"
               />
               <div
-                class="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-72 opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100"
+                class="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-60 opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100"
               >
                 <div
                   class="rounded-lg bg-gray-900 p-3 text-white shadow-lg dark:bg-gray-800"
@@ -3023,9 +3001,9 @@
                 type="checkbox"
                 :checked="editForm.supported_model_scopes.includes('claude')"
                 @change="toggleEditScope('claude')"
-                class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 dark:border-dark-600 dark:bg-dark-700"
+                class="h-4 w-4 rounded border-edge-strong text-primary-600 focus:ring-primary-500 dark:border-dark-600 dark:bg-dark-700"
               />
-              <span class="text-sm text-gray-700 dark:text-gray-300">{{
+              <span class="text-sm text-ink-2">{{
                 t("admin.groups.supportedScopes.claude")
               }}</span>
             </label>
@@ -3036,9 +3014,9 @@
                   editForm.supported_model_scopes.includes('gemini_text')
                 "
                 @change="toggleEditScope('gemini_text')"
-                class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 dark:border-dark-600 dark:bg-dark-700"
+                class="h-4 w-4 rounded border-edge-strong text-primary-600 focus:ring-primary-500 dark:border-dark-600 dark:bg-dark-700"
               />
-              <span class="text-sm text-gray-700 dark:text-gray-300">{{
+              <span class="text-sm text-ink-2">{{
                 t("admin.groups.supportedScopes.geminiText")
               }}</span>
             </label>
@@ -3049,14 +3027,14 @@
                   editForm.supported_model_scopes.includes('gemini_image')
                 "
                 @change="toggleEditScope('gemini_image')"
-                class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 dark:border-dark-600 dark:bg-dark-700"
+                class="h-4 w-4 rounded border-edge-strong text-primary-600 focus:ring-primary-500 dark:border-dark-600 dark:bg-dark-700"
               />
-              <span class="text-sm text-gray-700 dark:text-gray-300">{{
+              <span class="text-sm text-ink-2">{{
                 t("admin.groups.supportedScopes.geminiImage")
               }}</span>
             </label>
           </div>
-          <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+          <p class="mt-2 text-xs text-ink-2">
             {{ t("admin.groups.supportedScopes.hint") }}
           </p>
         </div>
@@ -3064,7 +3042,7 @@
         <!-- MCP XML 协议注入（仅 antigravity 平台） -->
         <div v-show="editConfigTab === 'scheduling'" data-group-section="scheduling" v-if="editForm.platform === 'antigravity'" class="border-t pt-4">
           <div class="mb-1.5 flex items-center gap-1">
-            <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+            <label class="text-sm font-medium text-ink-2">
               {{ t("admin.groups.mcpXml.title") }}
             </label>
             <div class="group relative inline-flex">
@@ -3072,10 +3050,10 @@
                 name="questionCircle"
                 size="sm"
                 :stroke-width="2"
-                class="cursor-help text-gray-400 transition-colors hover:text-primary-500 dark:text-gray-500 dark:hover:text-primary-400"
+                class="cursor-help text-ink-3 transition-colors hover:text-primary-500 dark:text-ink-2 dark:hover:text-primary-400"
               />
               <div
-                class="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-72 opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100"
+                class="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-60 opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100"
               >
                 <div
                   class="rounded-lg bg-gray-900 p-3 text-white shadow-lg dark:bg-gray-800"
@@ -3092,7 +3070,7 @@
           </div>
           <div class="flex items-center gap-3">
             <Toggle v-model="editForm.mcp_xml_inject" />
-            <span class="text-sm text-gray-500 dark:text-gray-400">
+            <span class="text-sm text-ink-2">
               {{
                 editForm.mcp_xml_inject
                   ? t("admin.groups.mcpXml.enabled")
@@ -3105,7 +3083,7 @@
         <!-- Claude Code 客户端限制（仅 anthropic 平台） -->
         <div v-show="editConfigTab === 'scheduling'" data-group-section="scheduling" v-if="editForm.platform === 'anthropic'" class="border-t pt-4">
           <div class="mb-1.5 flex items-center gap-1">
-            <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+            <label class="text-sm font-medium text-ink-2">
               {{ t("admin.groups.claudeCode.title") }}
             </label>
             <!-- Help Tooltip -->
@@ -3114,10 +3092,10 @@
                 name="questionCircle"
                 size="sm"
                 :stroke-width="2"
-                class="cursor-help text-gray-400 transition-colors hover:text-primary-500 dark:text-gray-500 dark:hover:text-primary-400"
+                class="cursor-help text-ink-3 transition-colors hover:text-primary-500 dark:text-ink-2 dark:hover:text-primary-400"
               />
               <div
-                class="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-72 opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100"
+                class="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-60 opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100"
               >
                 <div
                   class="rounded-lg bg-gray-900 p-3 text-white shadow-lg dark:bg-gray-800"
@@ -3134,7 +3112,7 @@
           </div>
           <div class="flex items-center gap-3">
             <Toggle v-model="editForm.claude_code_only" />
-            <span class="text-sm text-gray-500 dark:text-gray-400">
+            <span class="text-sm text-ink-2">
               {{
                 editForm.claude_code_only
                   ? t("admin.groups.claudeCode.enabled")
@@ -3161,9 +3139,9 @@
         <!-- Codex 网页搜索按次计费（仅 openai 平台） -->
         <div v-show="editConfigTab === 'pricing'" data-group-section="pricing"
           v-if="editForm.platform === 'openai'"
-          class="border-t border-gray-200 dark:border-dark-400 pt-4 mt-4"
+          class="border-t border-edge dark:border-dark-400 pt-4 mt-4"
         >
-          <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+          <h4 class="text-sm font-medium text-ink-2 mb-3">
             {{ t("admin.groups.webSearchPricing.title") }}
           </h4>
           <div>
@@ -3182,7 +3160,7 @@
               {{ t("admin.groups.webSearchPricing.pricePerCallHint") }}
             </p>
             <div
-              class="mt-2 rounded-lg bg-gray-50 p-3 text-xs text-gray-600 dark:bg-dark-700 dark:text-gray-300"
+              class="mt-2 rounded-lg bg-surface-2 p-3 text-xs text-ink-2 dark:bg-dark-700 dark:text-ink-2"
             >
               {{
                 t("admin.groups.webSearchPricing.finalPricePreview", {
@@ -3204,11 +3182,11 @@
         />
 
 
-        <div v-show="editConfigTab === 'pricing'" data-group-section="pricing" class="border-t border-gray-200 pt-4 mt-4 dark:border-dark-400">
+        <div v-show="editConfigTab === 'pricing'" data-group-section="pricing" class="border-t border-edge pt-4 mt-4 dark:border-dark-400">
           <div class="flex flex-wrap items-start justify-between gap-3">
             <div class="min-w-0 flex-1">
-              <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t("admin.groups.modelPricing.title") }}</h4>
-              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t("admin.groups.modelPricing.description") }}</p>
+              <h4 class="text-sm font-medium text-ink-2">{{ t("admin.groups.modelPricing.title") }}</h4>
+              <p class="mt-1 text-xs text-ink-2">{{ t("admin.groups.modelPricing.description") }}</p>
             </div>
             <button type="button" class="btn btn-secondary shrink-0 whitespace-nowrap" @click="addGroupPricing(editForm.model_pricing)">
               <Icon name="plus" size="sm" class="mr-1" />{{ t("admin.groups.modelPricing.add") }}
@@ -3216,7 +3194,7 @@
           </div>
           <label class="mt-3 flex items-start gap-2">
             <input v-model="editForm.long_context_pricing_enabled" type="checkbox" class="mt-0.5" />
-            <span><span class="block text-sm text-gray-700 dark:text-gray-300">{{ t("admin.groups.modelPricing.longContext") }}</span><span class="block text-xs text-gray-500">{{ t("admin.groups.modelPricing.longContextHint") }}</span></span>
+            <span><span class="block text-sm text-ink-2">{{ t("admin.groups.modelPricing.longContext") }}</span><span class="block text-xs text-ink-2">{{ t("admin.groups.modelPricing.longContextHint") }}</span></span>
           </label>
           <div class="mt-3 space-y-2">
             <GroupPricingTable v-model="editForm.model_pricing" :platform="editForm.platform" :group-id="editingGroup?.id" :active="editConfigTab === 'pricing'" :key="editingGroup?.id" />
@@ -3226,12 +3204,12 @@
         <!-- Grok Voice 显式定价（仅 grok 平台） -->
         <div v-show="editConfigTab === 'pricing'" data-group-section="pricing"
           v-if="editForm.platform === 'grok'"
-          class="border-t border-gray-200 dark:border-dark-400 pt-4 mt-4"
+          class="border-t border-edge dark:border-dark-400 pt-4 mt-4"
         >
-          <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          <h4 class="text-sm font-medium text-ink-2 mb-1">
             {{ t("admin.groups.explicitPricing.title") }}
           </h4>
-          <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
+          <p class="text-xs text-ink-2 mb-3">
             {{ t("admin.groups.explicitPricing.description") }}
           </p>
           <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
@@ -3288,13 +3266,13 @@
         <!-- OpenAI Fast 开关（OpenAI 与 Composite 平台） -->
         <div v-show="editConfigTab === 'scheduling'" data-group-section="scheduling"
           v-if="supportsGroupOpenAIFast(editForm.platform)"
-          class="border-t border-gray-200 dark:border-dark-400 pt-4 mt-4"
+          class="border-t border-edge dark:border-dark-400 pt-4 mt-4"
         >
-          <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+          <h4 class="text-sm font-medium text-ink-2 mb-3">
             {{ t("admin.groups.openaiFast.title") }}
           </h4>
           <div class="flex items-center justify-between gap-4">
-            <label class="text-sm text-gray-600 dark:text-gray-400">
+            <label class="text-sm text-ink-2">
               {{ t("admin.groups.openaiFast.force") }}
             </label>
             <Toggle
@@ -3303,11 +3281,11 @@
               v-model="editForm.force_openai_fast"
             />
           </div>
-          <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+          <p class="text-xs text-ink-2 mt-1">
             {{ t("admin.groups.openaiFast.hint") }}
           </p>
           <div class="flex items-center justify-between gap-4 mt-4">
-            <label class="text-sm text-gray-600 dark:text-gray-400">
+            <label class="text-sm text-ink-2">
               {{ t("admin.groups.openaiFast.free") }}
             </label>
             <Toggle
@@ -3316,7 +3294,7 @@
               v-model="editForm.free_openai_fast"
             />
           </div>
-          <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+          <p class="text-xs text-ink-2 mt-1">
             {{ t("admin.groups.openaiFast.freeHint") }}
           </p>
         </div>
@@ -3324,13 +3302,13 @@
         <!-- Codex Live 开关（OpenAI 与 Composite 平台） -->
         <div v-show="editConfigTab === 'scheduling'" data-group-section="scheduling"
           v-if="supportsLivePlatform(editForm.platform)"
-          class="border-t border-gray-200 dark:border-dark-400 pt-4 mt-4"
+          class="border-t border-edge dark:border-dark-400 pt-4 mt-4"
         >
-          <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+          <h4 class="text-sm font-medium text-ink-2 mb-3">
             {{ t("admin.groups.openaiLive.title") }}
           </h4>
           <div class="flex items-center justify-between">
-            <label class="text-sm text-gray-600 dark:text-gray-400">{{
+            <label class="text-sm text-ink-2">{{
               t("admin.groups.openaiLive.allow")
             }}</label>
             <Toggle
@@ -3338,7 +3316,7 @@
               @update:model-value="toggleLive('edit')"
             />
           </div>
-          <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+          <p class="text-xs text-ink-2 mt-1">
             {{ t("admin.groups.openaiLive.hint") }}
           </p>
         </div>
@@ -3346,20 +3324,20 @@
         <!-- OpenAI Messages 调度配置（OpenAI 与 Composite 平台） -->
         <div v-show="editConfigTab === 'scheduling'" data-group-section="scheduling"
           v-if="supportsMessagesDispatchPlatform(editForm.platform)"
-          class="border-t border-gray-200 dark:border-dark-400 pt-4 mt-4"
+          class="border-t border-edge dark:border-dark-400 pt-4 mt-4"
         >
-          <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+          <h4 class="text-sm font-medium text-ink-2 mb-3">
             {{ t("admin.groups.openaiMessages.title") }}
           </h4>
 
           <!-- 允许 Messages 调度开关 -->
           <div class="flex items-center justify-between">
-            <label class="text-sm text-gray-600 dark:text-gray-400">{{
+            <label class="text-sm text-ink-2">{{
               t("admin.groups.openaiMessages.allowDispatch")
             }}</label>
             <Toggle v-model="editForm.allow_messages_dispatch" />
           </div>
-          <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+          <p class="text-xs text-ink-2 mt-1">
             {{ t("admin.groups.openaiMessages.allowDispatchHint") }}
           </p>
 
@@ -3370,21 +3348,21 @@
             class="mt-3"
           >
             <div
-              class="relative overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-dark-600 dark:bg-dark-800"
+              class="relative overflow-hidden rounded-xl border border-edge bg-white shadow-sm dark:border-dark-600 dark:bg-dark-800"
             >
               <div
-                class="border-b border-gray-100 bg-gray-50/80 px-4 py-3 dark:border-dark-700 dark:bg-dark-700/50"
+                class="border-b border-edge bg-surface-2/80 px-4 py-3 dark:border-dark-700 dark:bg-dark-700/50"
               >
                 <div class="flex items-center gap-2">
                   <div class="h-2 w-2 rounded-full bg-blue-500"></div>
                   <label
-                    class="text-sm font-medium text-gray-900 dark:text-white"
+                    class="text-sm font-medium text-ink"
                     >{{
                       t("admin.groups.openaiMessages.familyMappingTitle")
                     }}</label
                   >
                 </div>
-                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                <p class="mt-1 text-xs text-ink-2">
                   {{ t("admin.groups.openaiMessages.familyMappingHint") }}
                 </p>
               </div>
@@ -3459,7 +3437,7 @@
                 </div>
               </div>
 
-              <div class="p-4 bg-gray-50/30 dark:bg-dark-800/30">
+              <div class="p-4 bg-surface-2/30 dark:bg-dark-800/30">
                 <div
                   v-if="editForm.exact_model_mappings.length === 0"
                   class="flex items-center justify-between gap-3 rounded-xl border-2 border-dashed border-primary-200 bg-white px-5 py-4 text-sm text-primary-700 transition-colors hover:border-primary-300 dark:border-primary-900/40 dark:bg-dark-800 dark:text-primary-300 dark:hover:border-primary-800"
@@ -3481,7 +3459,7 @@
                   <div
                     v-for="row in editForm.exact_model_mappings"
                     :key="getEditMessagesDispatchRowKey(row)"
-                    class="group relative rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-all hover:border-primary-300 hover:shadow-md dark:border-dark-600 dark:bg-dark-700 dark:hover:border-primary-700"
+                    class="group relative rounded-xl border border-edge bg-white p-4 shadow-sm transition-all hover:border-primary-300 hover:shadow-md dark:border-dark-600 dark:bg-dark-700 dark:hover:border-primary-700"
                   >
                     <div class="flex items-center gap-4">
                       <div
@@ -3499,7 +3477,7 @@
                                 'admin.groups.openaiMessages.claudeModelPlaceholder',
                               )
                             "
-                            class="input bg-gray-50 focus:bg-white dark:bg-dark-800 dark:focus:bg-dark-900"
+                            class="input bg-surface-2 focus:bg-white dark:bg-dark-800 dark:focus:bg-dark-900"
                           />
                         </div>
                         <div
@@ -3523,14 +3501,14 @@
                                 'admin.groups.openaiMessages.targetModelPlaceholder',
                               )
                             "
-                            class="input bg-gray-50 focus:bg-white dark:bg-dark-800 dark:focus:bg-dark-900"
+                            class="input bg-surface-2 focus:bg-white dark:bg-dark-800 dark:focus:bg-dark-900"
                           />
                         </div>
                       </div>
                       <button
                         type="button"
                         @click="removeEditMessagesDispatchMapping(row)"
-                        class="mt-6 flex h-9 w-9 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+                        class="mt-6 flex h-9 w-9 items-center justify-center rounded-lg text-ink-3 transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20 dark:hover:text-red-400"
                         :title="
                           t('admin.groups.openaiMessages.removeExactMapping')
                         "
@@ -3543,7 +3521,7 @@
                   <button
                     type="button"
                     @click="addEditMessagesDispatchMapping"
-                    class="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 bg-white py-3 text-sm font-medium text-gray-500 transition-all hover:border-primary-300 hover:bg-primary-50/50 hover:text-primary-600 dark:border-dark-600 dark:bg-dark-800 dark:text-gray-400 dark:hover:border-primary-800 dark:hover:bg-primary-900/20 dark:hover:text-primary-400"
+                    class="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-edge-strong bg-white py-3 text-sm font-medium text-ink-2 transition-all hover:border-primary-300 hover:bg-primary-50/50 hover:text-primary-600 dark:border-dark-600 dark:bg-dark-800 dark:text-ink-2 dark:hover:border-primary-800 dark:hover:bg-primary-900/20 dark:hover:text-primary-400"
                   >
                     <Icon name="plus" size="sm" />
                     {{ t("admin.groups.openaiMessages.addExactMapping") }}
@@ -3561,19 +3539,19 @@
               editForm.platform,
             )
           "
-          class="border-t border-gray-200 dark:border-dark-400 pt-4 mt-4 space-y-4"
+          class="border-t border-edge dark:border-dark-400 pt-4 mt-4 space-y-4"
         >
-          <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+          <h4 class="text-sm font-medium text-ink-2 mb-3">
             {{ t("admin.groups.accountFilters.title") }}
           </h4>
 
           <!-- require_oauth_only toggle -->
           <div class="flex items-center justify-between">
             <div>
-              <label class="text-sm text-gray-600 dark:text-gray-400"
+              <label class="text-sm text-ink-2"
                 >{{ t("admin.groups.accountFilters.oauthOnly") }}</label
               >
-              <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+              <p class="text-xs text-ink-2 mt-0.5">
                 {{
                   editForm.require_oauth_only
                     ? t("admin.groups.accountFilters.oauthOnlyEnabled")
@@ -3587,10 +3565,10 @@
           <!-- require_privacy_set toggle -->
           <div class="flex items-center justify-between">
             <div>
-              <label class="text-sm text-gray-600 dark:text-gray-400"
+              <label class="text-sm text-ink-2"
                 >{{ t("admin.groups.accountFilters.privacySetOnly") }}</label
               >
-              <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+              <p class="text-xs text-ink-2 mt-0.5">
                 {{
                   editForm.require_privacy_set
                     ? t("admin.groups.accountFilters.privacySetOnlyEnabled")
@@ -3626,7 +3604,7 @@
         <!-- 模型路由配置（仅 anthropic 平台） -->
         <div v-show="editConfigTab === 'routes'" data-group-section="routes" v-if="editForm.platform === 'anthropic'" class="border-t pt-4">
           <div class="mb-1.5 flex items-center gap-1">
-            <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+            <label class="text-sm font-medium text-ink-2">
               {{ t("admin.groups.modelRouting.title") }}
             </label>
             <!-- Help Tooltip -->
@@ -3635,7 +3613,7 @@
                 name="questionCircle"
                 size="sm"
                 :stroke-width="2"
-                class="cursor-help text-gray-400 transition-colors hover:text-primary-500 dark:text-gray-500 dark:hover:text-primary-400"
+                class="cursor-help text-ink-3 transition-colors hover:text-primary-500 dark:text-ink-2 dark:hover:text-primary-400"
               />
               <div
                 class="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-80 opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100"
@@ -3656,7 +3634,7 @@
           <!-- 启用开关 -->
           <div class="flex items-center gap-3 mb-3">
             <Toggle v-model="editForm.model_routing_enabled" />
-            <span class="text-sm text-gray-500 dark:text-gray-400">
+            <span class="text-sm text-ink-2">
               {{
                 editForm.model_routing_enabled
                   ? t("admin.groups.modelRouting.enabled")
@@ -3666,11 +3644,11 @@
           </div>
           <p
             v-if="!editForm.model_routing_enabled"
-            class="text-xs text-gray-500 dark:text-gray-400 mb-3"
+            class="text-xs text-ink-2 mb-3"
           >
             {{ t("admin.groups.modelRouting.disabledHint") }}
           </p>
-          <p v-else class="text-xs text-gray-500 dark:text-gray-400 mb-3">
+          <p v-else class="text-xs text-ink-2 mb-3">
             {{ t("admin.groups.modelRouting.noRulesHint") }}
           </p>
           <!-- 路由规则列表（仅在启用时显示） -->
@@ -3678,7 +3656,7 @@
             <div
               v-for="rule in editModelRoutingRules"
               :key="getEditRuleRenderKey(rule)"
-              class="rounded-lg border border-gray-200 p-3 dark:border-dark-600"
+              class="rounded-lg border border-edge p-3 dark:border-dark-600"
             >
               <div class="flex items-start gap-3">
                 <div class="flex-1 space-y-2">
@@ -3751,7 +3729,7 @@
                           :key="account.id"
                           type="button"
                           @click="selectAccount(rule, account, true)"
-                          class="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-dark-700"
+                          class="w-full px-3 py-2 text-left text-sm hover:bg-surface-3 dark:hover:bg-dark-700"
                           :class="{
                             'opacity-50': rule.accounts.some(
                               (a) => a.id === account.id,
@@ -3762,13 +3740,13 @@
                           "
                         >
                           <span>{{ account.name }}</span>
-                          <span class="ml-2 text-xs text-gray-400"
+                          <span class="ml-2 text-xs text-ink-2"
                             >#{{ account.id }}</span
                           >
                         </button>
                       </div>
                     </div>
-                    <p class="text-xs text-gray-400 mt-1">
+                    <p class="text-xs text-ink-2 mt-1">
                       {{ t("admin.groups.modelRouting.accountsHint") }}
                     </p>
                   </div>
@@ -3776,7 +3754,7 @@
                 <button
                   type="button"
                   @click="removeEditRoutingRule(rule)"
-                  class="mt-5 p-1.5 text-gray-400 hover:text-red-500 transition-colors"
+                  class="mt-5 p-1.5 text-ink-3 hover:text-red-500 transition-colors"
                   :title="t('admin.groups.modelRouting.removeRule')"
                 >
                   <Icon name="trash" size="sm" />
@@ -3800,8 +3778,8 @@
 
       <template #footer>
         <div class="flex flex-wrap items-center justify-end gap-3">
-          <span class="mr-auto text-xs text-ink-3">{{ t('admin.groups.workspace.saveHint') }}</span>
-          <button type="button" class="btn btn-ghost" :disabled="submitting || !hasUnsavedGroupChanges" @click="requestEditorAction({ type: 'select', group: editingGroup! })">{{ t('admin.groups.workspace.reset') }}</button>
+          <span class="mr-auto text-xs text-ink-2">{{ t('admin.groups.workspace.saveHint') }}</span>
+          <button type="button" class="btn btn-ghost" :disabled="submitting || !hasUnsavedGroupChanges" @click="performEditorAction({ type: 'select', group: editingGroup! })">{{ t('admin.groups.workspace.reset') }}</button>
           <button
             @click="requestCloseEditor"
             type="button"
@@ -3878,7 +3856,7 @@
       @close="closeSortModal"
     >
       <div class="space-y-4">
-        <p class="text-sm text-gray-500 dark:text-gray-400">
+        <p class="text-sm text-ink-2">
           {{ t("admin.groups.sortOrderHint") }}
         </p>
         <VueDraggable
@@ -3889,16 +3867,16 @@
           <div
             v-for="group in sortableGroups"
             :key="group.id"
-            class="flex cursor-grab items-center gap-3 rounded-lg border border-gray-200 bg-white p-3 transition-shadow hover:shadow-md active:cursor-grabbing dark:border-dark-600 dark:bg-dark-700"
+            class="flex cursor-grab items-center gap-3 rounded-lg border border-edge bg-white p-3 transition-shadow hover:shadow-md active:cursor-grabbing dark:border-dark-600 dark:bg-dark-700"
           >
-            <div class="text-gray-400">
+            <div class="text-ink-3">
               <Icon name="menu" size="md" />
             </div>
             <div class="flex-1">
-              <div class="font-medium text-gray-900 dark:text-white">
+              <div class="font-medium text-ink">
                 {{ group.name }}
               </div>
-              <div class="text-xs text-gray-500 dark:text-gray-400">
+              <div class="text-xs text-ink-2">
                 <span
                   :class="[
                     'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium',
@@ -3927,7 +3905,7 @@
                 </span>
               </div>
             </div>
-            <div class="text-sm text-gray-400">#{{ group.id }}</div>
+            <div class="text-sm text-ink-2">#{{ group.id }}</div>
           </div>
         </VueDraggable>
       </div>
@@ -3988,7 +3966,7 @@
       <div class="grid gap-5 lg:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
         <section class="min-w-0">
           <div class="mb-3 flex items-center justify-between gap-3">
-            <h3 class="text-sm font-semibold text-gray-900 dark:text-white">
+            <h3 class="text-sm font-semibold text-ink">
               {{ t("admin.groups.compositeRoutes.routes") }}
             </h3>
             <button
@@ -4006,23 +3984,23 @@
           </div>
 
           <div
-            class="overflow-hidden rounded-lg border border-gray-200 dark:border-dark-600"
+            class="overflow-hidden rounded-lg border border-edge dark:border-dark-600"
           >
             <div
               v-if="compositeRoutesLoading"
-              class="flex h-36 items-center justify-center text-sm text-gray-500 dark:text-gray-400"
+              class="flex h-36 items-center justify-center text-sm text-ink-2"
             >
               {{ t("common.loading") }}
             </div>
             <div
               v-else-if="compositeRoutes.length === 0"
-              class="flex h-36 items-center justify-center text-sm text-gray-500 dark:text-gray-400"
+              class="flex h-36 items-center justify-center text-sm text-ink-2"
             >
               {{ t("admin.groups.compositeRoutes.empty") }}
             </div>
             <div v-else class="overflow-x-auto">
-              <table class="min-w-full divide-y divide-gray-200 text-sm dark:divide-dark-600">
-                <thead class="bg-gray-50 text-left text-xs font-medium uppercase tracking-wide text-gray-500 dark:bg-dark-800 dark:text-gray-400">
+              <table class="min-w-full divide-y divide-edge text-sm dark:divide-dark-600">
+                <thead class="bg-surface-2 text-left text-xs font-medium uppercase tracking-wide text-ink-3 dark:bg-dark-800 dark:text-ink-2">
                   <tr>
                     <th class="px-3 py-2">
                       {{ t("admin.groups.compositeRoutes.publicModel") }}
@@ -4038,14 +4016,14 @@
                     </th>
                   </tr>
                 </thead>
-                <tbody class="divide-y divide-gray-100 bg-white dark:divide-dark-700 dark:bg-dark-900">
+                <tbody class="divide-y divide-edge bg-white dark:divide-dark-700 dark:bg-dark-900">
                   <tr
                     v-for="route in compositeRoutes"
                     :key="route.id"
                     :class="!route.enabled && 'opacity-60'"
                   >
                     <td class="max-w-[15rem] px-3 py-2">
-                      <div class="break-all font-medium text-gray-900 dark:text-white">
+                      <div class="break-all font-medium text-ink">
                         {{ route.public_model }}
                       </div>
                       <div class="mt-1 flex flex-wrap items-center gap-1.5">
@@ -4061,19 +4039,19 @@
                       </div>
                     </td>
                     <td class="px-3 py-2">
-                      <div class="flex items-center gap-1.5 text-gray-900 dark:text-white">
+                      <div class="flex items-center gap-1.5 text-ink">
                         <PlatformIcon :platform="route.target_platform" size="xs" />
                         <span>{{ formatCompositePlatform(route.target_platform) }}</span>
                       </div>
-                      <div class="mt-1 break-all text-xs text-gray-500 dark:text-gray-400">
+                      <div class="mt-1 break-all text-xs text-ink-2">
                         {{ route.upstream_model || route.public_model }}
                       </div>
                     </td>
                     <td class="px-3 py-2">
-                      <div class="text-gray-700 dark:text-gray-300">
+                      <div class="text-ink-2">
                         {{ formatCompositeEndpoint(route.endpoint) }}
                       </div>
-                      <div class="text-xs text-gray-500 dark:text-gray-400">
+                      <div class="text-xs text-ink-2">
                         {{ t("admin.groups.compositeRoutes.priority") }}:
                         {{ route.priority }}
                       </div>
@@ -4082,7 +4060,7 @@
                       <div class="flex justify-end gap-1">
                         <button
                           type="button"
-                          class="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400"
+                          class="rounded p-1.5 text-ink-3 hover:bg-surface-3 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400"
                           :title="t('common.edit')"
                           @click="editCompositeRoute(route)"
                         >
@@ -4090,7 +4068,7 @@
                         </button>
                         <button
                           type="button"
-                          class="rounded p-1.5 text-gray-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+                          class="rounded p-1.5 text-ink-3 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
                           :title="t('common.delete')"
                           @click="deleteCompositeRoute(route)"
                         >
@@ -4108,7 +4086,7 @@
         <section class="space-y-5">
           <form class="space-y-3" @submit.prevent="saveCompositeRoute">
             <div class="flex items-center justify-between gap-3">
-              <h3 class="text-sm font-semibold text-gray-900 dark:text-white">
+              <h3 class="text-sm font-semibold text-ink">
                 {{
                   compositeRouteEditingId
                     ? t("admin.groups.compositeRoutes.editRoute")
@@ -4118,7 +4096,7 @@
               <button
                 v-if="compositeRouteEditingId"
                 type="button"
-                class="text-xs font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                class="text-xs font-medium text-ink-3 hover:text-ink dark:text-ink-2 dark:hover:text-ink"
                 @click="resetCompositeRouteForm"
               >
                 {{ t("common.cancel") }}
@@ -4193,7 +4171,7 @@
                 class="input"
                 placeholder="gpt-5"
               />
-              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              <p class="mt-1 text-xs text-ink-2">
                 {{ t("admin.groups.compositeRoutes.upstreamModelHint") }}
               </p>
             </div>
@@ -4210,11 +4188,11 @@
             </div>
 
             <div class="flex items-center justify-between gap-3">
-              <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+              <label class="flex items-center gap-2 text-sm text-ink-2">
                 <input
                   v-model="compositeRouteForm.enabled"
                   type="checkbox"
-                  class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 dark:border-dark-600 dark:bg-dark-700"
+                  class="h-4 w-4 rounded border-edge-strong text-primary-600 focus:ring-primary-500 dark:border-dark-600 dark:bg-dark-700"
                 />
                 {{ t("admin.groups.compositeRoutes.enabled") }}
               </label>
@@ -4234,8 +4212,8 @@
             </div>
           </form>
 
-          <div class="border-t border-gray-200 pt-4 dark:border-dark-600">
-            <h3 class="mb-3 text-sm font-semibold text-gray-900 dark:text-white">
+          <div class="border-t border-edge pt-4 dark:border-dark-600">
+            <h3 class="mb-3 text-sm font-semibold text-ink">
               {{ t("admin.groups.compositeRoutes.preview") }}
             </h3>
             <div class="space-y-3">
@@ -4264,7 +4242,7 @@
 
               <div
                 v-if="compositePreviewDecision"
-                class="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm dark:border-dark-600 dark:bg-dark-800"
+                class="rounded-lg border border-edge bg-surface-2 p-3 text-sm dark:border-dark-600 dark:bg-dark-800"
               >
                 <div class="mb-2 flex items-center gap-2">
                   <span
@@ -4291,7 +4269,7 @@
                 </div>
                 <div
                   v-if="compositePreviewDecision.matched"
-                  class="space-y-1 text-gray-700 dark:text-gray-300"
+                  class="space-y-1 text-ink-2"
                 >
                   <div>
                     {{ t("admin.groups.compositeRoutes.targetPlatform") }}:
@@ -4308,7 +4286,7 @@
                 </div>
                 <div
                   v-else
-                  class="text-gray-500 dark:text-gray-400"
+                  class="text-ink-3"
                 >
                   {{ compositePreviewDecision.reason }}
                 </div>
@@ -4375,11 +4353,11 @@ import {
 } from "@/constants/platforms";
 import type { Column } from "@/components/common/types";
 import AppLayout from "@/components/layout/AppLayout.vue";
-import PageHeader from "@/components/common/PageHeader.vue";
 import StatusPill from "@/components/common/StatusPill.vue";
 import GroupEditorPanel from "@/components/admin/group/GroupEditorPanel.vue";
 import GroupConfigTabs, { type GroupConfigTab } from "@/components/admin/group/GroupConfigTabs.vue";
-import GroupEconomicsSummary from "@/components/admin/group/GroupEconomicsSummary.vue";
+import GroupDirectory from "@/components/admin/group/GroupDirectory.vue";
+import GroupOverview from "@/components/admin/group/GroupOverview.vue";
 import GroupPricingTable from "@/components/admin/group/GroupPricingTable.vue";
 import TablePageLayout from "@/components/layout/TablePageLayout.vue";
 import DataTable from "@/components/common/DataTable.vue";
@@ -4926,9 +4904,19 @@ const sortState = reactive({
 
 let abortController: AbortController | null = null;
 
+const WORKSPACE_HIDDEN_TABLE_PREVIEW = 20;
 const showCreateModal = ref(false);
 const showEditModal = ref(false);
 const groupView = ref<"workspace" | "table">("workspace");
+const tableGroups = computed(() => {
+  if (groupView.value === "table") {
+    return loading.value ? [] : groups.value;
+  }
+  // The table stays mounted but hidden while the workspace is active. Keep only
+  // a small preview there so a complete workspace catalogue is never duplicated
+  // into a zero-height virtualized table.
+  return groups.value.slice(0, WORKSPACE_HIDDEN_TABLE_PREVIEW);
+});
 const createConfigTab = ref<GroupConfigTab>("basic");
 const editConfigTab = ref<GroupConfigTab>("basic");
 const selectedGroupId = ref<number | null>(null);
@@ -5511,12 +5499,16 @@ const hasUnsavedGroupChanges = computed(() =>
 );
 
 const performEditorAction = async (action: EditorAction) => {
+  const enteringWorkspace = groupView.value === "table"
+    && (action.type === "select" || action.type === "create");
   savedEditorSnapshot.value = "";
   if (action.type === "select") {
     groupView.value = "workspace";
     closeCreateModal();
     await handleEdit(action.group);
+    if (enteringWorkspace) void loadGroups();
   } else if (action.type === "create") {
+    groupView.value = "workspace";
     const requestSeq = ++groupEditorRequestSeq;
     closeEditModal();
     createConfigTab.value = "basic";
@@ -5525,6 +5517,7 @@ const performEditorAction = async (action: EditorAction) => {
     showCreateModal.value = true;
     await nextTick();
     savedEditorSnapshot.value = editorSnapshot.value;
+    if (enteringWorkspace) void loadGroups();
   } else if (action.type === "leave") {
     action.resolve(true);
   } else {
@@ -5559,6 +5552,26 @@ if (inject(matchedRouteKey, null)) {
   });
 }
 const handleGroupFilterChange = () => {
+  pagination.page = 1;
+  void loadGroups();
+};
+const handleDirectorySearch = (value: string) => {
+  searchQuery.value = value;
+  handleSearch();
+};
+const handleDirectoryPlatform = (value: string) => {
+  filters.platform = value;
+  handleGroupFilterChange();
+};
+const handleDirectoryStatus = (value: string) => {
+  filters.status = value;
+  handleGroupFilterChange();
+};
+const clearDirectoryFilters = () => {
+  searchQuery.value = "";
+  filters.platform = "";
+  filters.status = "";
+  filters.is_exclusive = "";
   pagination.page = 1;
   void loadGroups();
 };
@@ -5802,6 +5815,64 @@ const cancelUnsupportedLive = () => {
   pendingLiveForm.value = null;
 };
 
+const WORKSPACE_GROUP_PAGE_SIZE = 1000;
+const WORKSPACE_GROUP_COLLECTION_ATTEMPTS = 3;
+
+const buildGroupListQuery = () => ({
+  platform: (filters.platform as GroupPlatform) || undefined,
+  status: filters.status as any,
+  is_exclusive: !authStore.isSimpleMode && filters.is_exclusive
+    ? filters.is_exclusive === "true"
+    : undefined,
+  search: searchQuery.value.trim() || undefined,
+  sort_by: sortState.sort_by,
+  sort_order: sortState.sort_order,
+});
+
+/**
+ * Collect the complete workspace catalogue through the existing paginated
+ * endpoint. A single request is capped at 1,000 rows, so later pages use the
+ * page size the server actually returned. Publish only complete collections:
+ * offset pagination is not a snapshot, so retry when concurrent changes make
+ * the unique row count disagree with the reported total.
+ */
+const collectWorkspaceGroups = async (
+  query: ReturnType<typeof buildGroupListQuery>,
+  signal: AbortSignal,
+): Promise<{ items: AdminGroup[]; total: number } | null> => {
+  for (let attempt = 0; attempt < WORKSPACE_GROUP_COLLECTION_ATTEMPTS; attempt += 1) {
+    const items: AdminGroup[] = [];
+    const seen = new Set<number>();
+    let page = 1;
+    let pageSize = WORKSPACE_GROUP_PAGE_SIZE;
+    let total = 0;
+    let pages = 0;
+
+    do {
+      const response = await adminAPI.groups.list(
+        page,
+        page === 1 ? WORKSPACE_GROUP_PAGE_SIZE : pageSize,
+        query,
+        { signal },
+      );
+      if (signal.aborted) return null;
+
+      total = response.total;
+      pages = response.pages;
+      if (Number(response.page_size) > 0) pageSize = response.page_size;
+      for (const group of response.items) {
+        if (seen.has(group.id)) continue;
+        seen.add(group.id);
+        items.push(group);
+      }
+      page += 1;
+    } while (page <= pages);
+
+    if (items.length === total) return { items, total };
+  }
+  return null;
+};
+
 const loadGroups = async () => {
   if (abortController) {
     abortController.abort();
@@ -5811,27 +5882,39 @@ const loadGroups = async () => {
   const { signal } = currentController;
   loading.value = true;
   try {
-    const response = await adminAPI.groups.list(
-      pagination.page,
-      pagination.page_size,
-      {
-        platform: (filters.platform as GroupPlatform) || undefined,
-        status: filters.status as any,
-        is_exclusive: !authStore.isSimpleMode && filters.is_exclusive
-          ? filters.is_exclusive === "true"
-          : undefined,
-        search: searchQuery.value.trim() || undefined,
-        sort_by: sortState.sort_by,
-        sort_order: sortState.sort_order,
-      },
-      { signal },
-    );
-    if (signal.aborted) return;
-    groups.value = response.items;
-    pagination.total = response.total;
-    pagination.pages = response.pages;
-    if (!showEditModal.value && !showCreateModal.value && groupView.value === "workspace" && response.items.length) {
-      void handleEdit(response.items.find(group => group.id === selectedGroupId.value) ?? response.items[0]);
+    const query = buildGroupListQuery();
+    let items: AdminGroup[] = [];
+    let total = 0;
+    let pages = 0;
+
+    if (groupView.value === "workspace") {
+      const catalogue = await collectWorkspaceGroups(query, signal);
+      if (signal.aborted) return;
+      if (!catalogue) {
+        appStore.showError(t("admin.groups.failedToLoad"));
+        return;
+      }
+      items = catalogue.items;
+      total = catalogue.total;
+      pages = 1;
+    } else {
+      const response = await adminAPI.groups.list(
+        pagination.page,
+        pagination.page_size,
+        query,
+        { signal },
+      );
+      if (signal.aborted) return;
+      items = response.items;
+      total = response.total;
+      pages = response.pages;
+    }
+
+    groups.value = items;
+    pagination.total = total;
+    pagination.pages = pages;
+    if (!showEditModal.value && !showCreateModal.value && groupView.value === "workspace" && items.length) {
+      void handleEdit(items.find(group => group.id === selectedGroupId.value) ?? items[0]);
     }
     if (hasVisibleUsageSummaryConsumer.value) {
       loadUsageSummary();
@@ -5872,7 +5955,7 @@ const getQuotaUsageClass = (
   limit: number | null | undefined,
 ): string => {
   if (!limit || limit <= 0) {
-    return "font-medium text-gray-700 dark:text-gray-300";
+    return "font-medium text-ink-2";
   }
   const ratio = used / limit;
   if (ratio >= 1) {
@@ -5881,7 +5964,7 @@ const getQuotaUsageClass = (
   if (ratio >= 0.8) {
     return "font-semibold text-amber-600 dark:text-amber-400";
   }
-  return "font-medium text-gray-700 dark:text-gray-300";
+  return "font-medium text-ink-2";
 };
 
 const loadUsageSummary = async () => {
@@ -5959,6 +6042,12 @@ const handlePageSizeChange = (pageSize: number) => {
   pagination.page_size = pageSize;
   pagination.page = 1;
   loadGroups();
+};
+
+const switchGroupView = (view: "workspace" | "table") => {
+  if (groupView.value === view) return;
+  groupView.value = view;
+  void loadGroups();
 };
 
 const handleSort = (key: string, order: 'asc' | 'desc') => {
@@ -7133,3 +7222,15 @@ onUnmounted(() => {
   clearAllAccountSearchState();
 });
 </script>
+
+<style scoped>
+:deep(.input-hint) {
+  @apply text-ink-2;
+}
+.warning-hint {
+  @apply text-amber-700 dark:text-amber-400;
+}
+.table-action {
+  @apply inline-grid h-8 w-8 place-items-center rounded-md text-ink-3 transition-colors hover:bg-surface-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary-500 motion-reduce:transition-none;
+}
+</style>

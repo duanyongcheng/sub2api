@@ -936,6 +936,12 @@ export default {
         totalGroups: '共 {count} 个分组',
         noMatchingGroups: '没有匹配的分组',
         selectGroup: '选择左侧分组开始配置，或新建一个分组。',
+        selectGroupShort: '选择分组',
+        noDescription: '未填写描述',
+        unsaved: '未保存',
+        clearFilters: '清除筛选',
+        accountsShort: '可用',
+        rateLimitedShort: '限流 {count}',
         models: '模型',
         modelMargin: '今日实际毛利',
         modelMarginBasis: '按今日已发生请求统计，仅匹配明确模型名；缺少样本或成本时显示 —。历史毛利不会随草稿价格改动。',
@@ -1400,7 +1406,7 @@ export default {
         tooltipEdit: '选择一个或多个相同平台的分组，保存后当前分组的账号会被替换为这些分组的账号（去重）。',
         selectPlaceholder: '选择分组以复制其账号...',
         hint: '可选多个分组，账号会自动去重',
-        hintEdit: '⚠️ 注意：这会替换当前分组的所有账号绑定'
+        hintEdit: '注意：这会替换当前分组的所有账号绑定'
       },
       modelRouting: {
         title: '模型路由配置',

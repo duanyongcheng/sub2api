@@ -1,13 +1,17 @@
 <template>
-  <div class="space-y-3">
-    <div class="grid grid-cols-2 gap-3 lg:grid-cols-4" :aria-busy="loading">
-      <div v-for="metric in metrics" :key="metric.label" class="rounded-field border border-edge bg-surface-2 px-3 py-3">
-        <div class="text-[11px] font-medium text-ink-3">{{ metric.label }}</div>
-        <div class="mt-1 text-lg font-semibold tabular-nums" :class="metric.tone || 'text-ink'">{{ loading ? '—' : metric.value }}</div>
+  <div class="border-t border-edge bg-surface-2/50 px-5 py-4" :aria-busy="loading">
+    <div class="grid grid-cols-2 gap-px overflow-hidden rounded-field border border-edge bg-edge sm:grid-cols-4">
+      <div v-for="metric in metrics" :key="metric.key" class="bg-surface px-4 py-3">
+        <div class="text-[11px] font-medium leading-4 text-ink-2">{{ metric.label }}</div>
+        <div v-if="loading" class="mt-1.5 h-6 w-20 animate-pulse rounded bg-surface-3" aria-hidden="true" />
+        <div v-else class="mt-1 text-[20px] font-semibold leading-7 tracking-[-0.02em] tabular-nums" :class="metric.tone">{{ metric.value }}</div>
       </div>
     </div>
-    <div v-if="margin !== null && margin < 0" class="rounded-field bg-red-500/10 px-3 py-2 text-xs text-red-600" role="status">{{ t('admin.groups.workspace.lossWarning') }}</div>
-    <p class="text-xs text-ink-3">
+    <div v-if="margin !== null && margin < 0" class="mt-2.5 flex items-start gap-1.5 text-[11.5px] leading-4 text-red-600 dark:text-red-400" role="status">
+      <Icon name="exclamationTriangle" size="xs" class="mt-0.5 shrink-0" />
+      <span>{{ t('admin.groups.workspace.lossWarning') }}</span>
+    </div>
+    <p class="mt-2 text-[11px] leading-4 text-ink-2">
       {{ error ? t('admin.groups.workspace.economicsUnavailable') : t('admin.groups.workspace.marginBasis') }}
       <template v-if="projectedMargin !== null"> · {{ t('admin.groups.workspace.projectedMargin', { margin: projectedMargin.toFixed(1) }) }}</template>
     </p>
@@ -17,6 +21,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import Icon from '@/components/icons/Icon.vue'
 import { getGroupStats } from '@/api/admin/dashboard'
 import { formatDateLocalInput } from '@/utils/format'
 import type { AdminGroup, GroupStat } from '@/types'
@@ -27,6 +32,7 @@ const stats = ref<GroupStat | null>(null)
 const loading = ref(false)
 const error = ref(false)
 let requestId = 0
+const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' })
 const margin = computed(() => {
   if (!stats.value || stats.value.actual_cost <= 0 || typeof stats.value.account_cost !== 'number') return null
   return (1 - stats.value.account_cost / stats.value.actual_cost) * 100
@@ -37,10 +43,10 @@ const projectedMargin = computed(() => {
   return (1 - stats.value.account_cost! / revenue) * 100
 })
 const metrics = computed(() => [
-  { label: t('admin.groups.workspace.todayRevenue'), value: stats.value ? `$${stats.value.actual_cost.toFixed(2)}` : '—' },
-  { label: t('admin.groups.workspace.todayCost'), value: typeof stats.value?.account_cost === 'number' ? `$${stats.value.account_cost.toFixed(2)}` : '—' },
-  { label: t('admin.groups.workspace.margin'), value: margin.value === null ? '—' : `${margin.value.toFixed(1)}%`, tone: margin.value !== null && margin.value < 0 ? 'text-red-600' : 'text-ink' },
-  { label: t('admin.groups.workspace.availableAccounts'), value: `${props.group.active_account_count ?? 0} / ${props.group.account_count ?? 0}` }
+  { key: 'revenue', label: t('admin.groups.workspace.todayRevenue'), value: stats.value ? usd.format(stats.value.actual_cost) : '—', tone: 'text-ink' },
+  { key: 'cost', label: t('admin.groups.workspace.todayCost'), value: typeof stats.value?.account_cost === 'number' ? usd.format(stats.value.account_cost) : '—', tone: 'text-ink' },
+  { key: 'margin', label: t('admin.groups.workspace.margin'), value: margin.value === null ? '—' : `${margin.value.toFixed(1)}%`, tone: margin.value !== null && margin.value < 0 ? 'text-red-600 dark:text-red-400' : 'text-ink' },
+  { key: 'accounts', label: t('admin.groups.workspace.availableAccounts'), value: `${props.group.active_account_count ?? 0} / ${props.group.account_count ?? 0}`, tone: 'text-ink' }
 ])
 watch(() => [props.group.id, props.group.updated_at], async () => {
   const currentRequest = ++requestId
