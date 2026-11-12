@@ -7196,6 +7196,19 @@
                 </p>
               </div>
 
+              <!-- 主动探测独立开关：与 mode 解耦，v2 聚合时仍可探测无流量的冷分组 -->
+              <div class="flex items-start justify-between gap-4">
+                <div class="min-w-0">
+                  <p class="text-sm font-medium text-gray-900 dark:text-white">
+                    {{ t('admin.settings.features.channelMonitor.probesEnabled') }}
+                  </p>
+                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    {{ t('admin.settings.features.channelMonitor.probesEnabledHint') }}
+                  </p>
+                </div>
+                <Toggle v-model="form.channel_monitor_probes_enabled" />
+              </div>
+
               <div v-if="form.channel_monitor_mode === 'v1'">
                 <label class="input-label">
                   {{ t('admin.settings.features.channelMonitor.defaultInterval') }}
@@ -9682,6 +9695,8 @@ type SettingsForm = Omit<
   channel_monitor_hide_throughput: boolean;
   channel_monitor_show_quota: boolean;
   channel_monitor_hide_user_ranking: boolean;
+  /** Independent of mode: lets a v2 site keep probing cold groups. */
+  channel_monitor_probes_enabled: boolean;
   smtp_password: string;
   turnstile_secret_key: string;
   tencent_captcha_app_secret_key: string;
@@ -10016,6 +10031,7 @@ const form = reactive<SettingsForm>({
   channel_monitor_hide_throughput: false,
   channel_monitor_show_quota: false,
   channel_monitor_hide_user_ranking: false,
+  channel_monitor_probes_enabled: false,
   // Available Channels feature switch
   available_channels_enabled: false,
   // Subscription feature switch (user sidebar "My Subscriptions" entry)
@@ -11052,6 +11068,10 @@ async function loadSettings() {
     form.channel_monitor_hide_user_ranking = Boolean(
       settings.channel_monitor_hide_user_ranking
     );
+    // 未配置时后端按「跟随 mode」解析，这里同步显示同一个推导结果，
+    // 避免管理端看到关闭而实际在探测。
+    form.channel_monitor_probes_enabled =
+      settings.channel_monitor_probes_enabled ?? form.channel_monitor_mode === 'v1';
     form.login_agreement_updated_at =
       settings.login_agreement_updated_at || "2026-03-31";
     form.login_agreement_documents =
@@ -11751,6 +11771,7 @@ async function saveSettings() {
       channel_monitor_hide_throughput: Boolean(form.channel_monitor_hide_throughput),
       channel_monitor_show_quota: Boolean(form.channel_monitor_show_quota),
       channel_monitor_hide_user_ranking: Boolean(form.channel_monitor_hide_user_ranking),
+      channel_monitor_probes_enabled: Boolean(form.channel_monitor_probes_enabled),
       // Available Channels feature switch
       available_channels_enabled: form.available_channels_enabled,
       // Subscription feature switch

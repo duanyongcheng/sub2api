@@ -341,6 +341,7 @@ type UpdateSettingsRequest struct {
 	ChannelMonitorHideThroughput         *bool   `json:"channel_monitor_hide_throughput"`
 	ChannelMonitorShowQuota              *bool   `json:"channel_monitor_show_quota"`
 	ChannelMonitorHideUserRanking        *bool   `json:"channel_monitor_hide_user_ranking"`
+	ChannelMonitorProbesEnabled          *bool   `json:"channel_monitor_probes_enabled"`
 
 	// Grok model mapping policy
 	GrokDefaultTextModel           *string `json:"grok_default_text_model"`
@@ -1953,6 +1954,12 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 				return *req.ChannelMonitorHideUserRanking
 			}
 			return previousSettings.ChannelMonitorHideUserRanking
+		}(),
+		ChannelMonitorProbesEnabled: func() bool {
+			if req.ChannelMonitorProbesEnabled != nil {
+				return *req.ChannelMonitorProbesEnabled
+			}
+			return previousSettings.ChannelMonitorProbesEnabled
 		}(),
 		GrokDefaultTextModel: func() string {
 			if req.GrokDefaultTextModel != nil {

@@ -37,6 +37,9 @@ export default {
           hideUserRanking: '对用户隐藏用户排行',
           hideUserRankingHint:
             '开启后，用户端渠道监控 V2 不再显示「用户排行」页，用户 API 也不返回排行数据。管理员仍可查看。',
+          probesEnabled: '启用主动探测',
+          probesEnabledHint:
+            '与监控模式解耦：开启后即使当前为 V2 被动聚合，仍会运行渠道监控项的定时探测，用来覆盖没有真实流量的冷分组。探测请求会正常计入该密钥的用量与真实流量统计。',
         },
         availableChannels: {
           title: '可用渠道',

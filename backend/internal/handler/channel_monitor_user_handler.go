@@ -32,12 +32,14 @@ func NewChannelMonitorUserHandler(
 
 // featureEnabled 返回当前渠道监控功能是否开启。
 // settingService 为 nil（测试场景）视为启用。
+// 探测数据是否存在由 ProbesEnabled 决定，而不是 mode：v2 聚合可以与主动
+// 探测同时运行，用户端需要能看到探测记录。
 func (h *ChannelMonitorUserHandler) featureEnabled(c *gin.Context) bool {
 	if h.settingService == nil {
 		return true
 	}
 	runtime := h.settingService.GetChannelMonitorRuntime(c.Request.Context())
-	return runtime.Enabled && runtime.Mode == service.ChannelMonitorModeV1
+	return runtime.Enabled && runtime.ProbesEnabled
 }
 
 // quotaVisible 返回用户端是否展示配额/余额快照（channel_monitor_show_quota，
