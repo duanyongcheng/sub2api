@@ -3,32 +3,47 @@ import { defineComponent, h, onUnmounted } from 'vue'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { createMemoryHistory, createRouter, type Router } from 'vue-router'
 
-const mocks = vi.hoisted(() => ({ v1: false, admin: false, serviceUnmounted: vi.fn() }))
+const mocks = vi.hoisted(() => ({
+  v2Mode: true,
+  probesEnabled: false,
+  probeItems: [] as unknown[],
+  probeListFails: false,
+  serviceUnmounted: vi.fn(),
+  v1Unmounted: vi.fn(),
+}))
 
-vi.mock('@/utils/featureFlags', () => ({ isChannelMonitorV1Mode: () => mocks.v1 }))
-vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ isAdmin: mocks.admin }) }))
+vi.mock('@/utils/featureFlags', () => ({
+  isChannelMonitorV2Mode: () => mocks.v2Mode,
+  isChannelMonitorProbesEnabled: () => mocks.probesEnabled,
+}))
+vi.mock('@/api/channelMonitor', () => ({
+  list: () => {
+    if (mocks.probeListFails) return Promise.reject(new Error('probe list failed'))
+    return Promise.resolve({ items: mocks.probeItems })
+  },
+}))
 vi.mock('vue-i18n', async (importOriginal) => ({
-  ...await importOriginal<typeof import('vue-i18n')>(),
+  ...(await importOriginal<typeof import('vue-i18n')>()),
   useI18n: () => ({ t: (key: string) => key }),
 }))
 vi.mock('../ChannelStatusV1View.vue', () => ({
-  default: defineComponent({ name: 'ChannelStatusV1View', setup: () => () => h('div', { 'data-testid': 'v1' }) }),
-}))
-vi.mock('../ServiceStatusView.vue', () => ({
   default: defineComponent({
-    name: 'ServiceStatusView', props: { embedded: Boolean },
+    name: 'ChannelStatusV1View',
+    props: { embedded: Boolean },
     setup() {
-      onUnmounted(mocks.serviceUnmounted)
-      return () => h('div', { 'data-testid': 'service' })
+      onUnmounted(mocks.v1Unmounted)
+      return () => h('div', { 'data-testid': 'probes' })
     },
   }),
 }))
-vi.mock('../ChannelStatusV2View.vue', () => ({
-  default: defineComponent({ name: 'ChannelStatusV2View', props: { embedded: Boolean, syncRoute: Boolean }, setup: () => () => h('div', { 'data-testid': 'user-availability' }) }),
-}))
-vi.mock('@/features/channel-monitor-v2/AdminMonitorBoard.vue', () => ({
+vi.mock('../ServiceStatusView.vue', () => ({
   default: defineComponent({
-    name: 'AdminMonitorBoard', setup: () => () => h('div', { 'data-testid': 'admin-availability' }),
+    name: 'ServiceStatusView',
+    props: { embedded: Boolean },
+    setup() {
+      onUnmounted(mocks.serviceUnmounted)
+      return () => h('div', { 'data-testid': 'traffic' })
+    },
   }),
 }))
 
@@ -36,90 +51,90 @@ import ChannelStatusView from '../ChannelStatusView.vue'
 
 let wrapper: VueWrapper
 let router: Router
-async function view(url = '/monitor') {
+
+async function view() {
   router = createRouter({
     history: createMemoryHistory(),
-    routes: [
-      { path: '/monitor', component: ChannelStatusView },
-      { path: '/admin/channels/monitor', component: { template: '<div />' } },
-    ],
+    routes: [{ path: '/monitor', component: ChannelStatusView }],
   })
-  await router.push(url)
+  await router.push('/monitor')
   wrapper = mount(ChannelStatusView, {
-    global: { plugins: [router], stubs: { AppLayout: { name: 'AppLayout', template: '<main data-testid="layout"><slot /></main>' } } },
+    global: {
+      plugins: [router],
+      stubs: { AppLayout: { name: 'AppLayout', template: '<main data-testid="layout"><slot /></main>' } },
+    },
   })
   await flushPromises()
 }
+
+const tabValues = () =>
+  wrapper.findAll('[data-status-tab]').map((node) => node.attributes('data-status-tab'))
+
 beforeEach(() => {
   vi.clearAllMocks()
-  mocks.v1 = false
-  mocks.admin = false
+  mocks.v2Mode = true
+  mocks.probesEnabled = false
+  mocks.probeItems = []
+  mocks.probeListFails = false
 })
 afterEach(() => wrapper?.unmount())
 
-describe('ChannelStatusView service status', () => {
-  it('shows embedded service status inside one layout without display tabs', async () => {
+describe('ChannelStatusView status tabs', () => {
+  it('shows only real traffic when probes are off, with no tab bar', async () => {
     await view()
-    expect(wrapper.find('[data-testid="service"]').exists()).toBe(true)
-    expect(wrapper.findComponent({ name: 'ServiceStatusView' }).props('embedded')).toBe(true)
-    expect(wrapper.findAll('[data-testid="layout"]')).toHaveLength(1)
-    expect(wrapper.find('[role="tablist"]').exists()).toBe(false)
-    expect(wrapper.find('[role="tab"]').exists()).toBe(false)
-    expect(wrapper.find('[role="tabpanel"]').exists()).toBe(false)
-    expect(wrapper.find('[data-testid="admin-availability"]').exists()).toBe(false)
-    expect(wrapper.find('[data-testid="user-availability"]').exists()).toBe(false)
-    expect(wrapper.find('a[href^="/admin/"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="traffic"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="probes"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="status-tabs"]').exists()).toBe(false)
   })
 
-  it.each([false, true])('shows service status for old availability links (admin: %s)', async (admin) => {
-    mocks.admin = admin
-    await view('/monitor?view=availability&range=7d')
-    expect(wrapper.find('[data-testid="service"]').exists()).toBe(true)
-    expect(wrapper.findAll('[data-testid="layout"]')).toHaveLength(1)
-    expect(wrapper.find('[data-testid="user-availability"]').exists()).toBe(false)
-    expect(wrapper.find('[data-testid="admin-availability"]').exists()).toBe(false)
-    expect(wrapper.find('[role="tab"]').exists()).toBe(false)
-    expect(wrapper.find('a[href^="/admin/"]').exists()).toBe(false)
-    expect(router.currentRoute.value.query).toEqual({ view: 'availability', range: '7d' })
-  })
-
-  it('keeps service status mounted across old view queries and browser history', async () => {
-    await view('/monitor?range=7d&dimension=platform')
-    await router.push('/monitor?view=availability&range=30d&dimension=group')
-    expect(wrapper.find('[data-testid="service"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="user-availability"]').exists()).toBe(false)
-    await new Promise<void>(resolve => {
-      const remove = router.afterEach(() => { remove(); resolve() })
-      router.back()
-    })
-    await flushPromises()
-    expect(wrapper.find('[data-testid="service"]').exists()).toBe(true)
-    expect(router.currentRoute.value.query).toEqual({ range: '7d', dimension: 'platform' })
-    expect(mocks.serviceUnmounted).not.toHaveBeenCalled()
-  })
-
-  it.each(['unknown', 'availability&view=service'])('ignores unsupported display queries: %s', async (query) => {
-    await view(`/monitor?view=${query}`)
-    expect(wrapper.find('[data-testid="service"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="admin-availability"]').exists()).toBe(false)
-    expect(wrapper.find('[data-testid="user-availability"]').exists()).toBe(false)
-  })
-
-  it.each([false, true])('keeps the display free of configuration actions (admin: %s)', async (admin) => {
-    mocks.admin = admin
+  it('shows only probes in v1 mode, with no tab bar', async () => {
+    mocks.v2Mode = false
+    mocks.probesEnabled = true
+    mocks.probeItems = [{ id: 1 }]
     await view()
-    expect(wrapper.find('a[href^="/admin/"]').exists()).toBe(false)
-    expect(wrapper.text()).not.toContain('channelMonitorV2.operations.settings')
-    expect(wrapper.find('[data-testid="layout"]').element.children).toHaveLength(1)
-    expect(wrapper.find('[data-testid="layout"]').element.firstElementChild?.getAttribute('data-testid')).toBe('service')
+    expect(wrapper.find('[data-testid="probes"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="traffic"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="status-tabs"]').exists()).toBe(false)
   })
 
-  it('preserves the V1 page without mounting V2 views', async () => {
-    mocks.v1 = true
-    await view('/monitor?view=availability')
-    expect(wrapper.find('[data-testid="v1"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="service"]').exists()).toBe(false)
-    expect(wrapper.find('[data-testid="admin-availability"]').exists()).toBe(false)
-    expect(wrapper.find('[data-testid="user-availability"]').exists()).toBe(false)
+  it('offers both tabs when aggregation and probes both run, defaulting to traffic', async () => {
+    mocks.probesEnabled = true
+    mocks.probeItems = [{ id: 1 }]
+    await view()
+    expect(tabValues()).toEqual(['traffic', 'probes'])
+    expect(wrapper.find('[data-testid="traffic"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="probes"]').exists()).toBe(false)
+  })
+
+  it('switches to the probe tab on click without remounting the layout', async () => {
+    mocks.probesEnabled = true
+    mocks.probeItems = [{ id: 1 }]
+    await view()
+    await wrapper.get('[data-status-tab="probes"]').trigger('click')
+    expect(wrapper.find('[data-testid="probes"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="traffic"]').exists()).toBe(false)
+    expect(wrapper.findAll('[data-testid="layout"]')).toHaveLength(1)
+  })
+
+  it('hides the probe tab when the site has no probes', async () => {
+    mocks.probesEnabled = true
+    mocks.probeItems = []
+    await view()
+    expect(wrapper.find('[data-testid="status-tabs"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="traffic"]').exists()).toBe(true)
+  })
+
+  it('keeps the passive view working when the probe count request fails', async () => {
+    mocks.probesEnabled = true
+    mocks.probeListFails = true
+    await view()
+    expect(wrapper.find('[data-testid="traffic"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="status-tabs"]').exists()).toBe(false)
+  })
+
+  it('does not fetch probes at all when the switch is off', async () => {
+    await view()
+    expect(wrapper.find('[data-testid="status-tabs"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="traffic"]').exists()).toBe(true)
   })
 })

@@ -192,6 +192,9 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyChannelMonitorHideThroughput:         "true",
 		SettingKeyChannelMonitorShowQuota:              "false",
 		SettingKeyChannelMonitorHideUserRanking:        "false",
+		// 留空：未配置时沿用“仅 v1 模式探测”的旧行为，避免升级后探测全部停止。
+		// 显式值由 resolveChannelMonitorProbesEnabled 优先解释。
+		SettingKeyChannelMonitorProbesEnabled: "",
 
 		// Grok compatibility defaults: cross-client mapping stays enabled unless
 		// operators explicitly disable it.
@@ -813,6 +816,11 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 	// （与 setting_public.go 公开读取路径保持一致）。
 	result.ChannelMonitorShowQuota = settings[SettingKeyChannelMonitorShowQuota] == "true"
 	result.ChannelMonitorHideUserRanking = isTrueSettingValue(settings[SettingKeyChannelMonitorHideUserRanking])
+	// 探测开关独立于 mode：显式配置优先，否则沿用“仅 v1 探测”的旧行为。
+	result.ChannelMonitorProbesEnabled = resolveChannelMonitorProbesEnabled(
+		normalizeChannelMonitorMode(settings[SettingKeyChannelMonitorMode]),
+		settings[SettingKeyChannelMonitorProbesEnabled],
+	)
 
 	// Grok default mapping policy
 	result.GrokDefaultTextModel = strings.TrimSpace(settings[SettingKeyGrokDefaultTextModel])

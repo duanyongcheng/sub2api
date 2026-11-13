@@ -50,8 +50,9 @@ func (r *quotaModeRepoStub) Update(_ context.Context, m *ChannelMonitor) error {
 func newQuotaModeService(repo *quotaModeRepoStub) *ChannelMonitorService {
 	svc := NewChannelMonitorService(repo, &duplicateChannelMonitorEncryptor{})
 	svc.SetRuntimeReader(channelMonitorRuntimeStub{rt: ChannelMonitorRuntime{
-		Enabled: true,
-		Mode:    ChannelMonitorModeV1,
+		Enabled:       true,
+		Mode:          ChannelMonitorModeV1,
+		ProbesEnabled: true,
 	}})
 	return svc
 }

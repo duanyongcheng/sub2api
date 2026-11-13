@@ -109,6 +109,8 @@ export default {
     trendView: { label: 'Trend view', pulse: 'Pulse matrix', line: 'Line chart' },
     healthMode: { label: 'Health display', overall: 'Overall', success: 'Error rate', ttft: 'First token', cache: 'Cache rate' },
     tabs: { aria: 'Detail dimension', models: 'Models', errors: 'Error reasons', users: 'User ranking' },
+    /** Top-level view switch on the user status page: real traffic / active probes */
+    statusTabs: { aria: 'Status views', traffic: 'Real traffic', probes: 'Active probes' },
     metrics: {
       rpm: 'RPM',
       tpm: 'TPM',

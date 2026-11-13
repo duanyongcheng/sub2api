@@ -37,6 +37,9 @@ export default {
           hideUserRanking: 'Hide user ranking from users',
           hideUserRankingHint:
             'When on, the user Channel Monitor V2 page hides the user ranking tab and the user API returns no ranking rows. Admins still see the ranking.',
+          probesEnabled: 'Enable active probes',
+          probesEnabledHint:
+            'Independent of the monitor mode: when on, scheduled probes keep running even while V2 passive aggregation is active, so groups without real traffic still get a verdict. Probe requests count toward that API key usage and real-traffic statistics like any other request.',
         },
         availableChannels: {
           title: 'Available Channels',

@@ -515,6 +515,12 @@ const (
 	// Default false (keep the current ranking tab). Admin endpoints always keep it.
 	SettingKeyChannelMonitorHideUserRanking = "channel_monitor_hide_user_ranking"
 
+	// SettingKeyChannelMonitorProbesEnabled controls whether V1 active probes run.
+	// It is independent of SettingKeyChannelMonitorMode so a site can aggregate
+	// real traffic (mode=v2) and still probe cold groups. Unset keeps the legacy
+	// behaviour: probes follow the mode (only v1 probes).
+	SettingKeyChannelMonitorProbesEnabled = "channel_monitor_probes_enabled"
+
 	// SettingKeyGrokDefaultTextModel is the fallback Grok text model for empty
 	// request models and built-in Grok aliases (e.g. "grok" → this id). Default grok-4.5.
 	SettingKeyGrokDefaultTextModel = "grok_default_text_model"

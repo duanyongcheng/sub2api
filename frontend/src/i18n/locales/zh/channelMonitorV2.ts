@@ -109,6 +109,8 @@ export default {
     trendView: { label: '趋势视图', pulse: '色块矩阵', line: '折线图' },
     healthMode: { label: '健康显示', overall: '综合', success: '错误率', ttft: '首 Token', cache: '缓存率' },
     tabs: { aria: '明细维度', models: '模型', errors: '错误原因', users: '用户排行' },
+    /** 用户状态页的一级视图切换：真实流量 / 主动探测 */
+    statusTabs: { aria: '状态视图', traffic: '真实流量', probes: '主动探测' },
     metrics: {
       rpm: 'RPM',
       tpm: 'TPM',

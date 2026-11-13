@@ -1,5 +1,5 @@
 <template>
-  <AppLayout>
+  <component :is="embedded ? 'div' : AppLayout">
     <MonitorHero
       :overall-status="overallStatus"
       :interval-seconds="DEFAULT_INTERVAL_SECONDS"
@@ -25,7 +25,7 @@
       :title="detailTitle"
       @close="closeDetail"
     />
-  </AppLayout>
+  </component>
 </template>
 
 <script setup lang="ts">
@@ -51,6 +51,9 @@ import { useAutoRefresh } from '@/composables/useAutoRefresh'
 
 const { t } = useI18n()
 const appStore = useAppStore()
+
+/** Embedded mode renders inside the status page shell (no second AppLayout). */
+withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false })
 
 // ── State ──
 const items = ref<UserMonitorView[]>([])
