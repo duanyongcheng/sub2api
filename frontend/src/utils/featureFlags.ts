@@ -180,7 +180,7 @@ export function isChannelMonitorRouteEnabled(): boolean {
 
 export type ChannelMonitorMode = 'v1' | 'v2'
 
-/** Exclusive channel-monitor implementation. Invalid/missing → v1 (opt-in to v2). */
+/** V2 enables passive aggregation; active probes have their own switch. Invalid/missing → v1. */
 export function getChannelMonitorMode(): ChannelMonitorMode {
   const appStore = useAppStore()
   const mode = appStore.cachedPublicSettings?.channel_monitor_mode

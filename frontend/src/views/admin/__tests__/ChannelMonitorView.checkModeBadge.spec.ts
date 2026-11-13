@@ -13,6 +13,7 @@ const { listMonitors } = vi.hoisted(() => ({ listMonitors: vi.fn() }))
 
 vi.mock('@/utils/featureFlags', () => ({
   isChannelMonitorV1Mode: () => true,
+  isChannelMonitorProbesEnabled: () => true,
   isChannelMonitorV2Mode: () => false,
   getChannelMonitorMode: () => 'v1' as const,
 }))

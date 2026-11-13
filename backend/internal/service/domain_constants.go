@@ -486,8 +486,8 @@ const (
 	// When false: runner skips scheduling and user-facing endpoints return an empty list.
 	SettingKeyChannelMonitorEnabled = "channel_monitor_enabled"
 
-	// SettingKeyChannelMonitorMode selects exclusive implementation:
-	// "v1" active probes, "v2" passive aggregation. Default "v1" (opt-in to v2).
+	// SettingKeyChannelMonitorMode controls passive aggregation: only "v2" runs it.
+	// Default "v1" keeps the legacy view; active probes have a separate switch.
 	SettingKeyChannelMonitorMode = "channel_monitor_mode"
 
 	// ChannelMonitorModeV1/V2 are the only accepted mode values.

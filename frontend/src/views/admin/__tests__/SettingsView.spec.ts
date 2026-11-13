@@ -863,6 +863,57 @@ describe("admin SettingsView payment visible method controls", () => {
     wrapper.unmount();
   });
 
+  it("keeps probes enabled across a save and a second unrelated settings save in V2", async () => {
+    getSettings.mockResolvedValue({
+      ...baseSettingsResponse,
+      channel_monitor_enabled: true,
+      channel_monitor_mode: "v2",
+      channel_monitor_probes_enabled: true,
+      channel_monitor_default_interval_seconds: 90,
+      channel_monitor_show_quota: true,
+    });
+    const wrapper = mountView(document.body);
+    try {
+      await flushPromises();
+      await wrapper.get("#settings-tab-features").trigger("click");
+      const monitor = wrapper.findAll(".card").find(card =>
+        card.text().startsWith("admin.settings.features.channelMonitor.title"),
+      )!;
+      const intervalLabel = monitor.findAll("label").find(label =>
+        label.text().includes("admin.settings.features.channelMonitor.defaultInterval"),
+      );
+      expect(intervalLabel).toBeDefined();
+      expect(intervalLabel!.isVisible()).toBe(true);
+      const quotaRow = monitor.findAll("div.flex.items-start.justify-between").find(row =>
+        row.text().includes("admin.settings.features.channelMonitor.showQuota"),
+      );
+      expect(quotaRow).toBeDefined();
+      expect(quotaRow!.get<HTMLInputElement>("input").element.checked).toBe(true);
+      await wrapper.find("form").trigger("submit.prevent");
+      await flushPromises();
+      expect(updateSettings).toHaveBeenLastCalledWith(expect.objectContaining({
+        channel_monitor_probes_enabled: true,
+        channel_monitor_default_interval_seconds: 90,
+        channel_monitor_show_quota: true,
+      }));
+      const probesRow = monitor.findAll("div.flex.items-start.justify-between").find(row =>
+        row.text().includes("admin.settings.features.channelMonitor.probesEnabled"),
+      )!;
+      expect(probesRow.get<HTMLInputElement>("input").element.checked).toBe(true);
+      await wrapper.get("#settings-tab-general").trigger("click");
+      await wrapper.get('input[placeholder="admin.settings.site.siteNamePlaceholder"]').setValue("Second save");
+      await wrapper.find("form").trigger("submit.prevent");
+      await flushPromises();
+      expect(updateSettings).toHaveBeenLastCalledWith(expect.objectContaining({
+        channel_monitor_probes_enabled: true,
+        site_name: "Second save",
+      }));
+      expect(probesRow.get<HTMLInputElement>("input").element.checked).toBe(true);
+    } finally {
+      wrapper.unmount();
+    }
+  });
+
   it("submits the compact home page toggle", async () => {
     const wrapper = mountView();
     await flushPromises();

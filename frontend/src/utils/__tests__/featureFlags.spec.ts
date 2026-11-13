@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useAppStore } from '@/stores/app'
-import { FeatureFlags, isFeatureFlagEnabled, makeSidebarFlag, resolveFeatureFlag } from '@/utils/featureFlags'
+import { FeatureFlags, isChannelMonitorProbesEnabled, isFeatureFlagEnabled, makeSidebarFlag, resolveFeatureFlag } from '@/utils/featureFlags'
 import type { PublicSettings } from '@/types'
 
 vi.mock('@/api/admin/system', () => ({
@@ -11,6 +11,35 @@ vi.mock('@/api/admin/system', () => ({
 vi.mock('@/api/auth', () => ({
   getPublicSettings: vi.fn(),
 }))
+
+describe('Channel Monitor probe switch', () => {
+  beforeEach(() => { setActivePinia(createPinia()) })
+
+  it.each([
+    ['v1', true, true],
+    ['v1', false, false],
+    ['v2', true, true],
+    ['v2', false, false],
+    ['v1', undefined, true],
+    ['v2', undefined, false],
+  ] as const)('resolves mode %s with probe override %s to %s', (mode, probes, expected) => {
+    useAppStore().cachedPublicSettings = {
+      channel_monitor_enabled: true,
+      channel_monitor_mode: mode,
+      channel_monitor_probes_enabled: probes,
+    } as PublicSettings
+    expect(isChannelMonitorProbesEnabled()).toBe(expected)
+  })
+
+  it('honors the master switch even when probes are enabled', () => {
+    useAppStore().cachedPublicSettings = {
+      channel_monitor_enabled: false,
+      channel_monitor_mode: 'v2',
+      channel_monitor_probes_enabled: true,
+    } as PublicSettings
+    expect(isChannelMonitorProbesEnabled()).toBe(false)
+  })
+})
 
 describe('FeatureFlags.subscription', () => {
   beforeEach(() => {

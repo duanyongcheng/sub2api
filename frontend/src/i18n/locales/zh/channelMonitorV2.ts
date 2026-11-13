@@ -110,7 +110,12 @@ export default {
     healthMode: { label: '健康显示', overall: '综合', success: '错误率', ttft: '首 Token', cache: '缓存率' },
     tabs: { aria: '明细维度', models: '模型', errors: '错误原因', users: '用户排行' },
     /** 用户状态页的一级视图切换：真实流量 / 主动探测 */
-    statusTabs: { aria: '状态视图', traffic: '真实流量', probes: '主动探测' },
+    statusTabs: {
+      aria: '状态视图', traffic: '真实流量', probes: '主动探测',
+      probesLoading: '正在更新主动探测列表…',
+      probesLoadError: '主动探测列表加载失败，请重试。真实流量视图仍可使用。',
+      noSources: '当前未启用真实流量聚合或主动探测。',
+    },
     metrics: {
       rpm: 'RPM',
       tpm: 'TPM',
@@ -166,7 +171,7 @@ export default {
       modeBanner:
         '当前系统设置为 {mode}。V2 分钟聚合不会运行；此处配置可预先保存，切换到 {modeV2} 后立即生效。可在系统设置 → 功能开关调整。',
       modeClosed: '渠道监控已关闭',
-      modeV1: 'V1 主动探测',
+      modeV1: 'V1 探测视图',
       modeV2: 'V2 被动监控',
       enableTitle: '启用 V2 汇总',
       enableHint: '在系统模式为 V2 时生效；关闭后仅停止本配置的汇总，系统模式开关仍在「功能开关」',
@@ -217,13 +222,15 @@ export default {
       },
     },
     admin: {
-      descriptionV1: '配置 V1 主动探测、监控项和请求模板；服务状态在监控页查看。V2 聚合当前不运行。',
-      descriptionV2: '配置 V2 聚合维度、刷新频率、错误忽略和健康阈值；服务状态在监控页查看。V1 主动探测当前不运行。',
+      descriptionV1: '配置监控项和请求模板；服务状态在监控页查看。V2 聚合当前不运行。',
+      descriptionV2: '配置 V2 聚合维度、刷新频率、错误忽略和健康阈值；服务状态在监控页查看。',
+      probesActive: '主动探测已开启，按监控项配置定时运行。',
+      probesInactive: '主动探测已关闭，已有配置与历史保留。',
       tabAria: '监控配置',
       openMonitor: '查看监控',
       tabV2: 'V2 数据监控配置',
       tabV1Active: 'V1 主动探测',
-      tabV1History: 'V1 历史（当前模式未启用探测）',
+      tabV1History: '探测配置与历史（探测已关闭）',
     },
     operations: {
       reportExport: {
@@ -280,7 +287,7 @@ export default {
       causeLoading: '正在查询该时段主因…', causeUnavailable: '主因暂不可用，可点击重试', noCountedErrors: '该时段无计入可用率的错误',
       drilldown: '渠道复盘', drillTabs: '复盘内容', drillViews: { overview: '概览与归因', errors: '错误与样本', history: '时间线' },
       timeline: '所选范围的可用率时间线', timelineHint: '按原矩阵粒度展示，不生成请求级事件或推测切换记录。', openAccounts: '查看此范围的账号池',
-      probeTitle: '主动探测 · 独立证据', probeHint: '当前 V2 模式不运行 V1 探测；历史结果可在管理列表查看，不参与真实流量可用率与异常结论。', manageProbes: '管理探测与历史',
+      probeTitle: '主动探测 · 独立证据', probeHint: '主动探测由独立开关控制，可与 V2 聚合同时运行。探测结果在独立视图展示；请求经过本站网关时，会正常计入用量和真实流量统计。', manageProbes: '管理探测与历史',
       latestProbe: '最近保存的结果', probeCount: '共 {count} 个探测项', probeGroupLimit: '探测项尚未绑定分组，因此不随分组筛选；其状态不并入上方服务结论。',
       noProbes: '暂无主动探测记录', probeLoadFailed: '主动探测记录加载失败', probeName: '探测项', probeModel: '模型', probeMode: '模式', probeStatus: '最近状态', probeCheckedAt: '最近检查', probeNoResult: '暂无结果',
       probeUnbound: '未绑定分组',

@@ -54,6 +54,7 @@ const appStore = useAppStore()
 
 /** Embedded mode renders inside the status page shell (no second AppLayout). */
 withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false })
+const emit = defineEmits<{ loaded: [count: number] }>()
 
 // ── State ──
 const items = ref<UserMonitorView[]>([])
@@ -99,6 +100,7 @@ async function reload(silent = false) {
     const res = await listChannelMonitorViews({ signal: ctrl.signal })
     if (ctrl.signal.aborted || abortController !== ctrl) return
     items.value = res.items || []
+    emit('loaded', items.value.length)
   } catch (err: unknown) {
     const e = err as { name?: string; code?: string }
     if (e?.name === 'AbortError' || e?.code === 'ERR_CANCELED') return

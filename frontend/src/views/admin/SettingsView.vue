@@ -7209,7 +7209,7 @@
                 <Toggle v-model="form.channel_monitor_probes_enabled" />
               </div>
 
-              <div v-if="form.channel_monitor_mode === 'v1'">
+              <div v-if="form.channel_monitor_probes_enabled">
                 <label class="input-label">
                   {{ t('admin.settings.features.channelMonitor.defaultInterval') }}
                   <span class="text-red-500">*</span>
@@ -7251,7 +7251,7 @@
                 </div>
               </div>
 
-              <div v-if="form.channel_monitor_mode === 'v1'" class="flex items-start justify-between gap-4">
+              <div v-if="form.channel_monitor_probes_enabled" class="flex items-start justify-between gap-4">
                 <div class="min-w-0">
                   <p class="text-sm font-medium text-gray-900 dark:text-white">
                     {{ t('admin.settings.features.channelMonitor.showQuota') }}

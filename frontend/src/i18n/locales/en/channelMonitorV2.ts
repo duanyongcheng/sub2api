@@ -110,7 +110,12 @@ export default {
     healthMode: { label: 'Health display', overall: 'Overall', success: 'Error rate', ttft: 'First token', cache: 'Cache rate' },
     tabs: { aria: 'Detail dimension', models: 'Models', errors: 'Error reasons', users: 'User ranking' },
     /** Top-level view switch on the user status page: real traffic / active probes */
-    statusTabs: { aria: 'Status views', traffic: 'Real traffic', probes: 'Active probes' },
+    statusTabs: {
+      aria: 'Status views', traffic: 'Real traffic', probes: 'Active probes',
+      probesLoading: 'Updating active probe list…',
+      probesLoadError: 'The active probe list could not be loaded. Try again; real traffic is still available.',
+      noSources: 'Neither real-traffic aggregation nor active probes are enabled.',
+    },
     metrics: {
       rpm: 'RPM',
       tpm: 'TPM',
@@ -166,7 +171,7 @@ export default {
       modeBanner:
         'System mode is currently {mode}. V2 minute aggregation will not run; this config can be prepared now and takes effect after switching to {modeV2}. Change mode under System Settings → Feature switches.',
       modeClosed: 'Channel monitor disabled',
-      modeV1: 'V1 active probes',
+      modeV1: 'V1 probe view',
       modeV2: 'V2 passive monitoring',
       enableTitle: 'Enable V2 aggregation',
       enableHint:
@@ -221,14 +226,16 @@ export default {
     },
     admin: {
       descriptionV1:
-        'Configure V1 probes, monitors and request templates. View service status on the monitoring page. V2 aggregation is inactive.',
+        'Configure monitors and request templates. View service status on the monitoring page. V2 aggregation is inactive.',
       descriptionV2:
-        'Configure V2 aggregation, refresh intervals, ignored errors and health thresholds. View service status on the monitoring page. V1 probes are inactive.',
+        'Configure V2 aggregation, refresh intervals, ignored errors and health thresholds. View service status on the monitoring page.',
+      probesActive: 'Active probes are enabled and run on each monitor’s schedule.',
+      probesInactive: 'Active probes are disabled; existing configuration and history are kept.',
       tabAria: 'Monitoring configuration',
       openMonitor: 'View monitoring',
       tabV2: 'V2 data monitor config',
       tabV1Active: 'V1 active probes',
-      tabV1History: 'V1 history (probes not active in current mode)',
+      tabV1History: 'Probe config and history (probes disabled)',
     },
     operations: {
       reportExport: {
@@ -285,7 +292,7 @@ export default {
       causeLoading: 'Loading the cause for this interval…', causeUnavailable: 'Cause unavailable; select the cell to retry', noCountedErrors: 'No errors counted against availability in this interval',
       drilldown: 'Channel review', drillTabs: 'Review content', drillViews: { overview: 'Overview and attribution', errors: 'Errors and samples', history: 'Timeline' },
       timeline: 'Availability timeline for the selected interval', timelineHint: 'Uses the original matrix resolution. No request-level events or failover history are inferred.', openAccounts: 'View account pool in this scope',
-      probeTitle: 'Active probes · Separate evidence', probeHint: 'V1 probes do not run in V2 mode. Historical results remain in probe management and do not affect real-traffic availability or incident conclusions.', manageProbes: 'Manage probes and history',
+      probeTitle: 'Active probes · Separate evidence', probeHint: 'The independent probe switch allows probes to run alongside V2 aggregation. Results have their own view; requests sent through this gateway count toward usage and real-traffic statistics.', manageProbes: 'Manage probes and history',
       latestProbe: 'Latest recorded result', probeCount: '{count} probe items', probeGroupLimit: 'Probes are not bound to groups yet, so group filters do not apply; their status is excluded from the service verdict above.',
       noProbes: 'No probe records', probeLoadFailed: 'Failed to load probe records', probeName: 'Probe', probeModel: 'Model', probeMode: 'Mode', probeStatus: 'Latest status', probeCheckedAt: 'Last checked', probeNoResult: 'No result',
       probeUnbound: 'Unbound',

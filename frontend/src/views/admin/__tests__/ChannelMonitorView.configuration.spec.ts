@@ -3,8 +3,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createMemoryHistory, createRouter, type Router } from 'vue-router'
 import ChannelMonitorView from '../ChannelMonitorView.vue'
 
-const mocks = vi.hoisted(() => ({ v1: false, list: vi.fn() }))
-vi.mock('@/utils/featureFlags', () => ({ isChannelMonitorV1Mode: () => mocks.v1 }))
+const mocks = vi.hoisted(() => ({ v1: false, probes: false, list: vi.fn() }))
+vi.mock('@/utils/featureFlags', () => ({
+  isChannelMonitorV1Mode: () => mocks.v1,
+  isChannelMonitorProbesEnabled: () => mocks.probes,
+}))
 vi.mock('@/stores/app', () => ({ useAppStore: () => ({ showError: vi.fn(), showSuccess: vi.fn() }) }))
 vi.mock('@/api/admin', () => ({ adminAPI: { channelMonitor: { list: mocks.list } } }))
 vi.mock('@/features/channel-monitor-v2/MonitorSettingsPanel.vue', () => ({
@@ -40,11 +43,29 @@ async function view(url = '/admin/channels/monitor') {
 beforeEach(() => {
   vi.clearAllMocks()
   mocks.v1 = false
+  mocks.probes = false
   mocks.list.mockResolvedValue({ items: [], total: 0 })
 })
 afterEach(() => wrapper?.unmount())
 
 describe('ChannelMonitorView configuration only', () => {
+  it.each([false, true])('describes probe activity independently in V2 (probes: %s)', async (probes) => {
+    mocks.probes = probes
+    await view()
+    expect(wrapper.findAll('[role="tab"]')[1].text()).toBe(
+      probes ? 'channelMonitorV2.admin.tabV1Active' : 'channelMonitorV2.admin.tabV1History',
+    )
+    expect(wrapper.text()).toContain(
+      probes ? 'channelMonitorV2.admin.probesActive' : 'channelMonitorV2.admin.probesInactive',
+    )
+  })
+
+  it('does not describe disabled probes as active in V1', async () => {
+    mocks.v1 = true
+    await view()
+    expect(wrapper.findAll('[role="tab"]')[1].text()).toBe('channelMonitorV2.admin.tabV1History')
+    expect(wrapper.text()).toContain('channelMonitorV2.admin.probesInactive')
+  })
   it('defaults V2 to configuration with no availability board or probe request', async () => {
     await view()
     expect(wrapper.find('[data-testid="v2-settings"]').exists()).toBe(true)

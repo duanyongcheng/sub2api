@@ -117,6 +117,7 @@ import { extractApiErrorMessage } from '@/utils/apiError'
 
 type Layout = 'cards' | 'matrix' | 'trend' | 'list'
 withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false })
+const emit = defineEmits<{ refresh: [] }>()
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
@@ -311,6 +312,7 @@ async function loadErrors(id = sequence) {
   }
 }
 async function reload(silent = false, includeCatalog = false) {
+  if (includeCatalog) emit('refresh')
   controller?.abort()
   const request = new AbortController()
   controller = request

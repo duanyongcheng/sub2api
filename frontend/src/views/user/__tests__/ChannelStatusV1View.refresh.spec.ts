@@ -24,6 +24,15 @@ beforeEach(() => { vi.useFakeTimers(); localStorage.clear(); list.mockReset().mo
 afterEach(() => { wrapper?.unmount(); vi.useRealTimers(); localStorage.clear() })
 
 describe('channel monitor refresh interval', () => {
+  it('reports the refreshed list count to the shell without another list request', async () => {
+    list.mockResolvedValueOnce({ items: [{ id: 1 }] })
+    wrapper = mountView(); await flushPromises()
+    expect(wrapper.emitted('loaded')).toEqual([[1]])
+    await wrapper.get('.refresh').trigger('click'); await flushPromises()
+    expect(wrapper.emitted('loaded')).toEqual([[1], [0]])
+    expect(list).toHaveBeenCalledTimes(2)
+  })
+
   it('keeps automatic refresh disabled after reopening the page', async () => {
     wrapper = mountView(); await flushPromises()
     await wrapper.get('.disable').trigger('click')

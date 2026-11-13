@@ -82,6 +82,19 @@ afterEach(() => {
 })
 
 describe('Service status dashboard', () => {
+  it('notifies the shell on initial, manual and automatic refresh without adding another timer', async () => {
+    vi.useFakeTimers()
+    await view()
+    expect(wrapper.emitted('refresh')).toHaveLength(1)
+    await wrapper.get('[data-testid="service-refresh"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.emitted('refresh')).toHaveLength(2)
+    await vi.advanceTimersByTimeAsync(300_000)
+    await flushPromises()
+    expect(wrapper.emitted('refresh')).toHaveLength(3)
+    expect(vi.getTimerCount()).toBe(1)
+  })
+
   it('defaults to compact group status with one scoped API role and no users requests', async () => {
     await view()
     expect(mocks.getMatrix).toHaveBeenCalledWith(expect.objectContaining({ range: '24h' }), 'platform_group', false, expect.any(AbortSignal))
