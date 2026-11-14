@@ -104,7 +104,7 @@
           <!-- Leaf item -->
           <router-link
             v-else
-            :to="item.path"
+            :to="item.to ?? item.path"
             class="sidebar-link"
             :class="{ 'sidebar-link-active': isActive(item.path), 'sidebar-link-collapsed': sidebarCollapsed }"
             :title="sidebarCollapsed ? item.label : undefined"
@@ -191,7 +191,7 @@
 
 <script setup lang="ts">
 import { computed, h, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute, useRouter, type RouteLocationRaw } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAdminSettingsStore, useAppStore, useAuthStore, useOnboardingStore, useSubscriptionStore } from '@/stores'
 import VersionBadge from '@/components/common/VersionBadge.vue'
@@ -218,6 +218,8 @@ import { useBatchImageAccess } from '@/composables/useBatchImageAccess'
  */
 interface NavItem {
   path: string
+  /** Optional destination including query parameters; path remains the active-route key. */
+  to?: RouteLocationRaw
   label: string
   icon: unknown
   iconSvg?: string
@@ -425,6 +427,7 @@ const purchaseNavLabel = computed(() => {
 })
 
 const flagAvailableChannels = makeSidebarFlag(FeatureFlags.availableChannels)
+const flagModelPlaza = makeSidebarFlag(FeatureFlags.modelPlaza)
 const flagChannelMonitor = makeSidebarFlag(FeatureFlags.channelMonitor)
 const flagSubscription = makeSidebarFlag(FeatureFlags.subscription)
 const flagPayment = makeSidebarFlag(FeatureFlags.payment)
@@ -456,6 +459,13 @@ function buildSelfGroups(withDashboard: boolean): NavGroup[] {
   )
 
   const service: NavItem[] = [
+    {
+      path: '/model-plaza',
+      to: { path: '/model-plaza', query: { embedded: '1' } },
+      label: t('nav.modelPlaza'),
+      icon: DashboardIcon,
+      featureFlag: flagModelPlaza
+    },
     {
       path: '/available-channels',
       label: t('nav.availableChannels'),

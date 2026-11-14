@@ -340,7 +340,7 @@ async function toggleEnabled(row: ChannelMonitor) {
 }
 
 async function handleRunNow(row: ChannelMonitor) {
-  if (!isV1Mode.value) {
+  if (!probesEnabled.value) {
     appStore.showError(t('admin.channelMonitor.runFailed'))
     return
   }
