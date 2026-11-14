@@ -53,7 +53,7 @@
         :to="{ path: '/model-plaza', query: { embedded: '1' } }"
         :title="t('nav.modelPlaza')"
         :aria-label="t('nav.modelPlaza')"
-        class="topbar-icon hidden sm:grid"
+        class="topbar-icon"
       >
         <Icon name="grid" size="sm" />
       </router-link>
