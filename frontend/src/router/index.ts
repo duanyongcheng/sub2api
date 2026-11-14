@@ -16,8 +16,11 @@ import { resolveRouteDocumentTitle } from './title'
 
 /**
  * Route definitions with lazy loading
+ *
+ * Exported for tests: redirect records (e.g. the merged orders page) are pure
+ * data, and asserting on them is far cheaper than booting the whole app.
  */
-const routes: RouteRecordRaw[] = [
+export const routes: RouteRecordRaw[] = [
   // ==================== Setup Routes ====================
   {
     path: '/setup',
@@ -485,7 +488,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: true,
-      title: 'Channel Monitor',
+      title: 'Monitoring Configuration',
       titleKey: 'admin.channelMonitor.title',
       descriptionKey: 'admin.channelMonitor.description'
     }
@@ -497,7 +500,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
-      title: 'Channel Status',
+      title: 'Service Monitoring',
       titleKey: 'nav.channelStatus'
     }
   },
@@ -598,6 +601,10 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/admin/security-audit',
+    redirect: '/admin/risk-control'
+  },
+  {
     path: '/admin/risk-control',
     name: 'AdminRiskControl',
     component: () => import('@/views/admin/RiskControlView.vue'),
@@ -678,41 +685,31 @@ const routes: RouteRecordRaw[] = [
 
 
   // ==================== Payment Admin Routes ====================
-  {
-    path: '/admin/orders/dashboard',
-    name: 'AdminPaymentDashboard',
-    component: () => import('@/views/admin/orders/AdminPaymentDashboardView.vue'),
-    meta: {
-      requiresAuth: true,
-      requiresAdmin: true,
-      title: 'Payment Dashboard',
-      titleKey: 'nav.paymentDashboard',
-      requiresPayment: true
-    }
-  },
+  // 订单合并为一个页面、三个 Tab（原型 08）。旧路径保留为重定向，
+  // 书签、运维脚本、外部链接指向旧地址时仍然落在正确的 Tab 上。
   {
     path: '/admin/orders',
     name: 'AdminOrders',
-    component: () => import('@/views/admin/orders/AdminOrdersView.vue'),
+    component: () => import('@/views/admin/orders/AdminOrdersPage.vue'),
     meta: {
       requiresAuth: true,
       requiresAdmin: true,
-      title: 'Order Management',
+      title: 'Orders',
       titleKey: 'nav.orderManagement',
       requiresPayment: true
     }
   },
   {
+    path: '/admin/orders/dashboard',
+    redirect: { path: '/admin/orders', query: { tab: 'overview' } }
+  },
+  {
     path: '/admin/orders/plans',
-    name: 'AdminPaymentPlans',
-    component: () => import('@/views/admin/orders/AdminPaymentPlansView.vue'),
-    meta: {
-      requiresAuth: true,
-      requiresAdmin: true,
-      title: 'Subscription Plans',
-      titleKey: 'nav.paymentPlans',
-      requiresPayment: true
-    }
+    redirect: { path: '/admin/orders', query: { tab: 'plans' } }
+  },
+  {
+    path: '/admin/orders/list',
+    redirect: { path: '/admin/orders', query: { tab: 'list' } }
   },
 
   // ==================== 404 Not Found ====================

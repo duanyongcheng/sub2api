@@ -180,7 +180,7 @@ export function isChannelMonitorRouteEnabled(): boolean {
 
 export type ChannelMonitorMode = 'v1' | 'v2'
 
-/** Exclusive channel-monitor implementation. Invalid/missing → v1 (opt-in to v2). */
+/** V2 enables passive aggregation; active probes have their own switch. Invalid/missing → v1. */
 export function getChannelMonitorMode(): ChannelMonitorMode {
   const appStore = useAppStore()
   const mode = appStore.cachedPublicSettings?.channel_monitor_mode
@@ -193,6 +193,22 @@ export function isChannelMonitorV1Mode(): boolean {
 
 export function isChannelMonitorV2Mode(): boolean {
   return isChannelMonitorRouteEnabled() && getChannelMonitorMode() === 'v2'
+}
+
+/**
+ * True when V1 active probes run. Independent of the mode, so a v2 site can keep
+ * probing groups that have no real traffic.
+ *
+ * Unset follows the mode (legacy behaviour): only v1 probed before the switch
+ * existed. Keep this in sync with resolveChannelMonitorProbesEnabled on the
+ * backend, or the UI and the runner disagree about whether probes exist.
+ */
+export function isChannelMonitorProbesEnabled(): boolean {
+  if (!isChannelMonitorRouteEnabled()) return false
+  const appStore = useAppStore()
+  const configured = appStore.cachedPublicSettings?.channel_monitor_probes_enabled
+  if (configured === true || configured === false) return configured
+  return getChannelMonitorMode() === 'v1'
 }
 
 export function getChannelMonitorRefreshIntervalSeconds(): number {

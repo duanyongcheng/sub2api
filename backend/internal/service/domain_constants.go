@@ -486,8 +486,8 @@ const (
 	// When false: runner skips scheduling and user-facing endpoints return an empty list.
 	SettingKeyChannelMonitorEnabled = "channel_monitor_enabled"
 
-	// SettingKeyChannelMonitorMode selects exclusive implementation:
-	// "v1" active probes, "v2" passive aggregation. Default "v1" (opt-in to v2).
+	// SettingKeyChannelMonitorMode controls passive aggregation: only "v2" runs it.
+	// Default "v1" keeps the legacy view; active probes have a separate switch.
 	SettingKeyChannelMonitorMode = "channel_monitor_mode"
 
 	// ChannelMonitorModeV1/V2 are the only accepted mode values.
@@ -514,6 +514,12 @@ const (
 	// /users payload from non-admin channel-monitor v2 viewers.
 	// Default false (keep the current ranking tab). Admin endpoints always keep it.
 	SettingKeyChannelMonitorHideUserRanking = "channel_monitor_hide_user_ranking"
+
+	// SettingKeyChannelMonitorProbesEnabled controls whether V1 active probes run.
+	// It is independent of SettingKeyChannelMonitorMode so a site can aggregate
+	// real traffic (mode=v2) and still probe cold groups. Unset keeps the legacy
+	// behaviour: probes follow the mode (only v1 probes).
+	SettingKeyChannelMonitorProbesEnabled = "channel_monitor_probes_enabled"
 
 	// SettingKeyGrokDefaultTextModel is the fallback Grok text model for empty
 	// request models and built-in Grok aliases (e.g. "grok" → this id). Default grok-4.5.

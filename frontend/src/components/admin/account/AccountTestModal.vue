@@ -3,6 +3,7 @@
     :show="show"
     :title="t('admin.accounts.testAccountConnection')"
     width="normal"
+    variant="drawer"
     @close="handleClose"
   >
     <div class="space-y-4">

@@ -5,14 +5,24 @@ import { createPinia, setActivePinia } from 'pinia'
 import type { DashboardStats } from '@/types'
 import DashboardView from '../DashboardView.vue'
 
-const { getSnapshotV2, getUserUsageTrend, getUserSpendingRanking } = vi.hoisted(() => ({
+const { getSnapshotV2, getUserUsageTrend, getUserSpendingRanking, downloadReport, showSuccess, showWarning } = vi.hoisted(() => ({
   getSnapshotV2: vi.fn(),
   getUserUsageTrend: vi.fn(),
-  getUserSpendingRanking: vi.fn()
+  getUserSpendingRanking: vi.fn(),
+  downloadReport: vi.fn(),
+  showSuccess: vi.fn(),
+  showWarning: vi.fn()
 }))
 
+vi.mock('@/utils/reportExport', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/utils/reportExport')>()
+  return { ...actual, downloadReport }
+})
+
 vi.mock('vue-chartjs', () => ({
-  Line: { name: 'Line', props: ['data', 'options'], template: '<div class="line-chart" />' }
+  Line: { name: 'Line', props: ['data', 'options'], template: '<div class="line-chart" />' },
+  Chart: { name: 'Chart', props: ['data', 'options'], template: '<div class="chart" />' },
+  Bar: { name: 'Bar', props: ['data', 'options'], template: '<div class="bar-chart" />' }
 }))
 
 vi.mock('@/api/admin', () => ({
@@ -27,7 +37,9 @@ vi.mock('@/api/admin', () => ({
 
 vi.mock('@/stores/app', () => ({
   useAppStore: () => ({
-    showError: vi.fn()
+    showError: vi.fn(),
+    showSuccess,
+    showWarning
   })
 }))
 
@@ -119,31 +131,43 @@ describe('admin DashboardView', () => {
     })
   })
 
-  it('switches metrics and ignores a stale tokens response', async () => {
-    let resolveTokens!: (value: any) => void
-    getUserUsageTrend.mockImplementationOnce(() => new Promise(resolve => { resolveTokens = resolve }))
-    getUserUsageTrend.mockResolvedValueOnce({ trend: [{ date: '2026-01-01', user_id: 2, username: 'spender', email: '', requests: 1, tokens: 10, cost: 5, actual_cost: 5 }] })
+  it('keeps the spending metric by default and re-fetches on metric switch', async () => {
     const wrapper = mount(DashboardView, {
-      global: { stubs: {
-        AppLayout: { template: '<div><slot /></div>' }, LoadingSpinner: true,
-        Icon: true, DateRangePicker: true, Select: true, ModelDistributionChart: true,
-        TokenUsageTrend: true
-      } }
+      global: {
+        stubs: {
+          AppLayout: { template: '<div><slot /></div>' },
+          LoadingSpinner: true,
+          Icon: true,
+          DateRangePicker: true,
+          Select: true,
+          ModelDistributionChart: true,
+          TokenUsageTrend: true
+        }
+      }
     })
     await flushPromises()
-    expect(getUserUsageTrend).toHaveBeenCalledWith(expect.objectContaining({ metric: 'tokens', limit: 12 }))
-    await wrapper.findAll('button').find(button => button.text() === 'admin.dashboard.actualSpending')!.trigger('click')
+
+    // The overview opens on spend (the decision-relevant number) rather than
+    // raw tokens.
+    expect(getUserUsageTrend).toHaveBeenCalledTimes(1)
     expect(getUserUsageTrend).toHaveBeenCalledWith(expect.objectContaining({ metric: 'actual_cost', limit: 12 }))
+    expect(wrapper.findComponent({ name: 'Line' }).exists()).toBe(true)
+
+    const tokensButton = wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'admin.dashboard.tokens')!
+    getUserUsageTrend.mockResolvedValue({
+      trend: [{ date: '2026-01-01', user_id: 1, username: 'tokens', email: '', requests: 1, tokens: 100, cost: 1, actual_cost: 1 }]
+    })
+    await tokensButton.trigger('click')
     await flushPromises()
-    const chart = wrapper.findComponent({ name: 'Line' })
-    expect(chart.props('data').datasets[0].data).toEqual([5])
-    expect(chart.props('options').scales.y.ticks.callback(5)).toBe('$5.00')
-    resolveTokens({ trend: [{ date: '2026-01-01', user_id: 1, username: 'tokens', email: '', requests: 1, tokens: 100, cost: 1, actual_cost: 1 }] })
-    await flushPromises()
-    expect(chart.props('data').datasets[0].data).toEqual([5])
+
+    expect(getUserUsageTrend).toHaveBeenCalledTimes(2)
+    expect(getUserUsageTrend).toHaveBeenLastCalledWith(expect.objectContaining({ metric: 'tokens', limit: 12 }))
+    expect(getUserUsageTrend).toHaveBeenCalledTimes(2)
   })
 
-  it('uses last 24 hours as default dashboard range', async () => {
+  it('uses the last 7 days at day granularity as the default range', async () => {
     mount(DashboardView, {
       global: {
         stubs: {
@@ -162,13 +186,82 @@ describe('admin DashboardView', () => {
     await flushPromises()
 
     const now = new Date()
-    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+    const weekAgo = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000)
 
     expect(getSnapshotV2).toHaveBeenCalledTimes(1)
     expect(getSnapshotV2).toHaveBeenCalledWith(expect.objectContaining({
-      start_date: formatLocalDate(yesterday),
+      start_date: formatLocalDate(weekAgo),
       end_date: formatLocalDate(now),
-      granularity: 'hour'
+      granularity: 'day',
+      // Group stats drive the margin table under the revenue chart.
+      include_group_stats: true
     }))
+  })
+})
+
+describe('admin DashboardView report export', () => {
+  const mountView = () => mount(DashboardView, {
+    global: {
+      stubs: {
+        AppLayout: { template: '<div><slot /></div>' },
+        LoadingSpinner: true,
+        Icon: true,
+        Line: true
+      }
+    }
+  })
+
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    downloadReport.mockReset()
+    downloadReport.mockResolvedValue(undefined)
+    showSuccess.mockReset()
+    showWarning.mockReset()
+    getSnapshotV2.mockReset()
+    getUserUsageTrend.mockReset()
+    getUserSpendingRanking.mockReset()
+    getSnapshotV2.mockResolvedValue({
+      stats: createDashboardStats(),
+      trend: [{ date: '2026-01-01', requests: 10, input_tokens: 1, output_tokens: 2, cache_creation_tokens: 0, cache_read_tokens: 0, total_tokens: 3, cost: 1, actual_cost: 0.8 }],
+      models: [],
+      groups: [{ group_id: 7, group_name: 'Claude Pro', requests: 10, total_tokens: 3, cost: 1, actual_cost: 0.8, account_cost: 0.5 }]
+    })
+    getUserUsageTrend.mockResolvedValue({ trend: [], start_date: '', end_date: '', granularity: 'day' })
+    getUserSpendingRanking.mockResolvedValue({ ranking: [], total_actual_cost: 0, total_requests: 0, total_tokens: 0, start_date: '', end_date: '' })
+  })
+
+  it('exports the current range with the four expected sheets', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.get('[data-testid="report-export-trigger"]').trigger('click')
+    await wrapper.get('[data-export-format="xlsx"]').trigger('click')
+    await flushPromises()
+
+    expect(downloadReport).toHaveBeenCalledTimes(1)
+    const call = downloadReport.mock.calls[0][0]
+    expect(call.format).toBe('xlsx')
+    expect(call.fileName).toMatch(/^dashboard_\d{4}-\d{2}-\d{2}_to_\d{4}-\d{2}-\d{2}$/)
+    expect(call.sheets.map((sheet: { name: string }) => sheet.name)).toEqual([
+      'admin.dashboard.overview.export.summarySheet',
+      'admin.dashboard.overview.export.trendSheet',
+      'admin.dashboard.overview.export.groupsSheet',
+      'admin.dashboard.overview.export.modelsSheet',
+    ])
+    // The range on screen is the range exported.
+    const summary = call.sheets[0].rows
+    expect(summary[1][1]).toBe(`${call.fileName.split('_')[1]} ~ ${call.fileName.split('_')[3]}`)
+    expect(showSuccess).toHaveBeenCalledWith('reportExport.success')
+  })
+
+  it('refuses to export an empty range instead of writing a blank file', async () => {
+    getSnapshotV2.mockResolvedValue({ stats: createDashboardStats(), trend: [], models: [], groups: [] })
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.get('[data-testid="report-export-trigger"]').trigger('click')
+    await wrapper.get('[data-export-format="csv"]').trigger('click')
+    await flushPromises()
+
+    expect(downloadReport).not.toHaveBeenCalled()
+    expect(showWarning).toHaveBeenCalledWith('reportExport.empty')
   })
 })

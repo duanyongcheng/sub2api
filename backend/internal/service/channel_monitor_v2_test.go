@@ -134,6 +134,67 @@ func TestChannelMonitorV2ParseFilterDefaultsAndBuckets(t *testing.T) {
 	require.ErrorIs(t, err, ErrChannelMonitorV2InvalidRange)
 }
 
+func TestChannelMonitorV2FixedIntervalValidatesBucketBoundariesAndRetention(t *testing.T) {
+	base := time.Date(2026, 11, 9, 12, 0, 0, 0, time.UTC)
+	filter := ChannelMonitorV2Filter{Start: base.Add(-24 * time.Hour).Add(19 * time.Second), End: base.Add(19 * time.Second), Bucket: time.Hour}
+	err := ChannelMonitorV2FixedInterval(&filter, filter.Start.Format(time.RFC3339), filter.End.Format(time.RFC3339))
+	require.NoError(t, err)
+	require.Equal(t, base.Add(-24*time.Hour).Add(19*time.Second), filter.Start)
+	require.Equal(t, base.Add(19*time.Second), filter.End)
+
+	cellFilter := ChannelMonitorV2Filter{Start: base.Add(-23 * time.Hour), End: base.Add(time.Hour), Bucket: time.Hour}
+	// The matrix was built for the previous 24-hour window. Its earliest cell
+	// remains drillable after the relative window has rolled forward by an hour.
+	require.NoError(t, ChannelMonitorV2FixedInterval(&cellFilter, base.Add(-24*time.Hour).Format(time.RFC3339), base.Add(-23*time.Hour).Format(time.RFC3339)))
+	require.Equal(t, base.Add(-24*time.Hour), cellFilter.Start)
+
+	oldWindow := ChannelMonitorV2Filter{Start: base.Add(-24 * time.Hour), End: base, Bucket: time.Hour}
+	require.NoError(t, ChannelMonitorV2FixedInterval(&oldWindow, base.Add(-48*time.Hour).Format(time.RFC3339), base.Add(-24*time.Hour).Format(time.RFC3339)))
+
+	invalid := []struct {
+		name       string
+		start, end string
+	}{
+		{name: "not aligned", start: base.Add(-90 * time.Minute).Format(time.RFC3339), end: base.Add(-time.Hour).Format(time.RFC3339)},
+		{name: "end after requested range", start: base.Format(time.RFC3339), end: base.Add(time.Hour).Format(time.RFC3339)},
+		{name: "interval too wide", start: base.Add(-25 * time.Hour).Format(time.RFC3339), end: base.Format(time.RFC3339)},
+		{name: "outside retention", start: base.Add(-31 * 24 * time.Hour).Format(time.RFC3339), end: base.Add(-30 * 24 * time.Hour).Format(time.RFC3339)},
+		{name: "invalid timestamp", start: "yesterday", end: base.Format(time.RFC3339)},
+	}
+	for _, test := range invalid {
+		t.Run(test.name, func(t *testing.T) {
+			candidate := ChannelMonitorV2Filter{Start: base.Add(-24 * time.Hour), End: base, Bucket: time.Hour}
+			require.ErrorIs(t, ChannelMonitorV2FixedInterval(&candidate, test.start, test.end), ErrChannelMonitorV2InvalidRange)
+		})
+	}
+}
+
+func TestChannelMonitorV2FixedIntervalUsesBucketRetention(t *testing.T) {
+	base := time.Date(2026, 11, 9, 0, 0, 0, 0, time.UTC)
+	cases := []struct {
+		name      string
+		bucket    time.Duration
+		window    time.Duration
+		retention time.Duration
+	}{
+		{name: "5 minute", bucket: 5 * time.Minute, window: 90 * time.Minute, retention: 7 * 24 * time.Hour},
+		{name: "hourly", bucket: time.Hour, window: 24 * time.Hour, retention: 30 * 24 * time.Hour},
+		{name: "12 hour", bucket: 12 * time.Hour, window: 7 * 24 * time.Hour, retention: 45 * 24 * time.Hour},
+		{name: "daily", bucket: 24 * time.Hour, window: 30 * 24 * time.Hour, retention: 90 * 24 * time.Hour},
+	}
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			filter := ChannelMonitorV2Filter{Start: base.Add(-test.window), End: base, Bucket: test.bucket}
+			validStart := base.Add(-test.retention)
+			require.NoError(t, ChannelMonitorV2FixedInterval(&filter, validStart.Format(time.RFC3339), validStart.Add(test.bucket).Format(time.RFC3339)))
+
+			tooOldStart := base.Add(-test.retention - test.bucket)
+			filter = ChannelMonitorV2Filter{Start: base.Add(-test.window), End: base, Bucket: test.bucket}
+			require.ErrorIs(t, ChannelMonitorV2FixedInterval(&filter, tooOldStart.Format(time.RFC3339), tooOldStart.Add(test.bucket).Format(time.RFC3339)), ErrChannelMonitorV2InvalidRange)
+		})
+	}
+}
+
 func TestParseChannelMonitorV2GroupBy(t *testing.T) {
 	groupBy, err := ParseChannelMonitorV2GroupBy("")
 	require.NoError(t, err)

@@ -1,4 +1,15 @@
 export default {
+  reportExport: {
+    export: 'Export',
+    exporting: 'Preparing…',
+    exportHint: 'Export to a file with the same basis shown on the page',
+    format: { xlsx: 'Excel (.xlsx)', csv: 'CSV (.csv)' },
+    formatHint: { xlsx: 'Multiple sheets', csv: 'Single table, easy to diff' },
+    success: 'Export ready',
+    failed: 'Export failed, please retry',
+    empty: 'Nothing to export in this range',
+  },
+
 
   // Subscription Progress (Header component)
   subscriptionProgress: {
@@ -493,6 +504,24 @@ export default {
         channels: 'Channels',
         plans: 'Plans',
       },
+      ordersTitle: 'Orders',
+      ordersSubtitle: 'Overview for the business, all orders for fulfilment, plans for the shelf — one page, no jumping.',
+      ordersTabs: 'Order views',
+      ordersTab: { overview: 'Overview', list: 'All orders', plans: 'Plans' },
+      ordersTabHint: {
+        overview: 'Daily revenue, payment mix and top spenders',
+        list: 'Filter by status, channel and type; refund and retry act in-row',
+        plans: 'Price, validity and shelf status of subscription plans',
+      },
+      needsAttention: 'Needs attention',
+      attentionUndelivered: '{count} paid but not credited',
+      attentionUndeliveredHint: 'Money arrived but credits did not — retry from the list',
+      attentionRefunds: '{count} refund requests',
+      attentionRefundsHint: 'Customers asked for a refund and are waiting',
+      exportOrders: 'Export',
+      exportOrdersHint: 'Exports every order matching the current filters (auto-paginated), not just this page',
+      exportProgress: 'Exporting {current} / {total} orders…',
+      ordersSheet: 'Orders',
       todayRevenue: 'Today Revenue',
       totalRevenue: 'Total Revenue',
       todayOrders: 'Today Orders',

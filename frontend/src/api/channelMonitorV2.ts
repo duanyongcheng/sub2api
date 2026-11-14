@@ -23,6 +23,9 @@ export interface MonitorFilter {
   platforms: string[]
   groupIds: number[]
   models: string[]
+  /** Admin drilldown: a fixed, minute-aligned interval inside retained history. */
+  start?: string
+  end?: string
 }
 
 export interface LatencyMetric {
@@ -214,6 +217,7 @@ function params(filter: MonitorFilter) {
     platform: filter.platforms.length ? filter.platforms : undefined,
     group_id: filter.groupIds.length ? filter.groupIds : undefined,
     model: filter.models.length ? filter.models : undefined,
+    ...(filter.start && filter.end ? { start: filter.start, end: filter.end } : {}),
   }
 }
 

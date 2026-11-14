@@ -3,6 +3,9 @@
     :show="show"
     :title="t('admin.scheduledTests.title')"
     width="wide"
+    variant="drawer"
+    drawer-width="720px"
+    :close-on-click-outside="false"
     @close="emit('close')"
   >
     <div class="space-y-4">

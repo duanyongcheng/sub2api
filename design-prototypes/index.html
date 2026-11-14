@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sub2API · UI 重设计原型总览</title>
+<style>
+  :root {
+    --bg: #070b12; --surface: #0d1420; --surface-2: #111a28; --border: #1d2838;
+    --text: #e8eef6; --text-2: #a4b2c5; --text-3: #6b7b90; --p: #14b8a6;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: radial-gradient(1200px 700px at 12% -10%, rgba(20,184,166,.14), transparent 60%), var(--bg);
+    color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Inter", "PingFang SC", "Microsoft YaHei", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 56px 32px 80px; }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .logo { width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; font-weight: 800;
+    background: linear-gradient(140deg, #2dd4bf, #0f766e); color: #fff; }
+  h1 { font-size: 34px; letter-spacing: -.035em; margin: 26px 0 10px; line-height: 1.2; }
+  h1 em { font-style: normal; background: linear-gradient(100deg, #5eead4, #38bdf8); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .lead { color: var(--text-2); font-size: 15px; line-height: 1.75; max-width: 780px; }
+  .meta { display: flex; gap: 28px; margin-top: 24px; flex-wrap: wrap; }
+  .meta div .k { font-size: 22px; font-weight: 750; letter-spacing: -.02em; }
+  .meta div .t { font-size: 11.5px; color: var(--text-3); margin-top: 2px; }
+  .sec-h { display: flex; align-items: baseline; gap: 12px; margin: 52px 0 18px; }
+  .sec-h h2 { font-size: 18px; letter-spacing: -.02em; margin: 0; }
+  .sec-h span { font-size: 12.5px; color: var(--text-3); }
+  .grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 18px; }
+  .card { display: block; border-radius: 14px; overflow: hidden; border: 1px solid var(--border); background: var(--surface);
+    transition: transform .18s, border-color .18s, box-shadow .18s; color: inherit; text-decoration: none; }
+  .card:hover { transform: translateY(-3px); border-color: rgba(20,184,166,.5); box-shadow: 0 22px 50px -24px rgba(20,184,166,.55); }
+  .thumb { position: relative; height: 178px; overflow: hidden; background: var(--surface-2); border-bottom: 1px solid var(--border); }
+  .thumb img { width: 100%; display: block; }
+  .thumb .veil { position: absolute; inset: 0; background: linear-gradient(180deg, transparent 55%, rgba(13,20,32,.9)); }
+  .body { padding: 13px 15px 15px; }
+  .body .n { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 680; }
+  .body .n i { font-style: normal; font-size: 10.5px; font-weight: 800; color: #5eead4; background: rgba(20,184,166,.14); border-radius: 5px; padding: 2px 6px; letter-spacing: .04em; }
+  .body p { margin: 7px 0 0; font-size: 12.2px; line-height: 1.65; color: var(--text-3); }
+  .tags { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+  .tag { font-size: 10.5px; font-weight: 650; color: var(--text-2); background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 2px 7px; }
+  .docs { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .doc { display: block; padding: 16px 18px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface);
+    text-decoration: none; color: inherit; }
+  .doc:hover { border-color: rgba(20,184,166,.4); }
+  .doc b { display: block; font-size: 13.5px; margin-bottom: 5px; }
+  .doc span { font-size: 12px; color: var(--text-3); line-height: 1.6; }
+  footer { margin-top: 54px; padding-top: 22px; border-top: 1px solid var(--border); font-size: 12px; color: var(--text-3); display: flex; gap: 18px; flex-wrap: wrap; }
+  @media (max-width: 980px) { .grid { grid-template-columns: repeat(2, minmax(0,1fr)); } .docs { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand">
+    <div class="logo">S2</div>
+    <div>
+      <div style="font-weight:700;font-size:15px">Sub2API</div>
+      <div style="font-size:11.5px;color:var(--text-3)">UI Prototype · v1 · 2026-11</div>
+    </div>
+  </div>
+
+  <h1>Sub2API 界面重设计<em> 原型交付</em></h1>
+  <p class="lead">
+    基于现有 44 个页面、约 480 条 UI 接口重新组织的信息架构与视觉语言：把「菜单平铺」改为「业务分组」，
+    把「配置弹窗」改为「双栏编辑」，把「统计卡片」改为「一屏一决策」，并统一了状态色板、表格规格与深色模式。
+    下面 13 个页面均为可直接打开的静态高保真原型（含深色版本），其中「渠道监控专项」为本次新增的完整方案。
+  </p>
+
+  <div class="meta">
+    <div><div class="k">44 → 18</div><div class="t">管理端菜单项（折叠为 5 组）</div></div>
+    <div><div class="k">13</div><div class="t">核心页面原型</div></div>
+    <div><div class="k">2 套</div><div class="t">浅色 / 深色主题</div></div>
+    <div><div class="k">100%</div><div class="t">对应真实接口字段</div></div>
+  </div>
+
+
+  <a href="flow.html" style="display:block;margin-top:30px;text-decoration:none;color:inherit;border-radius:16px;border:1px solid rgba(20,184,166,.34);background:linear-gradient(100deg,rgba(20,184,166,.10),rgba(13,20,32,0) 62%),var(--surface);padding:18px 20px;transition:.16s" onmouseover="this.style.borderColor='rgba(20,184,166,.7)'" onmouseout="this.style.borderColor='rgba(20,184,166,.34)'">
+    <div style="display:flex;align-items:center;gap:10px">
+      <span style="font-size:10.5px;font-weight:800;letter-spacing:.06em;color:#5eead4;background:rgba(20,184,166,.14);padding:3px 8px;border-radius:6px">主线</span>
+      <b style="font-size:16px;letter-spacing:-.02em">一条请求，穿过整个系统</b>
+      <span style="margin-left:auto;font-size:12.5px;font-weight:650;color:#5eead4">打开设计主线 →</span>
+    </div>
+    <div style="margin-top:8px;font-size:12.8px;line-height:1.8;color:var(--text-2)">
+      把下面 13 个独立页面串成链路：<b style="color:var(--text)">走哪个分组 → 落在哪个账号 → 扣谁的钱 → 出什么事 → 谁看得见</b>。
+      含三个贯穿性决策、三个真实场景、按链路的排期建议，以及一份诚实的待办清单。
+    </div>
+  </a>
+
+  <div class="sec-h"><h2>用户端</h2><span>4 组 12 项菜单 · 登录 / 工作台 / 密钥 / 状态</span></div>
+  <div class="grid">
+    <a class="card" href="01-user-workbench.html">
+      <div class="thumb"><img src="shots/01-user-workbench.png" alt="" /><div class="veil"></div></div>
+      <div class="body"><div class="n"><i>01</i>工作台</div>
+        <p>订阅额度 / 余额 / 并发一眼可见；今日 KPI 带 sparkline；平台分项与最近请求并排。</p>
+        <div class="tags"><span class="tag">仪表盘</span><span class="tag">KPI</span><span class="tag">sparkline</span></div></div>
+    </a>
+    <a class="card" href="02-api-keys.html">
+      <div class="thumb"><img src="shots/02-api-keys.png" alt="" /><div class="veil"></div></div>
+      <div class="body"><div class="n"><i>02</i>API 密钥</div>
+        <p>固定列宽表格 + 三窗口限速可视化 + 批量条；新建改为右侧抽屉，共 6 组字段。</p>
+        <div class="tags"><span class="tag">密钥</span><span class="tag">抽屉</span><span class="tag">批量</span></div></div>
+    </a>
+    <a class="card" href="09-auth-and-status.html">
+      <div class="thumb"><img src="shots/09-auth-login.png" alt="" /><div class="veil"></div></div>
+      <div class="body"><div class="n"><i>03</i>登录 · 渠道状态</div>
+        <p>左侧品牌 + 终端接入演示，右侧多方式登录；同页切换用户端渠道状态（平台卡片 + 事件流）。</p>
+        <div class="tags"><span class="tag">登录</span><span class="tag">Passkey</span><span class="tag">状态页</span></div></div>
+    </a>
+  </div>
+
+  <div class="sec-h"><h2>渠道监控专项</h2><span>真实流量 + 主动探测合并 · 按责任方归因</span></div>
+  <div class="grid" style="grid-template-columns:repeat(3,minmax(0,1fr))">
+    <a class="card" href="10-user-channel-status.html">
+      <div class="thumb" style="height:210px"><img src="shots/10-user-channel-status.png" alt="" /><div class="veil"></div></div>
+      <div class="body"><div class="n"><i>专项 A</i>用户端 · 服务状态</div>
+        <p>一个分组一个结论：真实流量用连续色条、主动探测用点阵，每条都标证据来源与检测时间；探测失败只标「探测异常」，不降级「可用」。</p>
+        <div class="tags"><span class="tag">证据来源</span><span class="tag">新上线试用</span><span class="tag">样本不足</span></div></div>
+    </a>
+    <a class="card" href="11-admin-monitor-board.html">
+      <div class="thumb" style="height:210px"><img src="shots/11-admin-monitor-board.png" alt="" /><div class="veil"></div></div>
+      <div class="body"><div class="n"><i>专项 B</i>管理端 · 主看板</div>
+        <p>结论条置顶；矩阵 4 档离散色 + 悬停看健康分；右侧按责任方（上游 / 账号池 / 客户端 / 内部）归因并给出可执行动作。</p>
+        <div class="tags"><span class="tag">错误归因</span><span class="tag">忽略影响预览</span><span class="tag">深色 ✓</span></div></div>
+    </a>
+    <a class="card" href="13-admin-monitor-drill.html">
+      <div class="thumb" style="height:210px"><img src="shots/13-admin-monitor-drill.png" alt="" /><div class="veil"></div></div>
+      <div class="body"><div class="n"><i>专项 D</i>管理端 · 下钻复盘</div>
+        <p>点色块后的错误复盘：KPI → 一句话归因（含涉及账号）→ 分类条 → 错误样本 → 分钟级时间线，并给出可执行的下一步动作。</p>
+        <div class="tags"><span class="tag">错误样本</span><span class="tag">归因结论</span><span class="tag">建议动作</span></div></div>
+    </a>
+    <a class="card" href="12-admin-monitor-settings.html">
+      <div class="thumb" style="height:210px"><img src="shots/12-admin-monitor-settings.png" alt="" /><div class="veil"></div></div>
+      <div class="body"><div class="n"><i>专项 C</i>管理端 · 监控设置</div>
+        <p>探测项绑定分组（含删除后的孤儿处理）；多探测项聚合规则与实时效果预览；12 次阈值可配并换算成「多久后暴露」。</p>
+        <div class="tags"><span class="tag">group_id 绑定</span><span class="tag">聚合规则</span><span class="tag">阈值可配</span></div></div>
+    </a>
+  </div>
+
+  <div class="sec-h"><h2>管理端</h2><span>5 组导航 · 从「待办」到「明细」的完整动线</span></div>
+  <div class="grid">
+    <a class="card" href="03-admin-overview.html">
+      <div class="thumb"><img src="shots/03-admin-overview.png" alt="" /><div class="veil"></div></div>
+      <div class="body"><div class="n"><i>04</i>运营概览</div>
+        <p>「需要处理」置顶；收入 vs 成本双轴对比；分组毛利表直接标出成本倒挂；右侧待办与流量占比。</p>
+        <div class="tags"><span class="tag">毛利</span><span class="tag">待办</span><span class="tag">深色 ✓</span></div></div>
+    </a>
+    <a class="card" href="04-admin-accounts.html">
+      <div class="thumb"><img src="shots/04-admin-accounts.png" alt="" /><div class="veil"></div></div>
+      <div class="body"><div class="n"><i>05</i>账号池</div>
+        <p>平台 Tab + 摘要带 + 过滤 chips；配额余量、并发、调度状态同行呈现，详情抽屉随时查看。</p>
+        <div class="tags"><span class="tag">调度</span><span class="tag">配额</span><span class="tag">批量</span></div></div>
+    </a>
+    <a class="card" href="05-admin-groups.html">
+      <div class="thumb"><img src="shots/05-admin-groups.png" alt="" /><div class="veil"></div></div>
+      <div class="body"><div class="n"><i>06</i>分组与定价</div>
+        <p>左列表右配置；10 个配置 Tab；逐模型定价可内联编辑并实时显示毛利；复合路由可视化。</p>
+        <div class="tags"><span class="tag">定价</span><span class="tag">路由</span><span class="tag">毛利</span></div></div>
+    </a>
+    <a class="card" href="06-admin-channel-monitor.html">
+      <div class="thumb"><img src="shots/06-admin-channel-monitor.png" alt="" /><div class="veil"></div></div>
+      <div class="body"><div class="n"><i>07</i>渠道监控</div>
+        <p>中继脉动矩阵（24h × 48 片）一眼定位降级模型；错误分布与 P50 趋势并排；右下角控制用户侧展示。</p>
+        <div class="tags"><span class="tag">可用率</span><span class="tag">矩阵</span><span class="tag">告警</span></div></div>
+    </a>
+    <a class="card" href="07-admin-ops.html">
+      <div class="thumb"><img src="shots/07-admin-ops.png" alt="" /><div class="veil"></div></div>
+      <div class="body"><div class="n"><i>08</i>运维监控</div>
+        <p>健康环 + 6 项实时 KPI（WS 推送）；并发/延迟/吞吐/告警三栏；系统日志沉底全宽。</p>
+        <div class="tags"><span class="tag">实时</span><span class="tag">告警</span><span class="tag">日志</span></div></div>
+    </a>
+    <a class="card" href="08-admin-orders.html">
+      <div class="thumb"><img src="shots/08-admin-orders.png" alt="" /><div class="veil"></div></div>
+      <div class="body"><div class="n"><i>09</i>订单与支付</div>
+        <p>收入趋势 + 订单结构 + 渠道占比三卡并列；「需要处理」独立警示区；退款弹窗含余额差额提示。</p>
+        <div class="tags"><span class="tag">履约</span><span class="tag">退款</span><span class="tag">多币种</span></div></div>
+    </a>
+  </div>
+
+  <div class="sec-h"><h2>文档</h2><span>分析与规范，可直接交给工程排期</span></div>
+  <div class="docs">
+    <a class="doc" href="docs/00-设计主线.md" style="border-color:rgba(20,184,166,.4)">
+      <b>00 · 设计主线（先读这个）</b>
+      <span>七个环节串起全站：入口→路由→执行→计费→观测→归因→呈现；三个贯穿性决策、三个场景、按链路的排期与待办。</span>
+    </a>
+    <a class="doc" href="docs/01-前端菜单与功能点分析.md">
+      <b>01 · 前端菜单与功能点分析</b>
+      <span>角色 × 菜单树、12 个功能域清单、设置页 9 大 Tab、约 360 条接口全景、现有 UI 的 5 个问题。</span>
+    </a>
+    <a class="doc" href="docs/02-设计规范与实现映射.md">
+      <b>02 · 设计规范与实现映射</b>
+      <span>设计令牌、组件规格、导航重构差异、逐页「原型 → 路由 → 接口」映射、6 条落地建议。</span>
+    </a>
+    <a class="doc" href="docs/03-渠道监控设计方案.md">
+      <b>03 · 渠道监控设计方案</b>
+      <span>V1/V2 合并为「两种证据」的模型、用户端与看板设计要点、17 类错误到 4 个责任方的映射、与现有代码的接口对照、待办。</span>
+    </a>
+  </div>
+
+  <footer>
+    <span>静态原型，无需构建；双击任一 HTML 即可查看</span>
+    <span>深色版本：02-api-keys-dark.html · 03-admin-overview-dark.html</span>
+    <span>截图目录：shots/</span>
+  </footer>
+</div>
+</body>
+</html>

@@ -7,6 +7,7 @@ import type { MonitorConfig } from '@/api/channelMonitorV2'
 
 const mocks = vi.hoisted(() => ({
   getConfig: vi.fn(),
+  getSnapshot: vi.fn(),
   updateConfig: vi.fn(),
   groups: vi.fn(),
   showError: vi.fn(),
@@ -14,6 +15,7 @@ const mocks = vi.hoisted(() => ({
 }))
 vi.mock('@/api/channelMonitorV2', () => ({
   getConfig: mocks.getConfig,
+  getSnapshot: mocks.getSnapshot,
   updateConfig: mocks.updateConfig,
   MONITOR_ERROR_CATEGORIES: ['authentication', 'network'],
 }))
@@ -70,6 +72,7 @@ async function add(wrapper: Awaited<ReturnType<typeof panel>>, platform: string)
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mocks.getSnapshot.mockResolvedValue(null)
   mocks.groups.mockResolvedValue([])
   mocks.updateConfig.mockImplementation(async (value) => JSON.parse(JSON.stringify(value)))
 })
@@ -167,6 +170,70 @@ describe('MonitorSettingsPanel platform configuration', () => {
     })
     expect(wrapper.findComponent(Select).exists()).toBe(false)
     expect(button(wrapper, 'addPlatform')).toBeUndefined()
+    wrapper.unmount()
+  })
+})
+
+describe('MonitorSettingsPanel sections and user-facing preview', () => {
+  const snapshot = {
+    metrics: {
+      success_requests: 950, error_requests: 50, request_count: 1000,
+      token_count: 0, rpm: 0, tpm: 0, error_rate: 0.05, cache_rate: 0,
+      cache_rate_numerator: 0, cache_rate_denominator: 0,
+      ttft: { sample_count: 1000, p50_ms: 100, p95_ms: 300, avg_ms: 150 },
+      duration: { sample_count: 1000, p50_ms: 500, p95_ms: 900, avg_ms: 600 },
+    },
+    health: {
+      overall: 'healthy', error_rate: 'healthy', ttft: 'healthy',
+      minimum_sample: 50, error_weight: 0.6, ttft_weight: 0.2,
+      thresholds: { warning_error_rate: 0.05, critical_error_rate: 0.2, minimum_sample: 50, target_ttft_ms: 3000, warning_ttft_ms: 3000, critical_ttft_ms: 10000, error_weight: 0.6, ttft_weight: 0.2 },
+    },
+  }
+
+  function tab(wrapper: Awaited<ReturnType<typeof panel>>, value: string) {
+    return wrapper.findAll('[data-settings-tab]').find(item => item.attributes('data-settings-tab') === value)!
+  }
+
+  it('shows one section at a time instead of every card at once', async () => {
+    const wrapper = await panel()
+    expect(tab(wrapper, 'traffic').attributes('aria-selected')).toBe('true')
+    // The platform editor lives in the traffic tab only.
+    expect(wrapper.text()).toContain('channelMonitorV2.settings.platformsTitle')
+    expect(wrapper.text()).not.toContain('channelMonitorV2.settings.healthTitle')
+
+    await tab(wrapper, 'health').trigger('click')
+    expect(tab(wrapper, 'health').attributes('aria-selected')).toBe('true')
+    expect(wrapper.text()).not.toContain('channelMonitorV2.settings.platformsTitle')
+    expect(wrapper.text()).toContain('channelMonitorV2.settings.healthTitle')
+
+    await tab(wrapper, 'errors').trigger('click')
+    expect(wrapper.text()).toContain('channelMonitorV2.settings.errorsTitle')
+    expect(wrapper.text()).not.toContain('channelMonitorV2.settings.healthTitle')
+    wrapper.unmount()
+  })
+
+  it('translates the current 24h traffic into the band users see', async () => {
+    mocks.getSnapshot.mockResolvedValue(snapshot)
+    const wrapper = await panel()
+    expect(mocks.getSnapshot).toHaveBeenCalledWith({ range: '24h', platforms: [], groupIds: [], models: [] })
+    const healthTab = tab(wrapper, "health"); await healthTab.trigger("click"); console.log("DEBUG_TEXT", wrapper.text().includes("healthTitle"))
+    const previewBlock = wrapper.find('[data-testid="settings-user-preview"]')
+    expect(previewBlock.exists()).toBe(true)
+    // 5% error rate sits exactly on the watch band (>= warning, < critical).
+    const pill = previewBlock.find('.pill')
+    expect(pill.exists()).toBe(true)
+    expect(pill.classes()).toContain('pill-warn')
+    // 95.00% availability is passed into previewBasis as a raw interpolation param.
+    expect(wrapper.text()).toContain('previewBasis')
+    wrapper.unmount()
+  })
+
+  it('explains itself instead of inventing a band when no snapshot is available', async () => {
+    const wrapper = await panel()
+    const healthTab = tab(wrapper, "health"); await healthTab.trigger("click"); console.log("DEBUG_TEXT", wrapper.text().includes("healthTitle"))
+    const previewBlock = wrapper.find('[data-testid="settings-user-preview"]')
+    expect(previewBlock.text()).toContain('channelMonitorV2.settings.previewUnavailable')
+    expect(previewBlock.find('.pill').exists()).toBe(false)
     wrapper.unmount()
   })
 })

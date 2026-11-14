@@ -234,6 +234,7 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		SettingKeyChannelMonitorHideThroughput,
 		SettingKeyChannelMonitorShowQuota,
 		SettingKeyChannelMonitorHideUserRanking,
+		SettingKeyChannelMonitorProbesEnabled,
 		SettingKeyAvailableChannelsEnabled,
 		SettingKeySubscriptionEnabled,
 		SettingKeyModelPlazaEnabled,
@@ -363,6 +364,10 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		ChannelMonitorHideThroughput:         !isFalseSettingValue(settings[SettingKeyChannelMonitorHideThroughput]),
 		ChannelMonitorShowQuota:              settings[SettingKeyChannelMonitorShowQuota] == "true",
 		ChannelMonitorHideUserRanking:        isTrueSettingValue(settings[SettingKeyChannelMonitorHideUserRanking]),
+		ChannelMonitorProbesEnabled: resolveChannelMonitorProbesEnabled(
+			normalizeChannelMonitorMode(settings[SettingKeyChannelMonitorMode]),
+			settings[SettingKeyChannelMonitorProbesEnabled],
+		),
 
 		AvailableChannelsEnabled: settings[SettingKeyAvailableChannelsEnabled] == "true",
 
@@ -440,16 +445,36 @@ type ChannelMonitorRuntime struct {
 	// HideUserRanking: when true, user-facing V2 views hide the user ranking tab
 	// and the /users payload. Parsed fail-open (only literal "true" hides it).
 	HideUserRanking bool
+	// ProbesEnabled: when true, V1 active probes run. Independent of Mode so a
+	// site can aggregate real traffic and still probe groups without traffic.
+	ProbesEnabled bool
 }
 
 // ActiveProbesAllowed reports whether V1 active provider probes may run.
+// Gated by the dedicated probe switch instead of the mode, so passive
+// aggregation and active probes can run on the same site.
 func (r ChannelMonitorRuntime) ActiveProbesAllowed() bool {
-	return r.Enabled && r.Mode == ChannelMonitorModeV1
+	return r.Enabled && r.ProbesEnabled
 }
 
 // PassiveAggregationAllowed reports whether V2 passive aggregation may run.
 func (r ChannelMonitorRuntime) PassiveAggregationAllowed() bool {
 	return r.Enabled && r.Mode == ChannelMonitorModeV2
+}
+
+// resolveChannelMonitorProbesEnabled decides whether active probes run.
+// An explicit "true"/"false" wins; an unset key keeps the legacy behaviour
+// where only v1 mode probed. Kept in one place so setting_parse.go and the
+// runtime read path cannot disagree.
+func resolveChannelMonitorProbesEnabled(mode, raw string) bool {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "true", "1":
+		return true
+	case "false", "0":
+		return false
+	default:
+		return mode == ChannelMonitorModeV1
+	}
 }
 
 // GetChannelMonitorRuntime reads the channel monitor feature flags directly from
@@ -461,6 +486,9 @@ func (s *SettingService) GetChannelMonitorRuntime(ctx context.Context) ChannelMo
 			Mode:                   defaultChannelMonitorMode,
 			DefaultIntervalSeconds: channelMonitorIntervalFallback,
 			HideThroughput:         true,
+			// Fail-open keeps the legacy v1 behaviour: probes run unless the
+			// operator explicitly turned them off.
+			ProbesEnabled: true,
 		}
 	}
 	vals, err := s.settingRepo.GetMultiple(ctx, []string{
@@ -470,6 +498,7 @@ func (s *SettingService) GetChannelMonitorRuntime(ctx context.Context) ChannelMo
 		SettingKeyChannelMonitorHideThroughput,
 		SettingKeyChannelMonitorShowQuota,
 		SettingKeyChannelMonitorHideUserRanking,
+		SettingKeyChannelMonitorProbesEnabled,
 	})
 	if err != nil {
 		return ChannelMonitorRuntime{
@@ -477,6 +506,7 @@ func (s *SettingService) GetChannelMonitorRuntime(ctx context.Context) ChannelMo
 			Mode:                   defaultChannelMonitorMode,
 			DefaultIntervalSeconds: channelMonitorIntervalFallback,
 			HideThroughput:         true,
+			ProbesEnabled:          true,
 		}
 	}
 	return ChannelMonitorRuntime{
@@ -486,6 +516,10 @@ func (s *SettingService) GetChannelMonitorRuntime(ctx context.Context) ChannelMo
 		HideThroughput:         !isFalseSettingValue(vals[SettingKeyChannelMonitorHideThroughput]),
 		ShowQuota:              vals[SettingKeyChannelMonitorShowQuota] == "true",
 		HideUserRanking:        isTrueSettingValue(vals[SettingKeyChannelMonitorHideUserRanking]),
+		ProbesEnabled: resolveChannelMonitorProbesEnabled(
+			normalizeChannelMonitorMode(vals[SettingKeyChannelMonitorMode]),
+			vals[SettingKeyChannelMonitorProbesEnabled],
+		),
 	}
 }
 
@@ -635,14 +669,17 @@ type PublicSettingsInjectionPayload struct {
 	// from non-admin channel-monitor v2 viewers; default false (visible).
 	ChannelMonitorHideUserRanking bool `json:"channel_monitor_hide_user_ranking"`
 	ChannelMonitorShowQuota       bool `json:"channel_monitor_show_quota"`
-	AvailableChannelsEnabled      bool `json:"available_channels_enabled"`
-	SubscriptionEnabled           bool `json:"subscription_enabled"`
-	ModelPlazaEnabled             bool `json:"model_plaza_enabled"`
-	ModelPlazaRequireAuth         bool `json:"model_plaza_require_auth"`
-	PluginManagementEnabled       bool `json:"plugin_management_enabled"`
-	AffiliateEnabled              bool `json:"affiliate_enabled"`
-	RiskControlEnabled            bool `json:"risk_control_enabled"`
-	AllowUserViewErrorRequests    bool `json:"allow_user_view_error_requests"`
+	// ChannelMonitorProbesEnabled tells the user UI whether V1 active probe rows
+	// exist at all, so it can hide the probe tab instead of fetching an empty list.
+	ChannelMonitorProbesEnabled bool `json:"channel_monitor_probes_enabled"`
+	AvailableChannelsEnabled    bool `json:"available_channels_enabled"`
+	SubscriptionEnabled         bool `json:"subscription_enabled"`
+	ModelPlazaEnabled           bool `json:"model_plaza_enabled"`
+	ModelPlazaRequireAuth       bool `json:"model_plaza_require_auth"`
+	PluginManagementEnabled     bool `json:"plugin_management_enabled"`
+	AffiliateEnabled            bool `json:"affiliate_enabled"`
+	RiskControlEnabled          bool `json:"risk_control_enabled"`
+	AllowUserViewErrorRequests  bool `json:"allow_user_view_error_requests"`
 }
 
 // GetPublicSettingsForInjection returns public settings in a format suitable for HTML injection.
@@ -719,6 +756,7 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		ChannelMonitorHideThroughput:         settings.ChannelMonitorHideThroughput,
 		ChannelMonitorShowQuota:              settings.ChannelMonitorShowQuota,
 		ChannelMonitorHideUserRanking:        settings.ChannelMonitorHideUserRanking,
+		ChannelMonitorProbesEnabled:          settings.ChannelMonitorProbesEnabled,
 		AvailableChannelsEnabled:             settings.AvailableChannelsEnabled,
 		SubscriptionEnabled:                  settings.SubscriptionEnabled,
 		ModelPlazaEnabled:                    settings.ModelPlazaEnabled,

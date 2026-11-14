@@ -16,18 +16,18 @@ export default {
       features: {
         channelMonitor: {
           title: 'Channel Monitor',
-          description: 'Choose either V1 active probes or V2 passive usage monitoring. When disabled, both background jobs stop and the user entry is hidden.',
+          description: 'Choose whether to aggregate real traffic with V2 and control active probes separately. Disabling Channel Monitor stops both background jobs and hides the user entry.',
           configureLink: 'Configure monitors in Channel Management > Channel Monitor',
           enabled: 'Enable Channel Monitor',
           enabledHint: 'Disabling stops both the V1 scheduler and V2 aggregation; existing config and history are kept.',
           mode: 'Monitor mode',
-          modeHint: 'Default is V1 (active probes). Switch to V2 only when you want passive aggregation; only one implementation can be active at a time.',
+          modeHint: 'V1 is the default. V2 enables real-traffic aggregation. The separate active-probe switch below controls probes, which can run alongside V2.',
           modeV2: 'V2 passive monitoring',
-          modeV1: 'V1 active probes',
-          modeV2Hint: 'Opt-in: aggregates health metrics from real gateway traffic without upstream probe traffic. V1 probes stop while V2 is active.',
-          modeV1Hint: 'Default: runs scheduled upstream health checks for configured channel monitors (probe traffic).',
+          modeV1: 'V1 probe view',
+          modeV2Hint: 'Aggregates health metrics from real gateway traffic. Aggregation sends no requests itself; enabled probes still run on schedule and count toward usage.',
+          modeV1Hint: 'Real-traffic aggregation is inactive. The active-probe switch controls whether scheduled upstream health checks run.',
           defaultInterval: 'Default check interval (seconds)',
-          defaultIntervalHint: 'V1 only: default interval for new monitors (overridable per monitor). Range 15 – 3600 seconds.',
+          defaultIntervalHint: 'For active probes: default interval for new monitors (overridable per monitor). Range 15 – 3600 seconds.',
           hideThroughput: 'Hide throughput rates from users (RPM / TPM)',
           hideThroughputHint:
             'When on, the user Channel Monitor page and user APIs omit RPM and TPM so fleet volume cannot be reverse-estimated from rates × window. Admins still see full metrics. Error rates, latency, and cache rates remain visible.',
@@ -37,6 +37,9 @@ export default {
           hideUserRanking: 'Hide user ranking from users',
           hideUserRankingHint:
             'When on, the user Channel Monitor V2 page hides the user ranking tab and the user API returns no ranking rows. Admins still see the ranking.',
+          probesEnabled: 'Enable active probes',
+          probesEnabledHint:
+            'Independent of the monitor mode: when on, scheduled probes keep running even while V2 passive aggregation is active, so groups without real traffic still get a verdict. Probe requests count toward that API key usage and real-traffic statistics like any other request.',
         },
         availableChannels: {
           title: 'Available Channels',

@@ -47,6 +47,19 @@ func TestChannelMonitorV2MatrixHandlerRejectsInvalidGroupBy(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, recorder.Code)
 }
 
+func TestChannelMonitorV2ParseFilterRejectsFixedIntervalsOutsideAdminScope(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodGet, "/channel-monitor-v2/matrix?range=24h&start=2026-11-09T10:00:00Z&end=2026-11-09T11:00:00Z", nil)
+	c.Set(string(middleware.ContextKeyUserRole), service.RoleUser)
+
+	h := NewChannelMonitorV2Handler(service.NewChannelMonitorV2Service(nil), nil)
+	_, ok := h.parseFilter(c)
+	require.False(t, ok)
+	require.Equal(t, http.StatusBadRequest, recorder.Code)
+}
+
 func TestChannelMonitorV2ScopeFilterUsesAvailableGroupsForOrdinaryUser(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)

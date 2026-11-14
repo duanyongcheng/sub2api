@@ -1,6 +1,7 @@
 import { defineComponent } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createMemoryHistory, createRouter } from 'vue-router'
 
 import type { ChannelMonitor } from '@/api/admin/channelMonitor'
 import MonitorActionsCell from '@/components/admin/monitor/MonitorActionsCell.vue'
@@ -21,6 +22,7 @@ const {
 
 vi.mock('@/utils/featureFlags', () => ({
   isChannelMonitorV1Mode: () => true,
+  isChannelMonitorProbesEnabled: () => true,
   isChannelMonitorV2Mode: () => false,
   getChannelMonitorMode: () => 'v1' as const,
 }))
@@ -107,6 +109,7 @@ const monitor = makeMonitor()
 function mountView() {
   return mount(ChannelMonitorView, {
     global: {
+      plugins: [createRouter({ history: createMemoryHistory(), routes: [{ path: '/:pathMatch(.*)*', component: { template: '<div />' } }] })],
       stubs: {
         AppLayout: AppLayoutStub,
         TablePageLayout: TablePageLayoutStub,

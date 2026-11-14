@@ -1,0 +1,1280 @@
+<!DOCTYPE html>
+<!--META {"active":"accounts","role":"admin","title":"账号池","sub":"按池查看容量、状态与账号"} -->
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sub2API Admin · 账号池（按池管理）</title>
+<link rel="stylesheet" href="assets/proto.css" />
+<link rel="stylesheet" href="assets/shell.css" />
+<style>
+  /* =====================================================================
+     Layout
+     ===================================================================== */
+  .page { gap: 16px; }
+  .pools-layout { display: grid; grid-template-columns: 272px minmax(0, 1fr); gap: 16px; align-items: start; }
+
+  /* =====================================================================
+     Pool rail
+     ===================================================================== */
+  .rail { position: sticky; top: calc(var(--header-h) + 16px); max-height: calc(100vh - var(--header-h) - 32px);
+    display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--r-lg); box-shadow: var(--sh-xs); overflow: hidden; }
+  .rail-hd { padding: 12px 12px 8px; }
+  .rail-hd .field { height: 32px; font-size: 12.5px; border-radius: var(--r-sm); }
+  .rail-bd { overflow-y: auto; padding: 4px 6px 10px; }
+  .rail-sec { padding: 12px 8px 4px; font-size: 10.5px; font-weight: 700; letter-spacing: .06em; color: var(--text-3); display: flex; justify-content: space-between; }
+  .pool { display: grid; grid-template-columns: 1fr auto; gap: 4px 8px; align-items: center; padding: 8px 8px 9px 10px; border-radius: var(--r-sm); cursor: pointer; position: relative; }
+  .pool:hover { background: var(--surface-3); }
+  .pool.on { background: var(--p-50); }
+  [data-theme="dark"] .pool.on { background: rgba(20,184,166,.10); }
+  .pool.on::before { content: ""; position: absolute; left: 0; top: 8px; bottom: 8px; width: 3px; border-radius: 3px; background: var(--p-500); }
+  .pool .nm { font-size: 13px; font-weight: 600; color: var(--text); min-width: 0; display: flex; align-items: center; gap: 6px; }
+  .pool.on .nm { color: var(--p-700); }
+  [data-theme="dark"] .pool.on .nm { color: var(--p-300); }
+  .pool.inactive .nm { color: var(--text-3); }
+  .pool .ct { font-size: 11.5px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+  .pool .lvl { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; }
+  .pool .lvl .t { font-size: 11px; color: var(--text-3); font-variant-numeric: tabular-nums; min-width: 64px; text-align: right; }
+  .wbar { height: 5px; border-radius: 99px; background: var(--surface-3); overflow: hidden; display: flex; }
+  .wbar i { display: block; height: 100%; }
+  .wbar.unknown { background: repeating-linear-gradient(-45deg, var(--surface-3) 0 4px, transparent 4px 8px); }
+  .flag { display: inline-flex; align-items: center; gap: 3px; height: 17px; padding: 0 5px; border-radius: 5px; font-size: 10.5px; font-weight: 700; white-space: nowrap; }
+  .flag.bad { background: var(--bad-50); color: var(--bad-600); }
+  .flag.warn { background: var(--warn-50); color: var(--warn-600); }
+  .flag.mute { background: var(--surface-3); color: var(--text-3); }
+  .plat-node { display: flex; align-items: center; gap: 8px; padding: 9px 8px 5px; cursor: pointer; border-radius: var(--r-sm); }
+  .plat-node:hover { background: var(--surface-3); }
+  .plat-node.on { background: var(--p-50); }
+  [data-theme="dark"] .plat-node.on { background: rgba(20,184,166,.10); }
+  .plat-node .chev { color: var(--text-3); transition: transform .15s; }
+  .plat-node.collapsed .chev { transform: rotate(-90deg); }
+  .plat-node .pn { font-size: 12.5px; font-weight: 700; color: var(--text-2); flex: 1; }
+  .plat-node .ct { font-size: 11.5px; color: var(--text-3); }
+  .plat-children { padding-left: 10px; }
+  .plat-children.hide { display: none; }
+  .glyph { width: 16px; height: 16px; border-radius: 4px; font-size: 9px; font-weight: 800; color: #fff; display: inline-grid; place-items: center; flex: 0 0 auto; }
+  .gstack { display: inline-flex; }
+  .gstack .glyph { box-shadow: 0 0 0 1.5px var(--surface); }
+  .gstack .glyph + .glyph { margin-left: -5px; }
+  .triage { display: flex; align-items: center; gap: 8px; margin: 2px 0 2px; padding: 8px 10px; border-radius: var(--r-sm); font-size: 12.5px; font-weight: 600; color: var(--bad-600); cursor: pointer; }
+  .triage:hover, .triage.on { background: var(--bad-50); }
+  .triage .ct { margin-left: auto; font-weight: 750; }
+  .rail-ft { border-top: 1px solid var(--border); padding: 8px 6px; }
+  .rail-link { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: var(--r-sm); font-size: 12.5px; color: var(--text-2); cursor: pointer; }
+  .rail-link:hover { background: var(--surface-3); color: var(--text); }
+  .rail-search-hit { display: flex; align-items: center; gap: 8px; margin: 4px 2px; padding: 8px 10px; border-radius: var(--r-sm); border: 1px dashed var(--border-strong); font-size: 12.3px; color: var(--text-2); cursor: pointer; }
+  .rail-search-hit:hover { border-color: var(--p-400); color: var(--p-700); }
+  .rail-empty { padding: 14px 10px; font-size: 12px; color: var(--text-3); }
+
+  /* =====================================================================
+     Pool header
+     ===================================================================== */
+  .ws { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  .ph { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); box-shadow: var(--sh-xs); }
+  .ph-top { display: flex; align-items: flex-start; gap: 12px; padding: 16px 18px 14px; }
+  .ph-top h2 { font-size: 18px; font-weight: 700; letter-spacing: -.02em; display: flex; align-items: center; gap: 8px; }
+  .ph-meta { margin-top: 4px; display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12.3px; color: var(--text-3); }
+  .ph-meta b { color: var(--text-2); font-weight: 600; }
+  .ph-actions { margin-left: auto; display: flex; gap: 8px; flex: 0 0 auto; }
+  .ph-banner { display: flex; align-items: center; gap: 10px; margin: 0 18px 14px; padding: 9px 12px; border-radius: var(--r-sm); font-size: 12.5px; }
+  .ph-banner.warn { background: var(--warn-50); color: var(--warn-600); }
+  .ph-banner.mute { background: var(--surface-3); color: var(--text-2); }
+  .ph-banner .btn { margin-left: auto; }
+  .ph-metrics { display: grid; grid-template-columns: 1.25fr 1.25fr 1fr 1fr; border-top: 1px solid var(--border); }
+  .m { padding: 13px 18px 15px; min-width: 0; }
+  .m + .m { border-left: 1px solid var(--border); }
+  .m .k { font-size: 11.5px; font-weight: 600; color: var(--text-3); display: flex; align-items: center; gap: 6px; }
+  .m .v { margin-top: 5px; font-size: 22px; font-weight: 720; letter-spacing: -.025em; color: var(--text); font-variant-numeric: tabular-nums; display: flex; align-items: baseline; gap: 6px; }
+  .m .v small { font-size: 13px; font-weight: 600; color: var(--text-3); letter-spacing: 0; }
+  .m .v.na { font-size: 14px; font-weight: 550; color: var(--text-3); letter-spacing: 0; }
+  .m .bar { margin-top: 9px; height: 7px; border-radius: 99px; background: var(--surface-3); overflow: hidden; display: flex; }
+  .m .bar i { display: block; height: 100%; }
+  .m .sub { margin-top: 8px; font-size: 11.8px; color: var(--text-3); display: flex; flex-wrap: wrap; gap: 4px 12px; }
+  .m .sub b { color: var(--text-2); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .m .sub a { color: var(--p-600); font-weight: 600; cursor: pointer; }
+  .lg { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
+  .lg:hover { color: var(--text); }
+  .lg i { width: 7px; height: 7px; border-radius: 2px; display: inline-block; }
+  .p2 { display: inline-flex; align-items: center; height: 15px; padding: 0 4px; border-radius: 4px; font-size: 9.5px; font-weight: 700; letter-spacing: .02em;
+    color: var(--violet-500); background: var(--violet-50); border: 1px dashed color-mix(in srgb, var(--violet-500) 40%, transparent); vertical-align: middle; white-space: nowrap; }
+
+  /* =====================================================================
+     List toolbar · filters · bulk
+     ===================================================================== */
+  .lt { display: flex; align-items: center; gap: 10px; min-height: 40px; }
+  .lt .seg { flex: 0 0 auto; }
+  .lt .seg button { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .lt .seg .n { font-size: 11px; color: var(--text-3); font-weight: 700; font-variant-numeric: tabular-nums; }
+  .lt .seg button.on .n { color: var(--text-2); }
+  .lt .field { height: 34px; flex: 0 1 220px; min-width: 120px; font-size: 12.8px; }
+  .lt .btn { flex: 0 0 auto; }
+  .lt .grow { flex: 1; }
+  .lt .btn .badge { min-width: 17px; height: 17px; padding: 0 5px; border-radius: 99px; background: var(--p-500); color: #fff; font-size: 10.5px; font-weight: 750; display: inline-grid; place-items: center; }
+  .chips { display: none; align-items: center; gap: 6px; flex-wrap: wrap; margin: -2px 0 10px; }
+  .chips.show { display: flex; }
+  .fchip { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 6px 0 10px; border-radius: 99px; border: 1px solid var(--p-300); background: var(--p-50); color: var(--p-700); font-size: 12px; font-weight: 600; }
+  [data-theme="dark"] .fchip { background: rgba(20,184,166,.12); color: var(--p-300); border-color: rgba(20,184,166,.35); }
+  .fchip .k { font-weight: 500; opacity: .8; }
+  .fchip button { width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; color: inherit; opacity: .7; }
+  .fchip button:hover { opacity: 1; background: rgba(13,148,136,.12); }
+  .chips .clear { font-size: 12px; color: var(--text-3); cursor: pointer; margin-left: 4px; }
+  .chips .clear:hover { color: var(--text); }
+  .bulk { display: none; align-items: center; gap: 8px; min-height: 40px; padding: 0 6px 0 12px; border-radius: var(--r-md);
+    background: var(--n-900); color: #e2e8f0; font-size: 12.8px; flex: 1; }
+  [data-theme="dark"] .bulk { background: #1e293b; }
+  .bulk .btn-sm { height: 30px; color: #e2e8f0; }
+  .bulk .btn-sm:hover { background: rgba(255,255,255,.08); }
+  .bulk .sepv { width: 1px; height: 18px; background: rgba(255,255,255,.16); }
+  .bulk a { color: var(--p-300); font-weight: 600; cursor: pointer; white-space: nowrap; }
+  .has-sel .bulk { display: flex; }
+  .has-sel .lt-filters { display: none; }
+  .pending { display: none; align-items: center; gap: 10px; padding: 8px 12px; margin-bottom: 10px; border-radius: var(--r-sm); background: var(--info-50); color: var(--info-600); font-size: 12.5px; }
+  .pending.show { display: flex; }
+  .pending a { margin-left: auto; font-weight: 650; cursor: pointer; }
+
+  /* =====================================================================
+     Table
+     ===================================================================== */
+  .tcard { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); box-shadow: var(--sh-xs); overflow: hidden; }
+  .tscroll { overflow-x: auto; }
+  #acc { table-layout: fixed; font-size: 12.8px; }
+  #acc thead th { padding: 9px 10px; font-size: 11px; text-transform: none; letter-spacing: .01em; }
+  #acc thead th.sortable { cursor: pointer; }
+  #acc thead th.sortable:hover { color: var(--text); }
+  #acc thead th .so { opacity: .5; margin-left: 2px; }
+  #acc tbody td { padding: 0 10px; height: 52px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #acc td:first-child, #acc th:first-child { padding: 0 0 0 14px; text-overflow: clip; }
+  #acc tbody tr { cursor: pointer; }
+  #acc tbody tr:hover td { background: var(--surface-2); }
+  #acc tbody tr.sel td { background: color-mix(in srgb, var(--p-500) 6%, var(--surface)); }
+  #acc tbody tr.cur td { background: color-mix(in srgb, var(--p-500) 10%, var(--surface)); }
+  #acc tbody tr.off td:not(:first-child):not(.c-sw) { opacity: .55; }
+  #acc th.r, #acc td.r { text-align: right; }
+  .an { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .an .t { min-width: 0; }
+  .an .n1 { font-weight: 650; color: var(--text); overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 6px; }
+  .an .n2 { font-size: 11.3px; color: var(--text-3); overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
+  .also { font-size: 10.5px; font-weight: 600; color: var(--text-3); border: 1px solid var(--border-strong); border-radius: 4px; padding: 0 4px; line-height: 15px; }
+  .sd { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; display: inline-block; }
+  .sd.ok { background: var(--ok-500); }
+  .sd.warn { background: var(--warn-500); }
+  .sd.part { background: transparent; box-shadow: inset 0 0 0 2px var(--warn-500); }
+  .sd.bad { background: var(--bad-500); box-shadow: 0 0 0 3px var(--bad-50); }
+  .sd.off { background: var(--n-300); }
+  [data-theme="dark"] .sd.off { background: #475569; }
+  .st1 { font-weight: 600; }
+  .st1.ok { color: var(--ok-600); } .st1.warn, .st1.part { color: var(--warn-600); } .st1.bad { color: var(--bad-600); } .st1.off { color: var(--text-3); }
+  .st2 { font-size: 11.3px; color: var(--text-3); margin-top: 1px; overflow: hidden; text-overflow: ellipsis; }
+  .q { display: grid; grid-template-columns: 22px 1fr 34px; align-items: center; gap: 7px; }
+  .q .ql { font-size: 10.5px; font-weight: 700; color: var(--text-3); }
+  .q .qp { font-size: 12px; font-weight: 650; text-align: right; font-variant-numeric: tabular-nums; color: var(--text); }
+  .q2 { font-size: 11px; color: var(--text-3); margin-top: 3px; padding-left: 29px; overflow: hidden; text-overflow: ellipsis; }
+  .qbar { height: 5px; border-radius: 99px; background: var(--surface-3); overflow: hidden; }
+  .qbar i { display: block; height: 100%; border-radius: 99px; }
+  .num { font-variant-numeric: tabular-nums; }
+  .cc b { color: var(--text); font-weight: 650; } .cc span { color: var(--text-3); }
+  .cc.hot b { color: var(--bad-600); }
+  .cc.na { color: var(--text-3); }
+  .money { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .prio { display: inline-flex; align-items: center; justify-content: center; min-width: 30px; height: 24px; border-radius: 6px; font-weight: 650; color: var(--text); border: 1px solid transparent; }
+  tr:hover .prio { border-color: var(--border-strong); background: var(--surface); }
+  .stepper { display: inline-flex; align-items: center; height: 26px; border: 1px solid var(--p-400); border-radius: 7px; background: var(--surface); box-shadow: 0 0 0 3px rgba(20,184,166,.14); overflow: hidden; }
+  .stepper button { width: 22px; height: 100%; color: var(--text-2); font-weight: 700; }
+  .stepper button:hover { background: var(--surface-3); }
+  .stepper b { min-width: 28px; text-align: center; color: var(--text); font-variant-numeric: tabular-nums; }
+  .saved { font-size: 10.5px; color: var(--ok-600); font-weight: 650; }
+  .sw { width: 30px; height: 17px; border-radius: 99px; background: var(--border-strong); position: relative; display: inline-block; vertical-align: middle; cursor: pointer; }
+  .sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 13px; height: 13px; border-radius: 50%; background: #fff; box-shadow: var(--sh-xs); transition: transform .15s; }
+  .sw.on { background: var(--p-500); }
+  .sw.on::after { transform: translateX(13px); }
+  .ra { display: flex; justify-content: flex-end; gap: 2px; opacity: 0; }
+  tr:hover .ra, tr.cur .ra, .ra.pin { opacity: 1; }
+  .ico { width: 28px; height: 28px; border-radius: 7px; display: grid; place-items: center; color: var(--text-3); }
+  .ico:hover { background: var(--surface-3); color: var(--text); }
+  .ico.fix { color: var(--bad-600); }
+  .tfoot { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-top: 1px solid var(--border); font-size: 12.3px; color: var(--text-3); }
+  .empty { padding: 56px 20px; text-align: center; color: var(--text-3); font-size: 13px; }
+  .empty h4 { font-size: 14px; color: var(--text); margin: 10px 0 4px; }
+  .empty .row { justify-content: center; margin-top: 14px; }
+  .skel { height: 10px; border-radius: 99px; background: linear-gradient(90deg, var(--surface-3), var(--surface-2), var(--surface-3)); background-size: 200% 100%; animation: sk 1.2s infinite linear; }
+  @keyframes sk { to { background-position: -200% 0; } }
+  .cards { display: none; }
+
+  /* =====================================================================
+     Drawer
+     ===================================================================== */
+  .drawer { width: 440px; top: 0; }
+  .drawer:not(.hide) { animation: slidein .16s ease-out; }
+  @keyframes slidein { from { transform: translateX(24px); } to { transform: none; } }
+  .dh-name { font-size: 16px; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 8px; }
+  .dh-sub { margin-top: 4px; font-size: 12px; color: var(--text-3); }
+  .dh-nav { margin-left: auto; display: flex; gap: 2px; }
+  .alert { display: flex; gap: 10px; align-items: flex-start; padding: 11px 12px; border-radius: var(--r-md); font-size: 12.5px; margin-bottom: 18px; }
+  .alert.bad { background: var(--bad-50); color: var(--bad-600); }
+  .alert.warn, .alert.part { background: var(--warn-50); color: var(--warn-600); }
+  .alert.off { background: var(--surface-3); color: var(--text-2); }
+  .alert .at { font-weight: 650; }
+  .alert .ad { margin-top: 2px; color: var(--text-2); }
+  .alert .btn { margin-left: auto; flex: 0 0 auto; }
+  .ds { margin-bottom: 20px; }
+  .ds h4 { font-size: 11.5px; font-weight: 700; color: var(--text-3); letter-spacing: .04em; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; }
+  .ds h4 a { font-weight: 600; color: var(--p-600); letter-spacing: 0; cursor: pointer; }
+  .win { margin-bottom: 11px; }
+  .win .wl { display: flex; justify-content: space-between; font-size: 12.3px; color: var(--text-2); }
+  .win .wl b { color: var(--text); font-weight: 650; }
+  .win .wbar2 { margin-top: 5px; height: 7px; border-radius: 99px; background: var(--surface-3); overflow: hidden; }
+  .win .wbar2 i { display: block; height: 100%; border-radius: 99px; }
+  .src { font-size: 11px; color: var(--text-3); }
+  .cap { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .cap .c { padding: 9px 11px; border: 1px solid var(--border); border-radius: var(--r-sm); }
+  .cap .c .k { font-size: 11px; color: var(--text-3); }
+  .cap .c .v { margin-top: 2px; font-size: 14px; font-weight: 680; color: var(--text); font-variant-numeric: tabular-nums; }
+  .cap .c .v small { font-size: 11.5px; color: var(--text-3); font-weight: 600; }
+  .cap .c.na .v { color: var(--text-3); font-weight: 500; font-size: 12.5px; }
+  .today { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--border); border-radius: var(--r-sm); }
+  .today > div { padding: 9px 11px; min-width: 0; }
+  .today > div + div { border-left: 1px solid var(--border); }
+  .today .k { font-size: 11px; color: var(--text-3); }
+  .today .v { margin-top: 2px; font-size: 13.5px; font-weight: 680; color: var(--text); font-variant-numeric: tabular-nums; }
+  .pools-of { display: flex; flex-direction: column; gap: 6px; }
+  .pools-of .po { display: grid; grid-template-columns: auto 1fr 90px auto; gap: 10px; align-items: center; padding: 8px 10px; border-radius: var(--r-sm); background: var(--surface-2); border: 1px solid var(--border); font-size: 12.5px; cursor: pointer; }
+  .pools-of .po:hover { border-color: var(--border-strong); }
+  .pools-of .po .pr { font-size: 11.5px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+  .kv { display: grid; grid-template-columns: 96px 1fr; gap: 9px 12px; font-size: 12.5px; }
+  .kv dt { color: var(--text-3); }
+  .kv dd { margin: 0; color: var(--text); font-weight: 550; display: flex; align-items: center; gap: 8px; min-width: 0; flex-wrap: wrap; }
+  .kv dd .muted { font-weight: 450; }
+  .kv dd a { color: var(--p-600); font-weight: 600; font-size: 12px; cursor: pointer; }
+
+  /* =====================================================================
+     Menus / popovers
+     ===================================================================== */
+  .menu { position: absolute; z-index: 95; min-width: 220px; padding: 6px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); box-shadow: var(--sh-lg); }
+  .menu .mi { display: flex; align-items: center; gap: 9px; padding: 7px 10px; border-radius: 6px; font-size: 12.8px; color: var(--text-2); cursor: pointer; white-space: nowrap; }
+  .menu .mi:hover { background: var(--surface-3); color: var(--text); }
+  .menu .mi.danger { color: var(--bad-600); }
+  .menu .mi.dis { opacity: .45; cursor: not-allowed; }
+  .menu .mi .hint { margin-left: auto; font-size: 11px; color: var(--text-3); }
+  .menu .ms { height: 1px; background: var(--border); margin: 5px 4px; }
+  .menu .mh { padding: 6px 10px 4px; font-size: 10.5px; font-weight: 700; letter-spacing: .05em; color: var(--text-3); }
+  .pop { width: 340px; padding: 12px; }
+  .pop .pg { margin-bottom: 12px; }
+  .pop .pg-t { font-size: 11.5px; font-weight: 700; color: var(--text-3); margin-bottom: 7px; display: flex; justify-content: space-between; }
+  .opts { display: flex; flex-wrap: wrap; gap: 6px; }
+  .opt { height: 28px; padding: 0 10px; border-radius: 7px; border: 1px solid var(--border-strong); font-size: 12.3px; font-weight: 600; color: var(--text-2); background: var(--surface); }
+  .opt:hover { border-color: var(--text-3); }
+  .opt.on { border-color: var(--p-500); background: var(--p-50); color: var(--p-700); }
+  [data-theme="dark"] .opt.on { background: rgba(20,184,166,.12); color: var(--p-300); }
+  .pop-ft { display: flex; justify-content: space-between; align-items: center; padding-top: 10px; border-top: 1px solid var(--border); font-size: 12px; color: var(--text-3); }
+  .colrow { display: flex; align-items: center; gap: 9px; padding: 6px 4px; font-size: 12.8px; color: var(--text-2); border-radius: 6px; cursor: pointer; }
+  .colrow:hover { background: var(--surface-3); }
+  .colrow.lock { cursor: default; opacity: .6; }
+  .colrow .hint { margin-left: auto; font-size: 11px; color: var(--text-3); }
+  .ck { width: 15px; height: 15px; border-radius: 4px; border: 1.5px solid var(--border-strong); display: grid; place-items: center; flex: 0 0 auto; }
+  .ck.on { background: var(--p-500); border-color: var(--p-500); }
+  .ck.on::after { content: ""; width: 7px; height: 4px; border: 2px solid #fff; border-top: 0; border-right: 0; transform: rotate(-45deg) translate(1px, -1px); }
+  .kbd2 { font-family: var(--mono); font-size: 10.5px; padding: 1px 5px; border-radius: 4px; border: 1px solid var(--border-strong); color: var(--text-3); }
+
+  .autorf { display: inline-flex; align-items: center; height: 38px; border: 1px solid var(--border-strong); border-radius: var(--r-md); background: var(--surface); box-shadow: var(--sh-xs); overflow: hidden; }
+  .autorf button { height: 100%; padding: 0 10px; color: var(--text-2); font-size: 12.8px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .autorf button + button { border-left: 1px solid var(--border); }
+  .autorf button:hover { background: var(--surface-2); }
+  .autorf .cd { font-variant-numeric: tabular-nums; color: var(--p-600); }
+  .autorf .cd.paused { color: var(--text-3); }
+
+  /* prototype-only state switcher */
+  .demo { position: fixed; left: 16px; bottom: 16px; z-index: 120; width: 224px; padding: 10px; background: var(--surface); border: 1px dashed var(--violet-500); border-radius: var(--r-md); box-shadow: var(--sh-md); font-size: 12px; }
+  .demo.min .demo-bd { display: none; }
+  .demo-hd { display: flex; align-items: center; justify-content: space-between; font-weight: 700; color: var(--violet-500); cursor: pointer; }
+  .demo-bd { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
+  .demo-bd label { display: flex; align-items: center; gap: 8px; padding: 4px 2px; color: var(--text-2); cursor: pointer; }
+
+  /* pool picker (narrow) */
+  .picker { display: none; }
+  .sheet { position: fixed; inset: auto 0 0 0; z-index: 110; max-height: 78vh; overflow-y: auto; background: var(--surface); border-radius: 18px 18px 0 0; box-shadow: var(--sh-lg); padding: 8px 8px 20px; }
+  .sheet-grip { width: 40px; height: 4px; border-radius: 99px; background: var(--border-strong); margin: 4px auto 8px; }
+  .scrim2 { position: fixed; inset: 0; z-index: 105; background: rgba(2,6,23,.38); }
+
+  /* =====================================================================
+     Responsive
+     ===================================================================== */
+  @media (max-width: 1480px) { #acc .c-today { display: none; } }
+  @media (max-width: 1360px) {
+    .ph-metrics { grid-template-columns: 1fr 1fr; }
+    .m:nth-child(3) { border-left: 0; border-top: 1px solid var(--border); }
+    .m:nth-child(4) { border-top: 1px solid var(--border); }
+  }
+  @media (max-width: 1180px) {
+    .pools-layout { grid-template-columns: 236px minmax(0, 1fr); }
+    .lt .field { flex-basis: 150px; }
+  }
+  @media (max-width: 1023px) {
+    .sidebar { display: none; }
+    .main { margin-left: 0; }
+    .tb-search, .user-chip .stack { display: none; }
+    .page { padding: 14px 12px 40px; }
+    .page-hd { flex-direction: column; align-items: stretch !important; gap: 10px; }
+    .page-hd p { display: none; }
+    .page-hd .actions { flex-wrap: wrap; }
+    .page-hd .actions .hide-sm { display: none; }
+    #addBtn { margin-left: auto; }
+    #addBtn span { display: none; }
+    .pools-layout { grid-template-columns: minmax(0, 1fr); }
+    .rail { display: none; }
+    .picker { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); box-shadow: var(--sh-xs); font-size: 14px; font-weight: 650; color: var(--text); text-align: left; }
+    .picker .wbar { flex: 0 0 72px; }
+    .picker .meta { margin-left: auto; font-size: 12px; color: var(--text-3); font-weight: 500; }
+    .ph-top { display: none; }
+    .ph-banner { margin: 12px 14px 0; }
+    .ph-metrics { border-top: 0; }
+    .ph-metrics { grid-template-columns: 1fr 1fr; }
+    .m { padding: 11px 14px; }
+    .m .v { font-size: 18px; }
+    .m:nth-child(n+3) { display: none; }
+    .lt { flex-wrap: wrap; }
+    .lt-filters { flex-wrap: wrap; }
+    .lt .seg { order: 2; width: 100%; overflow-x: auto; }
+    .lt .field { flex: 1 1 0; order: 1; }
+    #fBtn { order: 1; }
+    .lt .grow, .lt .col-btn { display: none; }
+    .bulk { flex-wrap: wrap; padding: 6px 8px; }
+    .bulk .lbl { display: none; }
+    .tcard .tscroll { display: none; }
+    .cards { display: block; }
+    .card-a { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 8px 10px; padding: 12px 14px; border-bottom: 1px solid var(--border); align-items: center; cursor: pointer; }
+    .card-a .an { grid-column: 2; min-width: 0; }
+    .card-a .s { grid-column: 3; max-width: 140px; }
+    .card-a .qw, .card-a .row3 { grid-column: 2 / -1; min-width: 0; }
+    .card-a .q2 { padding-left: 29px; }
+    .card-a .row3 { display: flex; gap: 14px; font-size: 12px; color: var(--text-3); align-items: center; }
+    .card-a .row3 .sw { margin-left: auto; }
+    .drawer { width: 100%; }
+    .demo { left: auto; right: 10px; bottom: 10px; width: 200px; }
+  }
+</style>
+</head>
+<body class="app">
+<!--#INCLUDE icons#-->
+<!--#SHELL#-->
+
+  <main class="page">
+    <div class="page-hd" style="align-items:center">
+      <div>
+        <h2>账号池</h2>
+        <p>按分组查看每个池的并发水位与账号状态；点击账号查看配额、容量和操作。</p>
+      </div>
+      <div class="actions">
+        <div class="autorf">
+          <button title="刷新列表与池数据"><svg class="i i-16"><use href="#i-refresh"/></svg><span class="hide-sm">刷新</span></button>
+          <button data-menu="auto" title="自动刷新">自动 <span class="cd" id="cd">10s</span><svg class="i i-14"><use href="#i-chevronDown"/></svg></button>
+        </div>
+        <button class="btn btn-secondary hide-sm"><svg class="i i-16"><use href="#i-upload"/></svg>导入</button>
+        <button class="btn btn-secondary" data-menu="tools"><svg class="i i-16"><use href="#i-cog"/></svg>工具<svg class="i i-14"><use href="#i-chevronDown"/></svg></button>
+        <button class="btn btn-primary" id="addBtn"><svg class="i i-16"><use href="#i-plus"/></svg><span>添加账号</span></button>
+      </div>
+    </div>
+
+    <div class="pools-layout">
+      <!-- ================= pool rail ================= -->
+      <aside class="rail">
+        <div class="rail-hd">
+          <div class="field"><svg class="i i-14"><use href="#i-search"/></svg><input id="railQ" placeholder="查找池…" /></div>
+        </div>
+        <div class="rail-bd" id="rail"></div>
+        <div class="rail-ft">
+          <div class="rail-link"><svg class="i i-16"><use href="#i-layers"/></svg>新建或调整池：分组与定价<svg class="i i-14" style="margin-left:auto"><use href="#i-externalLink"/></svg></div>
+        </div>
+      </aside>
+
+      <!-- ================= pool workspace ================= -->
+      <section class="ws" id="ws">
+        <button class="picker" id="picker"></button>
+        <div class="ph" id="ph"></div>
+
+        <div id="listArea">
+          <div class="pending" id="pending"><svg class="i i-16"><use href="#i-info"/></svg><span>你刚修改了 2 个账号，自动刷新暂停 15 秒，避免覆盖未同步的结果。</span><a>立即同步</a></div>
+          <div class="lt" style="margin-bottom:10px">
+            <div class="lt-filters row gap-10" style="flex:1;min-width:0">
+              <div class="seg" id="stSeg"></div>
+              <div class="field"><svg class="i i-14"><use href="#i-search"/></svg><input id="q" placeholder="名称 / 邮箱 / ID" /></div>
+              <button class="btn btn-sm btn-ghost" data-menu="filters" id="fBtn"><svg class="i i-14"><use href="#i-filter"/></svg>筛选<span class="badge hide" id="fBadge"></span></button>
+              <div class="grow"></div>
+              <button class="btn btn-sm btn-ghost col-btn" data-menu="cols" title="列设置"><svg class="i i-16"><use href="#i-grid"/></svg>列</button>
+            </div>
+            <div class="bulk">
+              <span>已选 <b id="selN">0</b> 个</span>
+              <a id="selAll"></a>
+              <span class="sepv"></span>
+              <button class="btn btn-sm btn-ghost"><svg class="i i-14"><use href="#i-play"/></svg><span class="lbl">启用调度</span></button>
+              <button class="btn btn-sm btn-ghost"><svg class="i i-14"><use href="#i-ban"/></svg><span class="lbl">停止调度</span></button>
+              <button class="btn btn-sm btn-ghost"><svg class="i i-14"><use href="#i-refresh"/></svg><span class="lbl">刷新 Token</span></button>
+              <button class="btn btn-sm btn-ghost"><svg class="i i-14"><use href="#i-edit"/></svg><span class="lbl">编辑已选</span></button>
+              <button class="btn btn-sm btn-ghost" data-menu="bulkMore"><svg class="i i-14"><use href="#i-more"/></svg><span class="lbl">更多</span></button>
+              <div style="flex:1"></div>
+              <button class="btn btn-sm btn-ghost" id="clearSel"><svg class="i i-14"><use href="#i-x"/></svg><span class="lbl">取消</span></button>
+            </div>
+          </div>
+          <div class="chips" id="chips"></div>
+
+          <div class="tcard">
+            <div class="tscroll">
+              <table class="tbl" id="acc">
+                <colgroup id="cols"></colgroup>
+                <thead id="thead"></thead>
+                <tbody id="tbody"></tbody>
+              </table>
+            </div>
+            <div class="cards" id="cards"></div>
+            <div class="tfoot">
+              <span id="foot"></span>
+              <div class="row gap-6">
+                <span>每页 50</span>
+                <button class="btn btn-sm btn-secondary btn-icon"><svg class="i i-14"><use href="#i-chevronLeft"/></svg></button>
+                <button class="btn btn-sm btn-secondary btn-icon"><svg class="i i-14"><use href="#i-chevronRight"/></svg></button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<!-- ================= account drawer ================= -->
+<aside class="drawer hide" id="drawer">
+  <div class="drawer-hd">
+    <div style="min-width:0">
+      <div class="dh-name" id="dName"></div>
+      <div class="dh-sub" id="dSub"></div>
+    </div>
+    <div class="dh-nav">
+      <button class="ico" title="上一个 (↑)" data-nav="-1"><svg class="i i-16" style="transform:rotate(-90deg)"><use href="#i-chevronRight"/></svg></button>
+      <button class="ico" title="下一个 (↓)" data-nav="1"><svg class="i i-16" style="transform:rotate(90deg)"><use href="#i-chevronRight"/></svg></button>
+      <button class="ico" title="关闭 (Esc)" id="dClose"><svg class="i i-16"><use href="#i-x"/></svg></button>
+    </div>
+  </div>
+  <div class="drawer-bd" id="dBody"></div>
+  <div class="drawer-ft" style="justify-content:space-between">
+    <button class="btn btn-sm btn-ghost" data-menu="acctMore"><svg class="i i-14"><use href="#i-more"/></svg>更多操作</button>
+    <div class="row gap-8">
+      <button class="btn btn-sm btn-secondary" data-menu="test"><svg class="i i-14"><use href="#i-play"/></svg>测试<svg class="i i-14"><use href="#i-chevronDown"/></svg></button>
+      <button class="btn btn-sm btn-primary"><svg class="i i-14"><use href="#i-edit"/></svg>编辑账号</button>
+    </div>
+  </div>
+</aside>
+
+<!-- ================= menus ================= -->
+<div class="menu hide" id="m-tools">
+  <div class="mh">导入导出</div>
+  <div class="mi"><svg class="i i-16"><use href="#i-sync"/></svg>从 CRS 同步</div>
+  <div class="mi"><svg class="i i-16"><use href="#i-download"/></svg><span id="exportLbl">导出当前筛选结果</span></div>
+  <div class="ms"></div>
+  <div class="mh">批量</div>
+  <div class="mi"><svg class="i i-16"><use href="#i-edit"/></svg><span id="bulkFilteredLbl">批量更新筛选结果</span><span class="hint">无需勾选</span></div>
+  <div class="ms"></div>
+  <div class="mh">全局规则</div>
+  <div class="mi"><svg class="i i-16"><use href="#i-shield"/></svg>错误透传规则</div>
+  <div class="mi"><svg class="i i-16"><use href="#i-key"/></svg>TLS 指纹模板</div>
+</div>
+<div class="menu hide" id="m-bulkMore">
+  <div class="mi"><svg class="i i-16"><use href="#i-checkCircle"/></svg>恢复状态<span class="hint">清除错误与限流</span></div>
+  <div class="mi"><svg class="i i-16"><use href="#i-dollar"/></svg>探测上游倍率<span class="hint">每批 ≤ 20</span></div>
+  <div class="mi"><svg class="i i-16"><use href="#i-download"/></svg>导出已选</div>
+  <div class="ms"></div>
+  <div class="mi dis"><svg class="i i-16"><use href="#i-layers"/></svg>加入其他池 <span class="p2" style="margin-left:auto">P2</span></div>
+  <div class="mi dis"><svg class="i i-16"><use href="#i-arrowRight"/></svg>移出本池 <span class="p2" style="margin-left:auto">P2</span></div>
+  <div class="ms"></div>
+  <div class="mi danger"><svg class="i i-16"><use href="#i-trash"/></svg>删除已选…</div>
+</div>
+<div class="menu hide" id="m-acctMore">
+  <div class="mi"><svg class="i i-16"><use href="#i-chartBar"/></svg>使用统计</div>
+  <div class="mi"><svg class="i i-16"><use href="#i-clock"/></svg>定时测试</div>
+  <div class="mi" data-elig="copy"><svg class="i i-16"><use href="#i-copy"/></svg>复制账号</div>
+  <div class="ms"></div>
+  <div class="mi" data-elig="oauth"><svg class="i i-16"><use href="#i-refresh"/></svg>刷新 Token</div>
+  <div class="mi" data-elig="oauth"><svg class="i i-16"><use href="#i-key"/></svg>重新授权</div>
+  <div class="mi" data-elig="privacy"><svg class="i i-16"><use href="#i-eyeOff"/></svg>设置 Privacy</div>
+  <div class="mi" data-elig="spark"><svg class="i i-16"><use href="#i-sparkles"/></svg>创建 Spark 影子账号</div>
+  <div class="mi" data-elig="quota"><svg class="i i-16"><use href="#i-calculator"/></svg>重置本地配额</div>
+  <div class="ms"></div>
+  <div class="mi danger"><svg class="i i-16"><use href="#i-trash"/></svg>删除账号…</div>
+</div>
+<div class="menu hide" id="m-test">
+  <div class="mi"><svg class="i i-16"><use href="#i-play"/></svg>测试连接</div>
+  <div class="mi"><svg class="i i-16"><use href="#i-sparkles"/></svg>图片测试</div>
+  <div class="mi"><svg class="i i-16"><use href="#i-cube"/></svg>Compact 测试</div>
+</div>
+<div class="menu hide" id="m-auto">
+  <div class="mh">自动刷新</div>
+  <div class="mi">关闭</div><div class="mi">5 秒</div><div class="mi" style="color:var(--p-600);font-weight:650">10 秒 ✓</div><div class="mi">15 秒</div><div class="mi">30 秒</div>
+  <div class="ms"></div>
+  <div class="mh" style="font-weight:500;letter-spacing:0">打开弹窗、编辑优先级时自动暂停</div>
+</div>
+<div class="menu pop hide" id="m-filters"></div>
+<div class="menu pop hide" id="m-cols" style="width:300px"></div>
+
+<div class="demo" id="demo">
+  <div class="demo-hd" id="demoHd"><span>原型演示状态</span><span class="xs">收起</span></div>
+  <div class="demo-bd">
+    <label><input type="checkbox" data-demo="capFail"> 水位接口失败</label>
+    <label><input type="checkbox" data-demo="loading"> 列表加载中</label>
+    <label><input type="checkbox" data-demo="pending"> 编辑后待同步</label>
+    <label><input type="checkbox" data-demo="simple"> simple 运行模式</label>
+    <label><input type="checkbox" data-demo="dark"> 深色</label>
+  </div>
+</div>
+
+<script>
+/* ---------------------------------------------------------------
+   Prototype data. All names and addresses are fictional examples.
+   --------------------------------------------------------------- */
+const PLAT = {
+  anthropic:   { name: 'Anthropic',   g: 'A', c: '#d97757' },
+  openai:      { name: 'OpenAI',      g: 'O', c: '#10a37f' },
+  gemini:      { name: 'Gemini',      g: 'G', c: '#4285f4' },
+  grok:        { name: 'Grok',        g: 'X', c: '#334155' },
+  antigravity: { name: 'Antigravity', g: '▲', c: '#0ea5e9' },
+};
+const POOLS = [
+  { id: 'g1', plat: 'anthropic', name: 'Claude Max 主力池', n: 14, cMax: 280, cUsed: 196, sess: [38, 120], rpm: [412, 1400], today: 1284.2, yday: 1102.6, rate: '×1.0', mode: '订阅型 · 独占', prefix: 'max' },
+  { id: 'g2', plat: 'anthropic', name: 'Claude Pro 备用池', n: 8, cMax: 96, cUsed: 21, sess: null, rpm: null, today: 162.4, yday: 210.9, rate: '×0.8', mode: '按量', prefix: 'pro' },
+  { id: 'g3', plat: 'openai', name: 'Codex Team 池', n: 9, cMax: 144, cUsed: 133, sess: null, rpm: [690, 720], today: 902.7, yday: 640.1, rate: '×1.0', mode: '订阅型', prefix: 'team' },
+  { id: 'g4', plat: 'openai', name: 'ChatGPT Plus 池', n: 11, cMax: 176, cUsed: 64, sess: null, rpm: null, today: 388.0, yday: 402.3, rate: '×0.9', mode: '按量', prefix: 'plus' },
+  { id: 'g9', plat: 'openai', name: '旧 Plus 池', n: 3, inactive: true, today: 0, yday: 0, rate: '×0.9', mode: '按量', prefix: 'old' },
+  { id: 'g5', plat: 'gemini', name: 'Gemini Ultra 池', n: 6, cMax: 96, cUsed: 30, sess: null, rpm: null, today: 120.9, yday: 98.2, rate: '×1.0', mode: '按量', prefix: 'ultra' },
+  { id: 'g10', plat: 'gemini', name: 'Gemini 新建池', n: 0, cMax: 0, cUsed: 0, today: 0, yday: 0, rate: '×1.0', mode: '按量', prefix: 'new' },
+  { id: 'g6', plat: 'grok', name: 'Grok SSO 池', n: 4, cMax: 32, cUsed: 4, sess: null, rpm: null, today: 18.4, yday: 22.0, rate: '×1.2', mode: '按量', prefix: 'sso' },
+  { id: 'g7', plat: 'antigravity', name: 'Antigravity 池', n: 5, cMax: 50, cUsed: 12, sess: null, rpm: null, today: 44.1, yday: 39.0, rate: '×1.0', mode: '按量', prefix: 'ag' },
+  { id: 'g8', plat: 'composite', mix: ['anthropic', 'openai', 'gemini'], name: '全模型混合池', n: 6, cMax: 88, cUsed: 47, sess: null, rpm: null, today: 233.5, yday: 190.4, rate: '×1.1', mode: '按模型路由', prefix: 'mix', routes: 7 },
+];
+
+/* deterministic pseudo-random */
+let seed = 7;
+const rnd = () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
+const pick = (a) => a[Math.floor(rnd() * a.length)];
+
+const TYPES = { anthropic: ['OAuth', 'OAuth', 'Setup Token'], openai: ['OAuth', 'OAuth', 'API Key'], gemini: ['OAuth', 'API Key'], grok: ['SSO'], antigravity: ['OAuth'] };
+const PROXIES = ['US-West · proxy-a', 'US-East · proxy-b', 'JP-Tokyo · proxy-c', 'SG · proxy-d', '直连'];
+
+/* status presets. bucket follows the server's group-count SQL:
+   ok = active & schedulable & no cooldown (partial model limits stay "ok")
+   lim = rate_limit / overload / temp_unschedulable window
+   bad = status error · off = inactive, schedulable=false, expired+auto-pause */
+const STATES = [
+  ...Array(10).fill({ k: 'ok', t: '可用', b: 'ok' }),
+  { k: 'warn', b: 'lim', t: '限流中', s: '32 分钟后恢复', fix: '恢复状态', why: '上游返回 429 rate_limit_error，按 Retry-After 冷却至 15:18。' },
+  { k: 'part', b: 'ok', t: '可用 · 部分模型限流', s: 'opus-4 等 2/9 个模型', fix: '查看模型', why: '仅 2 个模型受限，其余 7 个模型仍会被调度；账号本身不在冷却中。' },
+  { k: 'warn', b: 'lim', t: '临时不可调度', s: '规则「连续 5xx」· 8 分钟', fix: '查看原因', why: '命中临时不可调度规则「连续 3 次 5xx」，8 分钟后自动恢复，也可以查看原因后重置。' },
+  { k: 'bad', b: 'bad', t: 'Token 失效', s: '10 分钟前 · 401', fix: '刷新 Token', why: '刷新 access token 时上游返回 invalid_grant。先尝试刷新，不行再重新授权。' },
+  { k: 'bad', b: 'bad', t: '上游拒绝', s: '403 · 刚刚', fix: '测试', why: '最近 3 次请求均返回 403 permission_error，账号已标记为错误。' },
+  { k: 'off', b: 'off', t: '已停用', s: '手动停用', why: '账号状态为停用，不参与任何池的调度。' },
+];
+
+let nextId = 1001;
+function mkAccount(pool, i, platKey) {
+  const plat = platKey || pool.plat;
+  const st = (pool.id === 'g3' && i < 3) ? STATES[10 + i] : (pool.id === 'g9' ? STATES[15] : pick(STATES));
+  const type = pick(TYPES[plat]);
+  const cMax = pick([8, 12, 16, 20, 24, 32]);
+  const busy = st.b === 'ok' ? Math.round(cMax * (0.2 + rnd() * 0.8)) : 0;
+  const sched = st.k === 'off' ? false : rnd() > 0.08;
+  let wins;
+  if (type === 'API Key') {
+    const lim = pick([50, 100, 200]);
+    const used = +(lim * rnd()).toFixed(2);
+    wins = [{ l: '日', u: Math.round(used / lim * 100), txt: `$${used} / $${lim}`, reset: '今日 24:00 重置', src: '本地配额' }];
+  } else if (plat === 'anthropic' || plat === 'openai') {
+    const u5 = st.t === '限流中' ? 100 : Math.round(rnd() * 96);
+    wins = [
+      { l: '5h', u: u5, reset: `${1 + Math.floor(rnd() * 4)}h ${Math.floor(rnd() * 59)}m 后重置`, src: '上游用量接口 · 2 分钟前' },
+      { l: '7d', u: Math.round(rnd() * 80), reset: `${1 + Math.floor(rnd() * 6)} 天后重置`, src: '上游用量接口 · 2 分钟前' },
+    ];
+  } else if (plat === 'gemini') {
+    wins = [{ l: 'RPD', u: Math.round(rnd() * 90), reset: '太平洋时间 0 点重置', src: '本地计数' }];
+  } else if (plat === 'grok') {
+    wins = rnd() > .5 ? [{ l: '日', u: Math.round(rnd() * 70), reset: '18 小时后重置', src: '上游 rate-limit 头 · 5 分钟前' }] : [];
+  } else {
+    wins = [{ l: '额度', u: Math.round(rnd() * 70), reset: '按模型', src: '上游 · 4 分钟前' }];
+  }
+  if (st.k === 'bad') wins = wins.map(w => ({ ...w, stale: true }));
+  const req = st.b === 'ok' ? Math.round(rnd() * 2400) : Math.round(rnd() * 60);
+  const cost = +(req * (0.01 + rnd() * 0.03)).toFixed(2);
+  const sibling = POOLS.filter(p => p.id !== pool.id && (p.plat === plat || p.plat === 'composite') && !p.inactive && p.n);
+  return {
+    id: nextId++, plat, type,
+    name: `${pool.prefix || plat}-${String(i + 1).padStart(2, '0')}`,
+    email: type === 'API Key' ? `sk-…${Math.floor(rnd() * 9000 + 1000)}` : `${pool.prefix || 'acct'}${i + 1}@example.com`,
+    st, sched, cMax, busy,
+    sess: plat === 'anthropic' ? [Math.round(rnd() * 8), 10] : null,
+    rpm: plat === 'anthropic' || (pool.rpm && rnd() > .3) ? [Math.round(rnd() * 50), 60] : null,
+    wins, req, tok: Math.round(req * (2000 + rnd() * 30000)), cost, ucost: +(cost * 1.32).toFixed(2),
+    prio: pick([1, 1, 1, 2, 3, 5, 10]),
+    load: pick([1, 1, 1, 0.8, 1.5]),
+    rmul: pick(['1.0', '1.0', '0.8', '1.2']),
+    up: type === 'API Key' ? pick(['×0.86 · 探测于 14:00', '未探测']) : null,
+    privacy: (plat === 'openai' || plat === 'antigravity') && type === 'OAuth' ? pick(['Privacy', 'Privacy', '未设置', 'CF', 'Fail']) : null,
+    proxy: pick(PROXIES),
+    fallback: rnd() > 0.9,
+    home: pool.id === 'ug' ? null : pool.id,
+    also: pool.id !== 'ug' && sibling.length && rnd() > 0.78 ? [pick(sibling).id] : [],
+    expires: rnd() > 0.85 ? '2026-12-01 · 到期自动暂停' : '—',
+    notes: rnd() > 0.8 ? '团队共享，夜间优先' : '',
+    created: '2026-08-14', last: st.b === 'ok' ? '刚刚' : '18 分钟前',
+  };
+}
+
+POOLS.forEach(p => {
+  p.accounts = Array.from({ length: p.n }, (_, i) => mkAccount(p, i, p.plat === 'composite' ? p.mix[i % p.mix.length] : null));
+});
+const UNGROUPED = { id: 'ug', name: '未分组', accounts: Array.from({ length: 4 }, (_, i) => mkAccount({ id: 'ug', prefix: 'loose' }, i, pick(['openai', 'anthropic', 'gemini']))) };
+const ALL = [...POOLS.flatMap(p => p.accounts), ...UNGROUPED.accounts];
+const poolById = (id) => POOLS.find(p => p.id === id);
+const poolsOf = (a) => [a.home, ...a.also].filter(Boolean).map(poolById);
+POOLS.forEach(p => { p.members = ALL.filter(a => poolsOf(a).includes(p)); });
+
+function counts(list) {
+  const c = { all: list.length, ok: 0, lim: 0, bad: 0, off: 0 };
+  list.forEach(a => {
+    if (a.st.b === 'off' || !a.sched) c.off++;
+    else c[a.st.b]++;
+  });
+  return c;
+}
+
+/* ---------------- state ---------------- */
+const S = {
+  sel: 'g1', status: 'all', selected: new Set(), cur: null, collapsed: new Set(),
+  filters: { type: [], privacy: [] }, editPrio: null, savedPrio: null,
+  cols: new Set(['today']), sort: { key: 'name', dir: 1 },
+  demo: { capFail: false, loading: false, pending: false, simple: false, dark: false },
+  railQ: '', sheet: false,
+};
+const OPTIONAL_COLS = [
+  ['pools', '所属池', '全部 / 平台视图默认显示'],
+  ['today', '今日计费', ''],
+  ['id', 'ID', ''],
+  ['proxy', '代理', ''],
+  ['rmul', '计费倍率', ''],
+  ['up', '上游声明倍率', ''],
+  ['score', '调度分数', '按分组计算，较慢'],
+  ['last', '最近使用', ''],
+  ['expires', '过期时间', ''],
+  ['notes', '备注', ''],
+];
+
+const levelColor = (r) => r >= .9 ? 'var(--bad-500)' : r >= .75 ? 'var(--warn-500)' : 'var(--p-500)';
+const glyph = (k, size = 16) => `<span class="glyph" style="background:${PLAT[k].c};width:${size}px;height:${size}px">${PLAT[k].g}</span>`;
+const poolGlyph = (p, size = 16) => p.plat === 'composite' ? `<span class="gstack">${p.mix.map(k => glyph(k, size)).join('')}</span>` : glyph(p.plat, size);
+const fmt = (n) => n.toLocaleString('en-US');
+const usd = (n) => '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const icon = (n, s = 16) => `<svg class="i i-${s}"><use href="#i-${n}"/></svg>`;
+
+function currentScope() {
+  if (S.sel === 'all') return { kind: 'all', name: '全部账号', accounts: ALL };
+  if (S.sel === 'triage') return { kind: 'triage', name: '需要处理', accounts: ALL.filter(a => a.st.b === 'bad') };
+  if (S.sel === 'ug') return { kind: 'ug', name: '未分组', accounts: UNGROUPED.accounts };
+  if (S.sel.startsWith('plat:')) {
+    const k = S.sel.slice(5);
+    const ps = POOLS.filter(p => p.plat === k);
+    return { kind: 'plat', plat: k, name: PLAT[k].name, pools: ps, accounts: ALL.filter(a => a.plat === k) };
+  }
+  const p = poolById(S.sel);
+  return { kind: 'pool', pool: p, plat: p.plat, name: p.name, accounts: ALL.filter(a => poolsOf(a).includes(p)) };
+}
+
+/* ---------------- rail ---------------- */
+function poolRow(p) {
+  const c = counts(p.members);
+  const simple = S.demo.simple;
+  let lvl;
+  if (p.inactive) lvl = `<div class="lvl"><div class="xs muted">分组已停用 · 不参与调度</div></div>`;
+  else if (!p.n) lvl = `<div class="lvl"><div class="xs muted">暂无账号</div></div>`;
+  else if (simple) lvl = '';
+  else if (S.demo.capFail) lvl = `<div class="lvl"><div class="wbar unknown"></div><div class="t">— / —</div></div>`;
+  else { const r = p.cUsed / p.cMax; lvl = `<div class="lvl"><div class="wbar"><i style="width:${Math.round(r * 100)}%;background:${levelColor(r)}"></i></div><div class="t">${p.cUsed} / ${p.cMax}</div></div>`; }
+  const r = p.cMax ? p.cUsed / p.cMax : 0;
+  const flags = (c.bad ? `<span class="flag bad">${c.bad} 异常</span>` : '') + (!simple && !S.demo.capFail && !p.inactive && r >= .9 ? `<span class="flag warn">紧张</span>` : '') + (p.inactive ? `<span class="flag mute">停用</span>` : '');
+  return `<div class="pool ${S.sel === p.id ? 'on' : ''} ${p.inactive ? 'inactive' : ''}" data-pool="${p.id}">
+    <div class="nm">${p.plat === 'composite' ? poolGlyph(p, 14) : ''}<span class="truncate">${p.name}</span></div><div class="row gap-6">${flags}<span class="ct">${p.members.length}</span></div>${lvl}</div>`;
+}
+
+function renderRail() {
+  const q = S.railQ.trim().toLowerCase();
+  const ca = counts(ALL);
+  const bad = ALL.filter(a => a.st.b === 'bad').length;
+  let h = '';
+  const match = (p) => !q || p.name.toLowerCase().includes(q);
+
+  if (!q) {
+    h += `<div class="pool ${S.sel === 'all' ? 'on' : ''}" data-pool="all">
+            <div class="nm">全部账号</div><div class="ct">${ALL.length}</div>
+            <div class="lvl"><div class="wbar">${stackBar(ca)}</div><div class="t">${ca.ok} 可调度</div></div>
+          </div>`;
+    if (bad) h += `<div class="triage ${S.sel === 'triage' ? 'on' : ''}" data-pool="triage"><span class="sd bad"></span>需要处理<span class="ct">${bad}</span></div>`;
+  }
+
+  if (S.demo.simple) {
+    /* simple run mode: no capacity summary; flat platform list */
+    h += `<div class="rail-sec"><span>平台</span></div>`;
+    Object.keys(PLAT).forEach(k => {
+      const n = ALL.filter(a => a.plat === k).length;
+      if (!n || (q && !PLAT[k].name.toLowerCase().includes(q))) return;
+      h += `<div class="plat-node ${S.sel === 'plat:' + k ? 'on' : ''}" data-plat="${k}" style="padding:8px">${glyph(k)}<span class="pn">${PLAT[k].name}</span><span class="ct">${n}</span></div>`;
+    });
+  } else {
+    h += `<div class="rail-sec"><span>平台 · 分组</span><span>并发水位</span></div>`;
+    Object.keys(PLAT).forEach(k => {
+      const ps = POOLS.filter(p => p.plat === k && match(p));
+      if (!ps.length) return;
+      const n = ALL.filter(a => a.plat === k).length;
+      const col = S.collapsed.has(k) && !q;
+      h += `<div class="plat-node ${col ? 'collapsed' : ''} ${S.sel === 'plat:' + k ? 'on' : ''}" data-plat="${k}">
+              <svg class="i i-14 chev" data-toggle="${k}"><use href="#i-chevronDown"/></svg>
+              ${glyph(k)}<span class="pn">${PLAT[k].name}</span><span class="ct">${n}</span>
+            </div><div class="plat-children ${col ? 'hide' : ''}">${ps.map(poolRow).join('')}</div>`;
+    });
+    const mixed = POOLS.filter(p => p.plat === 'composite' && match(p));
+    if (mixed.length) h += `<div class="rail-sec" style="margin-top:6px"><span>混合分组 · 按模型路由</span></div>${mixed.map(poolRow).join('')}`;
+  }
+
+  const cu = counts(UNGROUPED.accounts);
+  if (!q || '未分组'.includes(q)) {
+    h += `<div class="rail-sec" style="margin-top:6px"><span>其他</span></div>
+          <div class="pool ${S.sel === 'ug' ? 'on' : ''}" data-pool="ug">
+            <div class="nm" style="color:var(--text-2)">未分组账号</div><div class="row gap-6">${cu.bad ? `<span class="flag bad">${cu.bad} 异常</span>` : ''}<span class="ct">${UNGROUPED.accounts.length}</span></div>
+            <div class="lvl"><div class="xs muted">不属于任何分组，不会被调度</div></div>
+          </div>`;
+  }
+  if (q) {
+    const hits = ALL.filter(a => (a.name + a.email).toLowerCase().includes(q)).length;
+    if (!h.includes('class="pool') && !h.includes('plat-node')) h += `<div class="rail-empty">没有名称包含「${S.railQ}」的池</div>`;
+    h += `<div class="rail-search-hit" data-search-all="${S.railQ}">${icon('search', 14)}在全部账号中搜索「${S.railQ}」<span class="muted" style="margin-left:auto">${hits} 个</span></div>`;
+  }
+  document.getElementById('rail').innerHTML = h;
+}
+
+function stackBar(c) {
+  const t = c.all || 1;
+  return `<i style="width:${c.ok / t * 100}%;background:var(--ok-500)"></i><i style="width:${c.lim / t * 100}%;background:var(--warn-500)"></i><i style="width:${c.bad / t * 100}%;background:var(--bad-500)"></i><i style="width:${c.off / t * 100}%;background:var(--n-300)"></i>`;
+}
+
+/* ---------------- pool header ---------------- */
+function statusTile(c, span) {
+  return `
+    <div class="m" ${span ? `style="grid-column: span ${span}"` : ''}>
+      <div class="k">账号状态</div>
+      <div class="v">${c.ok}<small>/ ${c.all} 可调度</small></div>
+      <div class="bar">${stackBar(c)}</div>
+      <div class="sub">
+        <span class="lg" data-st="ok"><i style="background:var(--ok-500)"></i>可用 <b>${c.ok}</b></span>
+        <span class="lg" data-st="lim"><i style="background:var(--warn-500)"></i>冷却 <b>${c.lim}</b></span>
+        <span class="lg" data-st="bad"><i style="background:var(--bad-500)"></i>异常 <b>${c.bad}</b></span>
+        <span class="lg" data-st="off"><i style="background:var(--n-300)"></i>停用 <b>${c.off}</b></span>
+      </div>
+    </div>`;
+}
+
+function capTile(used, max, note) {
+  if (S.demo.simple) return `<div class="m"><div class="k">并发水位</div><div class="v na">simple 模式不汇总分组水位</div></div>`;
+  if (S.demo.capFail) return `<div class="m"><div class="k">并发水位</div><div class="v na">暂时无法获取</div><div class="sub"><span>容量汇总接口失败</span><a>重试</a></div></div>`;
+  if (!max) return `<div class="m"><div class="k">并发水位</div><div class="v na">池内没有可调度账号</div></div>`;
+  const r = used / max;
+  return `<div class="m">
+    <div class="k">并发水位${note ? ` <span class="p2">${note}</span>` : ''}</div>
+    <div class="v" style="color:${r >= .9 ? 'var(--bad-600)' : 'var(--text)'}">${used}<small>/ ${max}</small><small style="margin-left:auto;color:${levelColor(r)}">${Math.round(r * 100)}%</small></div>
+    <div class="bar"><i style="width:${r * 100}%;background:${levelColor(r)}"></i></div>
+    <div class="sub">${r >= .9 ? `<span style="color:var(--bad-600)">只剩 ${max - used} 并发</span>` : `<span>剩余 <b>${max - used}</b> 并发</span>`}<span>仅计可调度账号</span></div>
+  </div>`;
+}
+
+function renderHeader() {
+  const sc = currentScope();
+  const c = counts(sc.accounts);
+  let title, meta, actions = '', metrics, banner = '';
+
+  if (sc.kind === 'pool') {
+    const p = sc.pool;
+    const delta = p.yday ? (p.today - p.yday) / p.yday * 100 : 0;
+    title = `${poolGlyph(p, 20)}${p.name}`;
+    meta = p.plat === 'composite'
+      ? `<span><b>混合分组</b> · ${p.mix.map(k => PLAT[k].name).join(' / ')}</span><span>${p.routes} 条模型路由</span><span>分组倍率 <b>${p.rate}</b></span>`
+      : `<span><b>${PLAT[p.plat].name}</b> 分组</span><span>${p.mode}</span><span>分组倍率 <b>${p.rate}</b></span>`;
+    meta += `<span>${sc.accounts.length} 个账号</span>`;
+    actions = `<button class="btn btn-sm btn-ghost">${icon('cog', 14)}分组设置${icon('externalLink', 14)}</button>`;
+    if (p.inactive) banner = `<div class="ph-banner mute">${icon('info')}<span>分组已停用：池内账号不会通过这个分组被调度。账号本身的状态不受影响。</span><button class="btn btn-sm btn-secondary">启用分组</button></div>`;
+    if (!p.n) banner = '';
+    const usage = S.demo.simple ? `<div class="m"><div class="k">今日费用</div><div class="v na">simple 模式不提供</div></div>` : `
+      <div class="m">
+        <div class="k">今日费用（账号计费）</div>
+        <div class="v">${usd(p.today)}</div>
+        <div class="sub"><span>昨日 <b>${usd(p.yday)}</b></span>${p.yday ? `<span style="color:${delta >= 0 ? 'var(--warn-600)' : 'var(--ok-600)'}">${delta >= 0 ? '+' : ''}${delta.toFixed(0)}%</span>` : ''}</div>
+      </div>`;
+    const sr = p.sess || p.rpm;
+    const sessTile = S.demo.simple || S.demo.capFail ? `<div class="m"><div class="k">会话 / RPM</div><div class="v na">—</div></div>` : `
+      <div class="m">
+        <div class="k">会话 / RPM</div>
+        ${sr ? `<div class="stack" style="gap:8px;margin-top:8px">${[p.sess && ['会话', p.sess], p.rpm && ['RPM', p.rpm]].filter(Boolean).map(([k, v]) => `
+            <div class="row gap-8" style="font-size:12px"><span class="muted" style="width:34px">${k}</span><div class="wbar" style="flex:1"><i style="width:${v[0] / v[1] * 100}%;background:${levelColor(v[0] / v[1])}"></i></div><span class="num bold" style="color:${v[0] / v[1] >= .9 ? 'var(--bad-600)' : 'var(--text)'}">${v[0]}<span class="muted" style="font-weight:500"> / ${v[1]}</span></span></div>`).join('')}</div>
+          <div class="sub"><span>仅统计设置了上限的账号</span></div>`
+        : `<div class="v na">池内账号没有设置会话或 RPM 上限</div>`}
+      </div>`;
+    metrics = p.inactive ? statusTile(c, 4) : capTile(p.cUsed, p.cMax) + statusTile(c) + usage + sessTile;
+  } else if (sc.kind === 'plat') {
+    const ps = sc.pools.filter(p => !p.inactive && p.n);
+    const cu = ps.reduce((s, p) => s + p.cUsed, 0), cm = ps.reduce((s, p) => s + p.cMax, 0);
+    title = `${glyph(sc.plat, 20)}${sc.name}`;
+    meta = `<span>${sc.pools.length} 个分组</span><span>${sc.accounts.length} 个账号（含未分组和混合分组中的该平台账号）</span>`;
+    metrics = (S.demo.simple ? '' : capTile(cu, cm, '同属多池会重复计入 · P2 去重')) + statusTile(c, S.demo.simple ? 4 : 1) + (S.demo.simple ? '' : `
+      <div class="m" style="grid-column: span 2"><div class="k">各分组水位</div>
+        <div class="stack" style="gap:7px;margin-top:8px">${sc.pools.map(p => `<div class="row gap-10" style="font-size:12.5px;cursor:pointer" data-pool="${p.id}"><span style="width:130px" class="truncate bold">${p.name}</span>${p.inactive ? '<span class="xs muted" style="flex:1">已停用</span>' : !p.n ? '<span class="xs muted" style="flex:1">暂无账号</span>' : `<div class="wbar" style="flex:1"><i style="width:${p.cUsed / p.cMax * 100}%;background:${levelColor(p.cUsed / p.cMax)}"></i></div>`}<span class="muted num" style="width:70px;text-align:right">${p.cMax ? `${p.cUsed}/${p.cMax}` : ''}</span></div>`).join('')}</div></div>`);
+  } else if (sc.kind === 'triage') {
+    title = `<span class="sd bad"></span>需要处理`;
+    meta = `<span>所有池中状态为「异常」的账号，按最近出错时间排序</span>`;
+    const byFix = {};
+    sc.accounts.forEach(a => { byFix[a.st.t] = (byFix[a.st.t] || 0) + 1; });
+    metrics = `<div class="m" style="grid-column: span 4"><div class="k">按原因</div><div class="row gap-16" style="margin-top:8px;flex-wrap:wrap">${Object.entries(byFix).map(([t, n]) => `<span class="row gap-8" style="font-size:13px"><span class="sd bad"></span><b>${t}</b><span class="muted num">${n}</span></span>`).join('')}</div>
+      <div class="sub"><span>数量来自 <code>status=error</code> 的列表总数（v1 可用）</span></div></div>`;
+  } else {
+    title = sc.kind === 'ug' ? '未分组账号' : '全部账号';
+    meta = sc.kind === 'ug'
+      ? `<span style="color:var(--warn-600)">这些账号不属于任何分组，不会被调度。把它们加入池后才会接请求。</span>`
+      : `<span>${sc.accounts.length} 个账号</span><span>${POOLS.length} 个分组</span>`;
+    metrics = sc.kind === 'ug' ? statusTile(c, 4) : `
+      ${statusTile(c)}
+      <div class="m" style="grid-column: span 3"><div class="k">各平台账号 <span class="p2">P2 全量 facets</span></div>
+        <div class="row gap-16" style="margin-top:10px;flex-wrap:wrap">${Object.keys(PLAT).map(k => { const a = sc.accounts.filter(x => x.plat === k); const cc = counts(a); return a.length ? `<div class="row gap-8" style="cursor:pointer" data-plat-pick="${k}">${glyph(k)}<span class="bold" style="font-size:13px">${PLAT[k].name}</span><span class="muted sm num">${a.length}</span>${cc.bad ? `<span class="flag bad">${cc.bad}</span>` : ''}</div>` : ''; }).join('')}</div></div>`;
+  }
+
+  if (sc.kind === 'all' || sc.kind === 'ug' || sc.kind === 'triage') {
+    metrics = metrics.replace('<div class="k">账号状态</div>', '<div class="k">账号状态 <span class="p2">P2 全量 facets</span></div>');
+  }
+
+  document.getElementById('ph').innerHTML = `
+    <div class="ph-top">
+      <div style="min-width:0"><h2>${title}</h2><div class="ph-meta">${meta}</div></div>
+      <div class="ph-actions">${actions}</div>
+    </div>${banner}
+    <div class="ph-metrics">${metrics}</div>`;
+
+  document.querySelector('#addBtn span').textContent = sc.kind === 'pool' && !sc.pool.inactive ? `添加到 ${sc.pool.name}` : '添加账号';
+  document.getElementById('exportLbl').textContent = `导出${sc.kind === 'pool' ? '本池' : ''}筛选结果`;
+  document.getElementById('bulkFilteredLbl').textContent = `批量更新${sc.kind === 'pool' ? '本池' : ''}筛选结果`;
+
+  /* narrow-screen pool picker */
+  const p = sc.pool;
+  document.getElementById('picker').innerHTML = `${sc.kind === 'pool' ? poolGlyph(p) : sc.plat ? glyph(sc.plat) : icon('layers')}<span class="truncate">${sc.name}</span>${sc.kind === 'pool' && p.cMax && !S.demo.capFail && !S.demo.simple ? `<div class="wbar"><i style="width:${p.cUsed / p.cMax * 100}%;background:${levelColor(p.cUsed / p.cMax)}"></i></div>` : ''}<span class="meta">${c.all} 个账号</span>${icon('chevronDown')}`;
+}
+
+/* ---------------- list ---------------- */
+function filtered() {
+  const sc = currentScope();
+  const q = (document.getElementById('q').value || '').trim().toLowerCase();
+  const rows = sc.accounts.filter(a => {
+    if (q && !(a.name + a.email + a.id).toLowerCase().includes(q)) return false;
+    if (S.filters.type.length && !S.filters.type.includes(a.type)) return false;
+    if (S.filters.privacy.length && !S.filters.privacy.includes(a.privacy)) return false;
+    const b = (a.st.b === 'off' || !a.sched) ? 'off' : a.st.b;
+    return S.status === 'all' || S.status === b;
+  });
+  const SORT_VAL = { name: a => a.name, id: a => a.id, status: a => ['bad', 'lim', 'ok', 'off'].indexOf(a.st.b), prio: a => a.prio, sw: a => a.sched ? 0 : 1, rmul: a => +a.rmul, up: a => a.up || '', last: a => a.last, expires: a => a.expires };
+  const f = SORT_VAL[S.sort.key] || SORT_VAL.name, d = S.sort.dir;
+  rows.sort((x, y) => (f(x) > f(y) ? 1 : f(x) < f(y) ? -1 : 0) * d);
+  return rows;
+}
+
+function renderSeg() {
+  const c = counts(currentScope().accounts);
+  const items = [['all', '全部', c.all], ['ok', '可用', c.ok], ['lim', '冷却中', c.lim], ['bad', '异常', c.bad], ['off', '停用', c.off]];
+  document.getElementById('stSeg').innerHTML = items.map(([k, t, n]) =>
+    `<button class="${S.status === k ? 'on' : ''}" data-st="${k}" title="${k === 'lim' ? '限流、过载或临时不可调度，到时间自动恢复' : k === 'off' ? '账号停用、关闭调度或到期暂停' : ''}">${k === 'bad' && n ? '<span class="sd bad" style="width:6px;height:6px;box-shadow:none"></span>' : ''}${t}<span class="n">${n}</span></button>`).join('');
+}
+
+function renderChips() {
+  const chips = [];
+  S.filters.type.forEach(v => chips.push(['type', v, '类型']));
+  S.filters.privacy.forEach(v => chips.push(['privacy', v, 'Privacy']));
+  const el = document.getElementById('chips');
+  el.classList.toggle('show', chips.length > 0);
+  el.innerHTML = chips.map(([k, v, l]) => `<span class="fchip"><span class="k">${l}</span>${v}<button data-unchip="${k}:${v}">${icon('x', 14)}</button></span>`).join('') + (chips.length ? `<span class="clear" data-clearf>清除筛选</span>` : '');
+  const badge = document.getElementById('fBadge');
+  badge.textContent = chips.length; badge.classList.toggle('hide', !chips.length);
+}
+
+function quotaCell(a) {
+  if (!a.wins.length) return `<span class="muted sm">上游未提供配额</span>`;
+  const w = a.wins[0];
+  const col = w.stale ? 'var(--n-300)' : (w.u >= 90 ? 'var(--bad-500)' : w.u >= 70 ? 'var(--warn-500)' : 'var(--ok-500)');
+  const w2 = a.wins[1];
+  return `<div class="q"><span class="ql">${w.l}</span><div class="qbar"><i style="width:${w.u}%;background:${col}"></i></div><span class="qp" style="${w.stale ? 'color:var(--text-3)' : ''}">${w.u}%</span></div>
+          <div class="q2">${w.stale ? '账号异常，数据可能过期' : (w2 ? `${w2.l} ${w2.u}% · ` : '') + (w.txt || w.reset)}</div>`;
+}
+
+function statusParts(a) {
+  let k = a.st.k, t = a.st.t, s = a.st.s || '';
+  if (a.st.b !== 'off' && !a.sched) { k = 'off'; s = '已关闭调度' + (a.st.b !== 'ok' ? ' · ' + a.st.t : ''); t = a.st.b === 'ok' ? '可用' : t; }
+  return { k, t, s };
+}
+function statusCell(a) {
+  const { k, t, s } = statusParts(a);
+  return `<div class="row gap-8"><span class="sd ${k}"></span><div style="min-width:0"><div class="st1 ${k} truncate">${t}</div>${s ? `<div class="st2">${s}</div>` : ''}</div></div>`;
+}
+function prioCell(a) {
+  if (S.editPrio === a.id) return `<span class="stepper" data-stepper><button data-pd="-1">−</button><b>${a.prio}</b><button data-pd="1">+</button></span>`;
+  return `<span class="prio num" data-prio="${a.id}" title="点击修改 · 数值越小越优先 · 对所有所属池生效">${a.prio}</span>${S.savedPrio === a.id ? '<div class="saved">已保存</div>' : ''}`;
+}
+
+function columns(sc) {
+  const showPool = sc.kind !== 'pool';
+  const cols = [
+    ['sel', 40, `<input type="checkbox" id="chkAll">`],
+    ['name', null, '账号', 'sortable'],
+  ];
+  if (S.cols.has('id')) cols.push(['id', 64, 'ID', 'sortable']);
+  if (showPool || S.cols.has('pools')) cols.push(['pools', 150, '所属池']);
+  cols.push(['status', 160, '状态', 'sortable'], ['quota', 196, '配额窗口 · 已用'], ['cc', 72, '并发', 'r']);
+  if (S.cols.has('today')) cols.push(['today', 92, '今日计费', 'r c-today']);
+  if (S.cols.has('proxy')) cols.push(['proxy', 130, '代理']);
+  if (S.cols.has('rmul')) cols.push(['rmul', 72, '计费倍率', 'r sortable']);
+  if (S.cols.has('up')) cols.push(['up', 130, '上游声明倍率', 'sortable']);
+  if (S.cols.has('score')) cols.push(['score', 80, '调度分数', 'r']);
+  if (S.cols.has('last')) cols.push(['last', 88, '最近使用', 'sortable']);
+  if (S.cols.has('expires')) cols.push(['expires', 150, '过期', 'sortable']);
+  if (S.cols.has('notes')) cols.push(['notes', 140, '备注']);
+  cols.push(['prio', 64, '优先级', 'r sortable'], ['sw', 54, '调度', 'c-sw sortable'], ['act', 68, '']);
+  return cols;
+}
+
+function cell(key, a, sc) {
+  switch (key) {
+    case 'sel': return `<td><input type="checkbox" data-chk="${a.id}" ${S.selected.has(a.id) ? 'checked' : ''}></td>`;
+    case 'name': {
+      const ps = poolsOf(a);
+      const showGlyph = sc.kind !== 'pool' || sc.plat === 'composite';
+      return `<td><div class="an">${showGlyph ? glyph(a.plat) : ''}<div class="t"><div class="n1"><span class="truncate">${a.name}</span>${sc.kind === 'pool' && ps.length > 1 ? `<span class="also" title="同时属于 ${ps.filter(p => p !== sc.pool).map(p => p.name).join('、')}">+${ps.length - 1} 池</span>` : ''}</div><div class="n2">${a.type} · ${a.email}</div></div></div></td>`;
+    }
+    case 'id': return `<td class="num muted">#${a.id}</td>`;
+    case 'pools': { const ps = poolsOf(a); return `<td class="sm">${ps.length ? `<span class="truncate">${ps[0].name}</span>${ps.length > 1 ? ` <span class="also">+${ps.length - 1}</span>` : ''}` : '<span style="color:var(--warn-600)">未分组</span>'}</td>`; }
+    case 'status': return `<td>${statusCell(a)}</td>`;
+    case 'quota': return `<td>${quotaCell(a)}</td>`;
+    case 'cc': return `<td class="r">${S.demo.loading ? '<div class="skel" style="width:40px;margin-left:auto"></div>' : `<span class="cc num ${a.busy / a.cMax >= .9 ? 'hot' : ''}"><b>${a.busy}</b><span> / ${a.cMax}</span></span>`}</td>`;
+    case 'today': return `<td class="r c-today">${S.demo.loading ? '<div class="skel" style="width:52px;margin-left:auto"></div>' : `<div class="money">${usd(a.cost)}</div><div class="st2 num">${fmt(a.req)} 次</div>`}</td>`;
+    case 'proxy': return `<td class="sm">${a.proxy}${a.fallback ? ' <span class="flag warn">回退</span>' : ''}</td>`;
+    case 'rmul': return `<td class="r num">×${a.rmul}</td>`;
+    case 'up': return `<td class="sm">${a.up || '<span class="muted">不适用</span>'}</td>`;
+    case 'score': return `<td class="r num muted">${(0.5 + rnd() * 0.5).toFixed(2)}</td>`;
+    case 'last': return `<td class="sm muted">${a.last}</td>`;
+    case 'expires': return `<td class="sm">${a.expires}</td>`;
+    case 'notes': return `<td class="sm muted">${a.notes || '—'}</td>`;
+    case 'prio': return `<td class="r">${prioCell(a)}</td>`;
+    case 'sw': return `<td class="c-sw"><span class="sw ${a.sched ? 'on' : ''}" data-sw="${a.id}" title="${a.sched ? '参与调度' : '已关闭调度'}"></span></td>`;
+    case 'act': {
+      const fix = a.st.b === 'bad';
+      return `<td><div class="ra ${fix ? 'pin' : ''}">${fix ? `<button class="ico fix" title="${a.st.fix}">${icon(a.st.fix === '刷新 Token' ? 'refresh' : 'play')}</button>` : `<button class="ico" title="测试连接">${icon('play')}</button>`}<button class="ico" title="更多" data-menu="acctMore" data-acc="${a.id}">${icon('more')}</button></div></td>`;
+    }
+  }
+}
+
+function renderTable() {
+  const sc = currentScope();
+  const cols = columns(sc);
+  document.getElementById('cols').innerHTML = cols.map(c => `<col class="${c[3] || ''}" ${c[1] ? `style="width:${c[1]}px"` : ''}>`).join('');
+  document.getElementById('thead').innerHTML = `<tr>${cols.map(c => `<th class="${c[3] || ''}" ${c[3] && c[3].includes('sortable') ? `data-sort="${c[0]}"` : ''}>${c[2]}${S.sort.key === c[0] ? `<span class="so">${S.sort.dir > 0 ? '↑' : '↓'}</span>` : ''}</th>`).join('')}</tr>`;
+  const minW = cols.reduce((s, c) => s + (c[1] || 200), 0);
+  document.getElementById('acc').style.minWidth = minW + 'px';
+  const rows = filtered();
+  const tb = document.getElementById('tbody');
+  const cards = document.getElementById('cards');
+  if (S.demo.loading) {
+    tb.innerHTML = Array.from({ length: 8 }, () => `<tr style="cursor:default">${cols.map((c, i) => `<td>${i ? `<div class="skel" style="width:${c[0] === 'name' ? 60 : 70}%"></div>` : ''}</td>`).join('')}</tr>`).join('');
+    cards.innerHTML = '<div class="empty">加载中…</div>';
+  } else if (!rows.length) {
+    let empty;
+    if (sc.kind === 'pool' && !sc.pool.n) {
+      empty = `<div class="empty">${icon('layers', 24)}<h4>${sc.pool.name} 还没有账号</h4><div>池里有账号后才会接请求。</div>
+        <div class="row gap-8"><button class="btn btn-sm btn-primary">${icon('plus', 14)}添加账号到此池</button><button class="btn btn-sm btn-secondary" title="批量编辑已有账号的分组">从已有账号中选择</button></div></div>`;
+    } else if (sc.kind === 'triage') {
+      empty = `<div class="empty">${icon('checkCircle', 24)}<h4>没有需要处理的账号</h4><div>所有账号都不在异常状态。</div></div>`;
+    } else {
+      empty = `<div class="empty">${icon('search', 24)}<h4>没有符合条件的账号</h4><div>试试切换状态或<a style="color:var(--p-600);cursor:pointer" data-clearf>清除筛选</a>。</div></div>`;
+    }
+    tb.innerHTML = `<tr style="cursor:default"><td colspan="${cols.length}" style="height:auto;padding:0">${empty}</td></tr>`;
+    cards.innerHTML = empty;
+  } else {
+    tb.innerHTML = rows.map(a => {
+      const off = (a.st.b === 'off' || !a.sched) ? 'off' : '';
+      return `<tr data-id="${a.id}" class="${S.selected.has(a.id) ? 'sel' : ''} ${S.cur === a.id ? 'cur' : ''} ${off}">${cols.map(c => cell(c[0], a, sc)).join('')}</tr>`;
+    }).join('');
+    cards.innerHTML = rows.map(a => {
+      const { k, t, s } = statusParts(a);
+      return `<div class="card-a" data-id="${a.id}">
+        <input type="checkbox" data-chk="${a.id}" ${S.selected.has(a.id) ? 'checked' : ''}>
+        <div class="an">${glyph(a.plat)}<div class="t"><div class="n1">${a.name}</div><div class="n2">${a.type} · ${a.email}</div></div></div>
+        <div class="s"><div class="row gap-6" style="justify-content:flex-end"><span class="sd ${k}"></span><span class="st1 ${k} sm">${t}</span></div>${s ? `<div class="st2" style="text-align:right">${s}</div>` : ''}</div>
+        <div class="qw">${quotaCell(a)}</div>
+        <div class="row3"><span>并发 <b class="num" style="color:var(--text)">${a.busy}/${a.cMax}</b></span><span>今日 <b class="num" style="color:var(--text)">${usd(a.cost)}</b></span><span>优先级 <b style="color:var(--text)">${a.prio}</b></span><span class="sw ${a.sched ? 'on' : ''}" data-sw="${a.id}"></span></div>
+      </div>`;
+    }).join('');
+  }
+  const fcount = S.filters.type.length + S.filters.privacy.length;
+  document.getElementById('foot').textContent = S.demo.loading ? '加载中…' : `共 ${rows.length} 个账号${S.status !== 'all' || fcount ? ' · 已筛选' : ''}`;
+  document.getElementById('listArea').classList.toggle('has-sel', S.selected.size > 0);
+  document.getElementById('selN').textContent = S.selected.size;
+  document.getElementById('selAll').textContent = `选择${sc.kind === 'pool' ? '本池' : sc.kind === 'plat' ? '该平台' : ''}全部 ${rows.length} 个匹配账号`;
+  document.getElementById('pending').classList.toggle('show', S.demo.pending);
+}
+
+/* ---------------- popovers ---------------- */
+function renderFilterPop() {
+  const sc = currentScope();
+  const types = [...new Set(sc.accounts.map(a => a.type))];
+  const privacy = ['未设置', 'Privacy', 'CF', 'Fail'];
+  const opt = (k, v) => `<button class="opt ${S.filters[k].includes(v) ? 'on' : ''}" data-fopt="${k}:${v}">${v}</button>`;
+  document.getElementById('m-filters').innerHTML = `
+    <div class="pg"><div class="pg-t">账号类型</div><div class="opts">${types.map(v => opt('type', v)).join('')}</div></div>
+    <div class="pg"><div class="pg-t">Privacy<span style="font-weight:500">OpenAI / Antigravity OAuth</span></div><div class="opts">${privacy.map(v => opt('privacy', v)).join('')}</div></div>
+    ${sc.kind !== 'pool' ? `<div class="pg"><div class="pg-t">分组</div><div class="opts"><button class="opt">任意</button><button class="opt">未分组</button><span class="xs muted" style="align-self:center">或在左侧选池</span></div></div>` : ''}
+    <div class="pop-ft"><span>状态请用上方分段按钮</span><a style="color:var(--p-600);font-weight:600;cursor:pointer" data-clearf>清除</a></div>`;
+}
+function renderColPop() {
+  const sc = currentScope();
+  document.getElementById('m-cols').innerHTML = `
+    <div class="pg-t" style="padding:2px 4px 6px">固定列</div>
+    ${['账号', '状态', '配额窗口', '并发', '优先级', '调度', '操作'].map(l => `<div class="colrow lock"><span class="ck on"></span>${l}</div>`).join('')}
+    <div class="pg-t" style="padding:10px 4px 6px">可选列</div>
+    ${OPTIONAL_COLS.map(([k, l, h]) => { const forced = k === 'pools' && sc.kind !== 'pool'; return `<div class="colrow ${forced ? 'lock' : ''}" data-col="${k}"><span class="ck ${S.cols.has(k) || forced ? 'on' : ''}"></span>${l}<span class="hint">${forced ? '当前视图自动显示' : h}</span></div>`; }).join('')}
+    <div class="pop-ft" style="margin-top:8px"><span>按浏览器保存</span><a style="color:var(--p-600);font-weight:600;cursor:pointer" data-colreset>恢复默认</a></div>`;
+}
+
+/* ---------------- drawer ---------------- */
+function findAcc(id) { return ALL.find(a => a.id === id); }
+
+function renderDrawer() {
+  const a = findAcc(S.cur);
+  if (!a) return;
+  document.getElementById('dName').innerHTML = `${glyph(a.plat, 20)}${a.name}`;
+  document.getElementById('dSub').innerHTML = `${PLAT[a.plat].name} · ${a.type} · <span class="mono">${a.email}</span> · #${a.id}`;
+  const st = a.st;
+  let alert = '';
+  if (st.k !== 'ok') {
+    alert = `<div class="alert ${st.k}">
+      <span class="sd ${st.k}" style="margin-top:5px"></span>
+      <div><div class="at">${st.t}${st.s ? ' · ' + st.s : ''}</div><div class="ad">${st.why || ''}</div></div>
+      ${st.fix ? `<button class="btn btn-sm ${st.k === 'bad' ? 'btn-primary' : 'btn-secondary'}">${st.fix}</button>` : ''}
+    </div>`;
+  } else if (!a.sched) {
+    alert = `<div class="alert off"><span class="sd off" style="margin-top:5px"></span><div><div class="at">账号正常，但调度已关闭</div><div class="ad">不会被分配请求。打开调度后立即参与所属池的调度。</div></div><button class="btn btn-sm btn-secondary" data-sw="${a.id}">打开调度</button></div>`;
+  }
+
+  const wins = a.wins.length ? a.wins.map(w => {
+    const col = w.stale ? 'var(--n-300)' : (w.u >= 90 ? 'var(--bad-500)' : w.u >= 70 ? 'var(--warn-500)' : 'var(--ok-500)');
+    return `<div class="win"><div class="wl"><span><b>${w.l === '5h' ? '5 小时窗口' : w.l === '7d' ? '7 天窗口' : w.l === '日' ? '每日额度' : w.l}</b> ${w.txt ? '· ' + w.txt : ''}</span><span>已用 <b>${w.u}%</b></span></div>
+      <div class="wbar2"><i style="width:${w.u}%;background:${col}"></i></div>
+      <div class="row" style="justify-content:space-between;margin-top:4px"><span class="src">${w.stale ? '⚠ 账号异常，数据可能过期' : w.reset}</span><span class="src">${w.src}</span></div></div>`;
+  }).join('') : `<div class="muted sm">这类账号上游不提供配额窗口；本地也没有设置日 / 周 / 总额度。</div>`;
+
+  const capC = (k, v, max) => max == null
+    ? `<div class="c na"><div class="k">${k}</div><div class="v">未设置上限</div></div>`
+    : `<div class="c"><div class="k">${k}</div><div class="v" style="${typeof v === 'number' && v / max >= .9 ? 'color:var(--bad-600)' : ''}">${v}<small> / ${max}</small></div></div>`;
+
+  const ps = poolsOf(a);
+  document.getElementById('dBody').innerHTML = `
+    ${alert}
+    <div class="ds"><h4>配额窗口<a>刷新用量</a></h4>${wins}</div>
+    <div class="ds"><h4>容量</h4><div class="cap">
+      ${capC('并发', a.busy, a.cMax)}
+      ${capC('会话', a.sess ? a.sess[0] : 0, a.sess ? a.sess[1] : null)}
+      ${capC('RPM', a.rpm ? a.rpm[0] : 0, a.rpm ? a.rpm[1] : null)}
+      ${a.plat === 'anthropic' ? capC('5h 窗口费用', '$' + (a.cost / 3).toFixed(0), '$40') : capC('日 / 周 / 总额度', 0, null)}
+    </div></div>
+    <div class="ds"><h4>今日<a>使用统计 →</a></h4><div class="today">
+      <div><div class="k">请求</div><div class="v">${fmt(a.req)}</div></div>
+      <div><div class="k">Token</div><div class="v">${(a.tok / 1e6).toFixed(1)}M</div></div>
+      <div><div class="k">账号计费</div><div class="v">${usd(a.cost)}</div></div>
+      <div><div class="k">用户扣费</div><div class="v">${usd(a.ucost)}</div></div>
+    </div><div class="src" style="margin-top:6px">按服务端自然日统计（00:00 起）</div></div>
+    <div class="ds"><h4>所属池<a>修改分组</a></h4><div class="pools-of">
+      ${ps.length ? ps.map(p => `<div class="po" data-pool="${p.id}">${poolGlyph(p)}<span class="bold truncate">${p.name}</span>${p.inactive ? '<span class="xs muted">分组已停用</span>' : p.cMax ? `<div class="wbar"><i style="width:${p.cUsed / p.cMax * 100}%;background:${levelColor(p.cUsed / p.cMax)}"></i></div>` : '<span></span>'}<span class="pr">${p.cMax ? `${p.cUsed}/${p.cMax}` : ''}</span></div>`).join('')
+        : `<div class="po" style="grid-template-columns:1fr;color:var(--warn-600)">未分组：不会被任何池调度</div>`}
+    </div></div>
+    <div class="ds"><h4>调度与资源</h4><dl class="kv">
+      <dt>调度</dt><dd><span class="sw ${a.sched ? 'on' : ''}" data-sw="${a.id}"></span>${a.sched ? '参与调度' : '已关闭'}</dd>
+      <dt>优先级</dt><dd>${a.prio} <span class="muted">· 越小越优先，对所有所属池生效</span></dd>
+      <dt>负载因子</dt><dd>${a.load}</dd>
+      <dt>计费倍率</dt><dd>×${a.rmul}</dd>
+      ${a.up ? `<dt>上游声明倍率</dt><dd>${a.up}<a>探测</a></dd>` : ''}
+      ${a.privacy ? `<dt>Privacy</dt><dd>${a.privacy}${a.privacy !== 'Privacy' ? '<a>设置 Privacy</a>' : ''}</dd>` : ''}
+      <dt>代理</dt><dd>${a.proxy}${a.fallback ? ' <span class="flag warn">回退中</span><a>恢复原代理</a>' : ''}</dd>
+      <dt>过期</dt><dd>${a.expires}</dd>
+      <dt>最近使用</dt><dd>${a.last}</dd>
+      <dt>创建</dt><dd>${a.created}</dd>
+      ${a.notes ? `<dt>备注</dt><dd style="white-space:normal">${a.notes}</dd>` : ''}
+    </dl></div>
+    <div class="src" style="text-align:center;padding:4px 0 2px"><span class="kbd2">↑</span> <span class="kbd2">↓</span> 切换账号 · <span class="kbd2">Esc</span> 关闭</div>`;
+}
+
+function openDrawer(id) { S.cur = id; document.getElementById('drawer').classList.remove('hide'); renderDrawer(); renderTable(); }
+function closeDrawer() { S.cur = null; document.getElementById('drawer').classList.add('hide'); renderTable(); }
+function navDrawer(d) {
+  const rows = filtered();
+  const i = rows.findIndex(a => a.id === S.cur);
+  const n = rows[i + d];
+  if (n) openDrawer(n.id);
+}
+
+/* ---------------- menus ---------------- */
+function closeMenus() { document.querySelectorAll('.menu').forEach(m => m.classList.add('hide')); }
+function openMenu(key, anchor) {
+  closeMenus();
+  if (key === 'filters') renderFilterPop();
+  if (key === 'cols') renderColPop();
+  if (key === 'acctMore') {
+    const a = findAcc(+anchor.dataset.acc || S.cur);
+    if (a) document.querySelectorAll('#m-acctMore [data-elig]').forEach(el => {
+      const e = el.dataset.elig;
+      const ok = e === 'copy' ? a.type === 'API Key'
+        : e === 'oauth' ? ['OAuth', 'Setup Token'].includes(a.type)
+        : e === 'privacy' ? !!a.privacy
+        : e === 'spark' ? a.plat === 'openai' && a.type === 'OAuth'
+        : e === 'quota' ? a.type === 'API Key' : true;
+      el.style.display = ok ? '' : 'none';
+    });
+  }
+  const m = document.getElementById('m-' + key);
+  const r = anchor.getBoundingClientRect();
+  m.classList.remove('hide');
+  const w = m.offsetWidth, hgt = m.offsetHeight;
+  const left = Math.min(r.right - w, window.innerWidth - w - 8);
+  let top = r.bottom + 6;
+  if (top + hgt > window.innerHeight - 8) top = Math.max(8, r.top - hgt - 6);
+  m.style.left = Math.max(8, left) + 'px'; m.style.top = top + window.scrollY + 'px';
+  m.dataset.anchor = key;
+}
+
+/* ---------------- sheet (narrow pool picker) ---------------- */
+function openSheet() {
+  closeSheet();
+  const scrim = document.createElement('div'); scrim.className = 'scrim2'; scrim.id = 'scrim2';
+  const sh = document.createElement('div'); sh.className = 'sheet'; sh.id = 'sheet';
+  sh.innerHTML = `<div class="sheet-grip"></div>${document.getElementById('rail').innerHTML}`;
+  document.body.append(scrim, sh);
+}
+function closeSheet() { document.getElementById('sheet')?.remove(); document.getElementById('scrim2')?.remove(); }
+
+/* ---------------- events ---------------- */
+function renderAll() { renderRail(); renderHeader(); renderSeg(); renderChips(); renderTable(); if (S.cur) renderDrawer(); }
+function selectPool(id, status) { S.sel = id; S.status = status || 'all'; S.selected.clear(); S.editPrio = null; closeSheet(); renderAll(); }
+
+document.addEventListener('click', (e) => {
+  const t = e.target;
+  if (t.closest('#demoHd')) { document.getElementById('demo').classList.toggle('min'); return; }
+  if (t.closest('.demo')) return;
+
+  /* inside popovers */
+  const fopt = t.closest('[data-fopt]');
+  if (fopt) { const [k, v] = fopt.dataset.fopt.split(':'); const arr = S.filters[k]; arr.includes(v) ? arr.splice(arr.indexOf(v), 1) : arr.push(v); renderFilterPop(); renderChips(); renderTable(); return; }
+  const colr = t.closest('[data-col]');
+  if (colr && !colr.classList.contains('lock')) { const k = colr.dataset.col; S.cols.has(k) ? S.cols.delete(k) : S.cols.add(k); renderColPop(); renderTable(); return; }
+  if (t.closest('[data-colreset]')) { S.cols = new Set(['today']); renderColPop(); renderTable(); return; }
+  if (t.closest('[data-clearf]')) { S.filters = { type: [], privacy: [] }; S.status = 'all'; if (!document.getElementById('m-filters').classList.contains('hide')) renderFilterPop(); renderSeg(); renderChips(); renderTable(); return; }
+  const un = t.closest('[data-unchip]');
+  if (un) { const [k, v] = un.dataset.unchip.split(':'); S.filters[k] = S.filters[k].filter(x => x !== v); renderChips(); renderTable(); return; }
+  if (t.closest('.menu')) { if (!t.closest('.pop')) closeMenus(); return; }
+
+  const menuBtn = t.closest('[data-menu]');
+  if (menuBtn) { e.stopPropagation(); const m = document.getElementById('m-' + menuBtn.dataset.menu); if (!m.classList.contains('hide')) { closeMenus(); return; } openMenu(menuBtn.dataset.menu, menuBtn); return; }
+  closeMenus();
+
+  /* priority stepper */
+  const pd = t.closest('[data-pd]');
+  if (pd) { const a = findAcc(S.editPrio); a.prio = Math.max(1, Math.min(9999, a.prio + +pd.dataset.pd)); renderTable(); return; }
+  if (t.closest('[data-stepper]')) return;
+  const pr = t.closest('[data-prio]');
+  if (pr) { S.editPrio = +pr.dataset.prio; S.savedPrio = null; renderTable(); return; }
+  if (S.editPrio != null) { S.savedPrio = S.editPrio; S.editPrio = null; renderTable(); setTimeout(() => { S.savedPrio = null; renderTable(); }, 1400); if (!t.closest('tr')) return; }
+
+  if (t.closest('#picker')) { openSheet(); return; }
+  if (t.id === 'scrim2') { closeSheet(); return; }
+
+  const tg = t.closest('[data-toggle]');
+  if (tg) { const k = tg.dataset.toggle; S.collapsed.has(k) ? S.collapsed.delete(k) : S.collapsed.add(k); renderRail(); return; }
+  const sa = t.closest('[data-search-all]');
+  if (sa) { S.railQ = ''; document.getElementById('railQ').value = ''; document.getElementById('q').value = sa.dataset.searchAll; selectPool('all'); return; }
+  const pl = t.closest('[data-plat]');
+  if (pl) { selectPool('plat:' + pl.dataset.plat); return; }
+  const pp = t.closest('[data-plat-pick]');
+  if (pp) { selectPool('plat:' + pp.dataset.platPick); return; }
+  const po = t.closest('[data-pool]');
+  if (po) { selectPool(po.dataset.pool); return; }
+
+  const st = t.closest('[data-st]');
+  if (st) { S.status = st.dataset.st; renderSeg(); renderTable(); return; }
+  const so = t.closest('[data-sort]');
+  if (so) { const k = so.dataset.sort; S.sort = { key: k, dir: S.sort.key === k ? -S.sort.dir : 1 }; renderTable(); return; }
+
+  if (t.id === 'chkAll') { const rows = filtered(); const all = rows.every(a => S.selected.has(a.id)); rows.forEach(a => all ? S.selected.delete(a.id) : S.selected.add(a.id)); renderTable(); return; }
+  const chk = t.closest('[data-chk]');
+  if (chk) { const id = +chk.dataset.chk; S.selected.has(id) ? S.selected.delete(id) : S.selected.add(id); renderTable(); return; }
+  if (t.closest('td:first-child')) return;
+  if (t.closest('#clearSel')) { S.selected.clear(); renderTable(); return; }
+  if (t.closest('#selAll')) { filtered().forEach(a => S.selected.add(a.id)); renderTable(); return; }
+
+  const sw = t.closest('[data-sw]');
+  if (sw) { const a = findAcc(+sw.dataset.sw); a.sched = !a.sched; renderAll(); return; }
+  if (t.closest('.ra')) return;
+
+  const nav = t.closest('[data-nav]');
+  if (nav) { navDrawer(+nav.dataset.nav); return; }
+  if (t.closest('#dClose')) { closeDrawer(); return; }
+
+  const tr = t.closest('#tbody tr[data-id], .card-a[data-id]');
+  if (tr) openDrawer(+tr.dataset.id);
+});
+document.getElementById('q').addEventListener('input', renderTable);
+document.getElementById('railQ').addEventListener('input', (e) => { S.railQ = e.target.value; renderRail(); });
+document.addEventListener('keydown', (e) => {
+  if (S.editPrio != null && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) { e.preventDefault(); const a = findAcc(S.editPrio); a.prio = Math.max(1, a.prio + (e.key === 'ArrowUp' ? -1 : 1)); renderTable(); return; }
+  if (S.editPrio != null && (e.key === 'Enter' || e.key === 'Escape')) { S.savedPrio = S.editPrio; S.editPrio = null; renderTable(); return; }
+  if (!S.cur || e.target.tagName === 'INPUT') return;
+  if (e.key === 'Escape') closeDrawer();
+  if (e.key === 'ArrowDown') { e.preventDefault(); navDrawer(1); }
+  if (e.key === 'ArrowUp') { e.preventDefault(); navDrawer(-1); }
+});
+document.querySelectorAll('[data-demo]').forEach(cb => cb.addEventListener('change', () => {
+  const k = cb.dataset.demo; S.demo[k] = cb.checked;
+  if (k === 'dark') document.documentElement.dataset.theme = cb.checked ? 'dark' : 'light';
+  if (k === 'simple' && cb.checked && !S.sel.startsWith('plat:') && !['all', 'ug', 'triage'].includes(S.sel)) S.sel = 'plat:' + (poolById(S.sel)?.plat === 'composite' ? 'openai' : poolById(S.sel)?.plat || 'anthropic');
+  renderAll();
+}));
+
+/* auto-refresh countdown (visual only; pauses while editing / pending sync) */
+let cd = 10;
+setInterval(() => {
+  const menuOpen = document.querySelectorAll('.menu:not(.hide)').length > 0;
+  const paused = S.demo.pending || S.editPrio != null || menuOpen;
+  const el = document.getElementById('cd');
+  if (paused) { el.textContent = '暂停'; el.classList.add('paused'); return; }
+  el.classList.remove('paused');
+  cd = cd <= 1 ? 10 : cd - 1; el.textContent = cd + 's';
+}, 1000);
+
+/* deep links for screenshots: #pool=g3&open=1&sel=2&status=bad&dark=1&simple=1&capFail=1&loading=1&pending=1&cols=id,proxy&filter=1&prio=1 */
+(function initFromHash() {
+  const h = new URLSearchParams(location.hash.slice(1));
+  ['capFail', 'loading', 'pending', 'simple', 'dark'].forEach(k => { if (h.get(k)) { S.demo[k] = true; document.querySelector(`[data-demo="${k}"]`).checked = true; } });
+  if (S.demo.dark) document.documentElement.dataset.theme = 'dark';
+  if (h.get('pool')) S.sel = h.get('pool');
+  if (h.get('status')) S.status = h.get('status');
+  if (h.get('cols')) h.get('cols').split(',').forEach(c => S.cols.add(c));
+  if (h.get('filter')) S.filters.type.push('OAuth');
+  if (h.get('demo') === 'min') document.getElementById('demo').classList.add('min');
+  renderAll();
+  if (h.get('sel')) { filtered().slice(0, +h.get('sel')).forEach(a => S.selected.add(a.id)); renderTable(); }
+  if (h.get('prio')) { S.editPrio = filtered()[1]?.id; renderTable(); }
+  if (h.get('open')) { const rows = filtered(); const a = rows.find(x => x.st.b === 'bad') || rows[+h.get('open') - 1]; if (a) openDrawer(a.id); }
+  if (h.get('menu')) { setTimeout(() => { const b = document.querySelector(`[data-menu="${h.get('menu')}"]`); if (b) openMenu(h.get('menu'), b); }, 50); }
+})();
+</script>
+<!--#INCLUDE runtime#-->
+</body>
+</html>

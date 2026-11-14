@@ -78,7 +78,90 @@ export default {
       groupPricingDesc: '设置批量折扣和冻结比例',
       systemSettings: '系统设置',
       configureSystem: '配置系统设置',
-      failedToLoad: '加载仪表盘数据失败'
+      failedToLoad: '加载仪表盘数据失败',
+
+      // ---- Operations overview (redesign: abnormal-first) ----
+      platformBreakdown: '按平台拆分',
+
+      overview: {
+        export: {
+          action: '导出报表',
+          hint: '导出当前时间范围的汇总、趋势、分组与模型四张表；口径写在表头，未知值写「数据不足」',
+          summarySheet: '汇总', trendSheet: '趋势', groupsSheet: '分组', modelsSheet: '模型',
+          header: {
+            item: '项目', value: '数值', basis: '口径',
+            period: '时间', requests: '请求数', inputTokens: '输入 Token', outputTokens: '输出 Token',
+            cacheRead: '缓存读 Token', cacheCreation: '缓存写 Token', totalTokens: 'Token 合计',
+            standardCost: '标准费用', actualCost: '实际费用',
+            group: '分组', groupId: '分组 ID', model: '模型',
+            accountCost: '上游成本', margin: '毛利',
+          },
+          row: {
+            period: '统计范围', requests: '请求数', standardRevenue: '标准费用', actualRevenue: '实际收入',
+            upstreamCost: '上游成本', grossMargin: '毛利', marginRate: '毛利率（%）',
+          },
+          basis: {
+            actualRevenue: '按分组倍率向客户实际扣费', standardRevenue: '按官方价折算，用于体现「省了多少」',
+            upstreamCost: '按账号倍率计算的上游成本', grossMargin: '毛利 = 实际收入 − 上游成本',
+            marginRate: '毛利率 = 毛利 ÷ 实际收入；收入为 0 时不计算',
+          },
+        },
+        presetToday: '今日',
+        presetLast7: '近 7 天',
+        presetLast30: '近 30 天',
+        title: '运营概览',
+        subtitle: '把「需要你今天做决定的事」放最上面：异常账号、失败突增、待发货订单、成本倒挂分组。',
+        actionTitle: '需要处理',
+        itemsNeed: '{count} 项',
+        ordersPending: '{count} 笔订单已支付待发货',
+        warehousePending: '待发货订单',
+        netRevenue: '净收入（实际扣费）',
+        upstreamCost: '上游成本',
+        grossMargin: '毛利率',
+        requestsAndSuccess: '请求 / 成功率',
+        vsPrev: '较上一周期',
+        target: '目标 {value}%',
+        activeUsers: '活跃用户 {value}',
+        revenueVsCost: '收入 vs 成本',
+        revenueVsCostHint: '柱状为收入（实付 / 标准价），折线为上游成本',
+        revenue: '收入',
+        standardPrice: '标准价',
+        cost: '成本',
+        groupTable: '分组成本与毛利',
+        group: '分组',
+        marginRisk: '风险',
+        riskLowMultiplier: '倍率偏低',
+        riskNegativeMargin: '成本倒挂',
+        riskNone: '—',
+        todo: '待办',
+        todoItems: '{count} 项',
+        todoAccountsLowQuota: '额度即将耗尽的账号',
+        todoAccountsHint: '{platform} · {count} 个',
+        todoOrders: '已支付未发货订单',
+        todoOrdersHint: '最长等待 {minutes} 分钟',
+        todoReferral: '返利提现申请',
+        todoReferralHint: '金额合计 {amount}',
+        todoNoData: '暂无需处理的事项',
+        platformShare: '平台流量占比',
+        byRequests: '按请求',
+        newUsers: '新注册用户',
+        newUsersHint: '今日 · 活跃 {value}',
+        quickEntry: '快捷入口',
+        quickNewAccount: '新建账号',
+        quickNewGroup: '新建分组',
+        quickRedeem: '生成兑换码',
+        quickAnnouncement: '发布公告',
+        quickUsage: '使用记录',
+        loadingFailed: '加载失败',
+        gmt: '数据更新于 {time}',
+        viewGroups: '查看分组',
+        manage: '管理 →',
+        accountsHealthy: '账号池',
+        totalLines: '累计 {value}',
+        requests: '请求 {value}',
+        accountsRunningLow: '需要检查的账号',
+        accountHint: '错误 {error} · 限流 {limit} · 过载 {overload}',
+      }
     },
 
     backup: {
@@ -482,13 +565,13 @@ export default {
         amountExceeds: '提现金额不能超过当前可提取额度'
       },
       overview: {
-        title: '用户返利概览',
-        affCode: '邀请码',
-        rebateRate: '返利比例',
-        invitedCount: '邀请人数',
-        rebatedInviteeCount: '已产生返利人数',
-        availableQuota: '可提余额',
-        historyQuota: '历史返利'
+          title: '用户返利概览',
+          affCode: '邀请码',
+          rebateRate: '返利比例',
+          invitedCount: '邀请人数',
+          rebatedInviteeCount: '已产生返利人数',
+          availableQuota: '可提余额',
+          historyQuota: '历史返利'
       }
     },
 
@@ -844,6 +927,44 @@ export default {
 
     // Groups Management
     groups: {
+      workspace: {
+        title: '分组与定价',
+        description: '分组把可用模型、计费规则和上游路由组合成产品。选择左侧分组，在右侧统一配置并保存。',
+        configuration: '配置工作区',
+        tableView: '表格视图',
+        groupList: '分组列表',
+        totalGroups: '共 {count} 个分组',
+        noMatchingGroups: '没有匹配的分组',
+        selectGroup: '选择左侧分组开始配置，或新建一个分组。',
+        selectGroupShort: '选择分组',
+        noDescription: '未填写描述',
+        unsaved: '未保存',
+        clearFilters: '清除筛选',
+        accountsShort: '可用',
+        rateLimitedShort: '限流 {count}',
+        models: '模型',
+        modelMargin: '今日实际毛利',
+        modelMarginBasis: '按今日已发生请求统计，仅匹配明确模型名；缺少样本或成本时显示 —。历史毛利不会随草稿价格改动。',
+        unnamedPricing: '尚未选择模型',
+        advancedPricing: '模型 / 高级定价',
+        noPricing: '未配置逐模型价格，沿用当前默认定价。',
+        saveFirst: '先保存分组',
+        compositeHint: '复合路由按模型、平台和端点匹配。路由配置单独保存；新建分组请先保存基础配置。',
+        todayRevenue: '今日实际收入（USD）',
+        todayCost: '今日账号成本（USD）',
+        margin: '今日毛利率',
+        availableAccounts: '可用 / 总账号',
+        lossWarning: '当前实际收入低于账号成本，请检查倍率与定价。',
+        economicsUnavailable: '今日收入与成本暂未取得，可刷新后重试。',
+        marginBasis: '毛利率 =（实际收入 − 账号成本）/ 实际收入；无收入或缺少成本时不计算。',
+        projectedMargin: '假设今日收入随分组倍率同比变化，毛利估算为 {margin}%（仅作敏感性参考，独立计价项目可能不随倍率变化）',
+        unsavedTitle: '有未保存的分组改动',
+        unsavedMessage: '当前改动尚未生效。离开后会丢弃这些改动，请确认后继续。',
+        discardChanges: '丢弃改动并继续',
+        saveHint: '配置在保存后生效；不同 Tab 的改动会一起保存。',
+        reset: '重置改动',
+        tabs: { basic: '基础信息', pricing: '模型定价', models: '模型白名单', rates: '倍率与 RPM', routes: '复合路由', media: '图片与视频', subscription: '订阅限额', reasoning: '推理强度', scheduling: '调度策略', profit: '利润控制' }
+      },
       title: '分组管理',
       description: '管理 API 密钥分组和费率配置',
       searchGroups: '搜索分组...',
@@ -1285,7 +1406,7 @@ export default {
         tooltipEdit: '选择一个或多个相同平台的分组，保存后当前分组的账号会被替换为这些分组的账号（去重）。',
         selectPlaceholder: '选择分组以复制其账号...',
         hint: '可选多个分组，账号会自动去重',
-        hintEdit: '⚠️ 注意：这会替换当前分组的所有账号绑定'
+        hintEdit: '注意：这会替换当前分组的所有账号绑定'
       },
       modelRouting: {
         title: '模型路由配置',
@@ -1329,7 +1450,9 @@ export default {
         geminiText: 'Gemini Text',
         geminiImage: 'Gemini Image',
         hint: '至少选择一个模型系列'
-      }
+      },
+
+
     },
 
     // Available Channels (aggregated read-only view)

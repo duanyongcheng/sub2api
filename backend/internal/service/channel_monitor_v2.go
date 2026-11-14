@@ -469,6 +469,50 @@ func (s *ChannelMonitorV2Service) ParseFilter(rangeValue string, platforms, mode
 	}, nil
 }
 
+// ChannelMonitorV2FixedInterval pins admin drilldowns to the original matrix
+// window. Keep the selected range's maximum span and rollup grain bounded even
+// after the relative window advances.
+func ChannelMonitorV2FixedInterval(filter *ChannelMonitorV2Filter, startValue, endValue string) error {
+	start, startErr := time.Parse(time.RFC3339, startValue)
+	end, endErr := time.Parse(time.RFC3339, endValue)
+	if startErr != nil || endErr != nil || filter == nil || filter.Bucket <= 0 {
+		return fmt.Errorf("%w: start and end must be RFC3339 timestamps", ErrChannelMonitorV2InvalidRange)
+	}
+	if start.Equal(filter.Start) && end.Equal(filter.End) {
+		return nil
+	}
+
+	window := filter.End.Sub(filter.Start)
+	retention := channelMonitorV2FixedIntervalRetention(filter.Bucket)
+	duration := end.Sub(start)
+	if retention <= 0 || window <= 0 || duration <= 0 || duration > window || end.After(filter.End) || start.Before(filter.End.Add(-retention)) {
+		return fmt.Errorf("%w: fixed interval exceeds the selected range or retained history", ErrChannelMonitorV2InvalidRange)
+	}
+
+	// The full selected window may have an unaligned edge for the 90-minute
+	// range. Every narrower interval must use complete, aligned rollup buckets.
+	if duration != window && (!start.Equal(start.Truncate(filter.Bucket)) || !end.Equal(end.Truncate(filter.Bucket))) {
+		return fmt.Errorf("%w: fixed interval must use complete rollup buckets", ErrChannelMonitorV2InvalidRange)
+	}
+	filter.Start, filter.End = start.UTC(), end.UTC()
+	return nil
+}
+
+func channelMonitorV2FixedIntervalRetention(bucket time.Duration) time.Duration {
+	switch bucket {
+	case 5 * time.Minute:
+		return 7 * 24 * time.Hour
+	case time.Hour:
+		return 30 * 24 * time.Hour
+	case 12 * time.Hour:
+		return 45 * 24 * time.Hour
+	case 24 * time.Hour:
+		return 90 * 24 * time.Hour
+	default:
+		return 0
+	}
+}
+
 func (s *ChannelMonitorV2Service) Dimensions(ctx context.Context, filter ChannelMonitorV2Filter) (*ChannelMonitorV2Dimensions, error) {
 	cfg, err := s.getEnabledConfig(ctx)
 	if err != nil {

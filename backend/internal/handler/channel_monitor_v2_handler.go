@@ -227,6 +227,16 @@ func (h *ChannelMonitorV2Handler) parseFilter(c *gin.Context) (service.ChannelMo
 		response.BadRequest(c, err.Error())
 		return service.ChannelMonitorV2Filter{}, false
 	}
+	if start, end := c.Query("start"), c.Query("end"); start != "" || end != "" {
+		if !channelMonitorV2IsAdmin(c) {
+			response.BadRequest(c, "fixed intervals require admin access")
+			return service.ChannelMonitorV2Filter{}, false
+		}
+		if err := service.ChannelMonitorV2FixedInterval(&filter, start, end); err != nil {
+			response.BadRequest(c, err.Error())
+			return service.ChannelMonitorV2Filter{}, false
+		}
+	}
 	return filter, true
 }
 

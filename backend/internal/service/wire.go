@@ -1027,7 +1027,7 @@ func ProvidePaymentOrderExpiryService(paymentSvc *PaymentService, lockCache Lead
 
 // ProvideChannelMonitorService 创建渠道监控服务（CRUD + RunCheck + 用户视图聚合）。
 // 加密器复用 wire 中已注入的 SecretEncryptor（AES-256-GCM）。
-// settingService gates RunCheck via channel_monitor_enabled + channel_monitor_mode.
+// settingService gates RunCheck via channel_monitor_enabled + channel_monitor_probes_enabled.
 func ProvideChannelMonitorService(
 	repo ChannelMonitorRepository,
 	encryptor SecretEncryptor,

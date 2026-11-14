@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<!--META {"active":"monitor","role":"admin","title":"渠道监控 · 下钻与边界状态","sub":"错误复盘 · 四种边缘态"} -->
+<html lang="zh-CN" data-theme="light" data-state="drill">
+<head>
+<meta charset="utf-8" />
+<title>Sub2API Admin · 渠道监控下钻与边界状态（设计提案）</title>
+<link rel="stylesheet" href="assets/proto.css" />
+<link rel="stylesheet" href="assets/shell.css" />
+<style>
+  /* 顶部状态切换条 */
+  .topbar .tb-right { flex: 0 0 auto; }
+  .statebar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 16px; border-radius: var(--r-lg);
+    background: var(--surface); border: 1px solid var(--border); position: sticky; top: 12px; z-index: 75; }
+  .statebar .ttl { font-size: 12.4px; font-weight: 680; }
+  .statebar .hint { font-size: 11.6px; color: var(--text-3); }
+  .vseg { display: inline-flex; padding: 3px; gap: 2px; background: var(--surface-3); border-radius: var(--r-md); }
+  .vseg button { height: 28px; padding: 0 11px; border-radius: 7px; font-size: 12.2px; font-weight: 600; color: var(--text-2); }
+  .vseg button.on { background: var(--surface); color: var(--text); box-shadow: var(--sh-xs); }
+
+  /* ============ 下钻抽屉 ============ */
+  .drill-scrim { position: fixed; inset: 112px 0 0 0; background: rgba(2,6,23,.28); z-index: 70; }
+  .drill { position: fixed; top: 112px; right: 0; bottom: 0; width: 560px; z-index: 71;
+    background: var(--surface); border-left: 1px solid var(--border); box-shadow: var(--sh-lg);
+    display: flex; flex-direction: column; }
+  .drill-hd { padding: 16px 18px 13px; border-bottom: 1px solid var(--border); }
+  .drill-hd .crumb { font-size: 11.4px; color: var(--text-3); display: flex; align-items: center; gap: 5px; }
+  .drill-hd h3 { font-size: 16px; letter-spacing: -.02em; margin-top: 5px; display: flex; align-items: center; gap: 8px; }
+  .drill-tabs { display: flex; gap: 18px; padding: 0 18px; border-bottom: 1px solid var(--border); }
+  .drill-tabs a { padding: 10px 0; font-size: 12.6px; font-weight: 620; color: var(--text-3); position: relative; }
+  .drill-tabs a.on { color: var(--p-700); }
+  [data-theme="dark"] .drill-tabs a.on { color: var(--p-300); }
+  .drill-tabs a.on::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: var(--p-500); }
+  .drill-bd { flex: 1; overflow-y: auto; padding: 16px 18px 26px; }
+
+  .kpi4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .k4 { padding: 9px 10px; border-radius: var(--r-sm); background: var(--surface-2); border: 1px solid var(--border); }
+  .k4 .k { font-size: 10.4px; color: var(--text-3); font-weight: 650; }
+  .k4 .v { font-size: 16px; font-weight: 730; margin-top: 3px; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+
+  .ds { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); margin: 18px 0 9px; }
+
+  /* 归因结论卡 */
+  .cause { border-radius: var(--r-md); border: 1px solid color-mix(in srgb, var(--bad-500) 26%, transparent);
+    background: linear-gradient(100deg, var(--bad-50), transparent 70%); padding: 12px 13px; }
+  .cause .own { display: inline-flex; align-items: center; height: 19px; padding: 0 6px; border-radius: 4px;
+    font-size: 10.5px; font-weight: 750; background: #fff7ed; color: #c2410c; }
+  [data-theme="dark"] .cause .own { background: rgba(249,115,22,.15); color: #fdba74; }
+  .cause .txt { font-size: 12.4px; line-height: 1.7; margin-top: 7px; color: var(--text-2); }
+  .cause .txt b { color: var(--text); }
+  .cause .acts { display: flex; gap: 7px; margin-top: 10px; flex-wrap: wrap; }
+
+  /* 错误分类条 */
+  .catrow { display: grid; grid-template-columns: 132px 1fr 44px; gap: 9px; align-items: center; font-size: 11.8px; margin-bottom: 7px; }
+  .catrow .bar { height: 7px; border-radius: 999px; background: var(--surface-3); overflow: hidden; }
+  .catrow .bar i { display: block; height: 100%; border-radius: 999px; }
+
+  /* 样本 */
+  .sample { border: 1px solid var(--border); border-radius: var(--r-sm); overflow: hidden; margin-bottom: 8px; }
+  .sample-hd { display: flex; align-items: center; gap: 7px; padding: 7px 10px; background: var(--surface-2); font-size: 11.3px; color: var(--text-2); }
+  .sample-bd { padding: 8px 10px; font-family: var(--mono); font-size: 11px; line-height: 1.65; color: var(--text-2); word-break: break-all; }
+  .sample-bd .hl { color: var(--bad-600); font-weight: 650; }
+
+  /* 时间线 */
+  .tl2 { display: flex; gap: 1px; height: 16px; margin: 4px 0 2px; }
+  .tl2 span { flex: 1; border-radius: 1px; }
+
+  .drill-ft { padding: 12px 18px; border-top: 1px solid var(--border); display: flex; gap: 8px; justify-content: flex-end; background: var(--surface-2); }
+  .state-note { display: flex; gap: 9px; padding: 11px 13px; border-radius: var(--r-md); background: var(--surface-2);
+    border: 1px solid var(--border); font-size: 11.9px; line-height: 1.75; color: var(--text-2); margin-bottom: 14px; }
+  .state-note b { color: var(--text); }
+  .state-note .tag { flex: 0 0 auto; font-size: 10px; font-weight: 750; letter-spacing: .05em; padding: 2px 6px; border-radius: 4px;
+    background: var(--surface-3); color: var(--text-3); align-self: flex-start; margin-top: 1px; }
+
+  .boot { display: flex; gap: 14px; align-items: flex-start; padding: 14px 16px; border-radius: var(--r-lg);
+    background: rgba(59,130,246,.07); border: 1px solid rgba(59,130,246,.25); }
+  .boot .bar { flex: 1; height: 6px; border-radius: 999px; background: rgba(59,130,246,.2); overflow: hidden; margin-top: 9px; }
+  .boot .bar i { display: block; height: 100%; width: 38%; border-radius: 999px; background: #3b82f6; }
+
+  .skel { background: linear-gradient(90deg, var(--surface-3) 25%, var(--surface-2) 37%, var(--surface-3) 63%);
+    background-size: 400% 100%; animation: shimmer 1.4s infinite; border-radius: 4px; }
+  @keyframes shimmer { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
+  .stale { opacity: .45; filter: saturate(.6); transition: opacity .2s; }
+
+  .empty { display: grid; place-items: center; text-align: center; padding: 46px 20px; }
+  .empty .ic { width: 46px; height: 46px; border-radius: 14px; display: grid; place-items: center;
+    background: var(--surface-3); color: var(--text-3); margin-bottom: 12px; }
+  .empty h4 { font-size: 14px; }
+  .empty p { font-size: 12.2px; color: var(--text-3); margin-top: 5px; max-width: 360px; line-height: 1.7; }
+  .empty .acts { display: flex; gap: 8px; margin-top: 14px; }
+
+  .mx-mini { border-collapse: separate; border-spacing: 2px; width: 100%; table-layout: fixed; }
+  .mx-mini th { font-size: 10px; color: var(--text-3); font-weight: 600; text-align: center; padding-bottom: 3px; }
+  .mx-mini td.l { font-size: 11.4px; white-space: nowrap; padding-right: 10px; color: var(--text); font-weight: 600; }
+  .mx-mini .c { height: 18px; border-radius: 3px; }
+  .c-ok { background: #10b981; } .c-warn { background: #fbbf24; } .c-bad { background: #f87171; } .c-none { background: var(--surface-3); }
+  .c-part { background: repeating-linear-gradient(45deg, #cbd5e1 0 4px, transparent 4px 8px); }  .view { display: none; }
+  html[data-state="drill"] .view[data-for="drill"] { display: block; }
+  html[data-state="boot"] .view[data-v="boot"],
+  html[data-state="stale"] .view[data-v="stale"],
+  html[data-state="empty"] .view[data-v="empty"],
+  html[data-state="nosample"] .view[data-v="nosample"] { display: block; }
+</style>
+</head>
+<body class="app">
+<!--#INCLUDE icons#-->
+<!--#SHELL#-->
+
+  <main class="page">
+    <div class="statebar" style="display:none">
+      <span class="ttl">状态查看器</span>
+      <div class="vseg" id="seg">
+        <button class="on" data-v="drill">① 下钻抽屉</button>
+        <button data-v="boot">② 首次回填中</button>
+        <button data-v="stale">③ 刷新中（保留旧数据）</button>
+        <button data-v="empty">④ 筛选无结果</button>
+        <button data-v="nosample">⑤ 全部样本不足</button>
+      </div>
+      <span class="hint" id="hint">点击矩阵色块后的错误复盘</span>
+    </div>
+
+    <!-- ============ 表层内容：矩阵（作为下钻的底） ============ -->
+    <div class="card" id="surface">
+      <div class="card-hd">
+        <div class="row gap-10"><h3>可用率矩阵</h3><span class="pill pill-bad">2 行异常</span></div>
+        <span class="xs muted" id="surfaceMeta">24 小时 · 平台 / 模型</span>
+      </div>
+      <div class="card-bd">
+        <table class="mx-mini">
+          <colgroup><col style="width:200px" /><col span="24" /></colgroup>
+          <thead><tr><th></th><th colspan="6">00</th><th colspan="6">06</th><th colspan="6">12</th><th colspan="6">18</th></tr></thead>
+          <tbody id="miniBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- ============ ① 下钻抽屉 ============ -->
+<div class="drill-scrim view on" data-for="drill"></div>
+<aside class="drill view on" data-for="drill">
+  <div class="drill-hd">
+    <div class="crumb"><span>可用率矩阵</span><svg class="i" style="width:11px;height:11px"><use href="#i-chevronRight"/></svg><span>13:40 – 14:00</span></div>
+    <h3>grok-4.1-fast <span class="pill pill-bad"><span class="dot"></span>异常</span>
+      <span class="pill pill-neutral" style="height:20px">Grok</span></h3>
+    <div class="xs muted" style="margin-top:4px">11-08 13:40–14:00 · 30 分钟窗口 · 健康分 41</div>
+  </div>
+  <div class="drill-tabs">
+    <a class="on">概览</a><a>错误明细</a><a>样本</a><a>历史</a>
+  </div>
+  <div class="drill-bd">
+    <div class="kpi4">
+      <div class="k4"><div class="k">可用率</div><div class="v" style="color:var(--warn-600)">88.2%</div></div>
+      <div class="k4"><div class="k">请求数</div><div class="v">412</div></div>
+      <div class="k4"><div class="k">TTFT P50</div><div class="v">2.4<span style="font-size:11px;font-weight:600;color:var(--text-3)">s</span></div></div>
+      <div class="k4"><div class="k">健康分</div><div class="v" style="color:var(--bad-600)">41</div></div>
+    </div>
+
+    <div class="ds">归因结论</div>
+    <div class="cause">
+      <span class="own">上游平台</span>
+      <div class="txt">本时段 <b>74%</b> 的失败来自上游 <b>429 限流</b>（<span class="mono" style="font-size:11px">rate_limit_exceeded</span>），
+        与你的账号配置无关。13:52 起系统已把流量切换到备用账号，成功率为 <b>96.4%</b>。</div>
+      <div class="acts">
+        <button class="btn btn-sm btn-secondary"><svg class="i i-14"><use href="#i-shield"/></svg>查看涉及账号</button>
+        <button class="btn btn-sm btn-secondary"><svg class="i i-14"><use href="#i-ban"/></svg>暂停该平台调度</button>
+        <button class="btn btn-sm btn-secondary"><svg class="i i-14"><use href="#i-bell"/></svg>静默同类告警 1h</button>
+      </div>
+    </div>
+
+    <div class="ds">错误分类（计入可用率）</div>
+    <div class="catrow"><span class="truncate">rate_or_capacity</span>
+      <div class="bar"><i style="width:74%;background:#f59e0b"></i></div><b style="text-align:right">74%</b></div>
+    <div class="catrow"><span class="truncate">timeout</span>
+      <div class="bar"><i style="width:16%;background:#f87171"></i></div><b style="text-align:right">16%</b></div>
+    <div class="catrow"><span class="truncate">upstream_5xx</span>
+      <div class="bar"><i style="width:7%;background:#fb923c"></i></div><b style="text-align:right">7%</b></div>
+    <div class="catrow"><span class="truncate">transport_or_stream</span>
+      <div class="bar"><i style="width:3%;background:#3b82f6"></i></div><b style="text-align:right">3%</b></div>
+    <div class="xs muted" style="margin-top:2px">另有 <b>21 次</b> 客户端取消，已在配置中忽略，不计入可用率。</div>
+
+    <div class="ds">错误样本（最近 3 条）</div>
+    <div class="sample">
+      <div class="sample-hd"><span class="pill pill-warn" style="height:18px">429</span><span class="mono">14:38:02.114</span>
+        <span style="margin-left:auto" class="xs muted">acct #2481 · grok-sso-04</span></div>
+      <div class="sample-bd">{<span class="hl">"error"</span>:{"type":"rate_limit_error","message":"Rate limit reached for requests"}}</div>
+    </div>
+    <div class="sample">
+      <div class="sample-hd"><span class="pill pill-warn" style="height:18px">429</span><span class="mono">14:36:47.902</span>
+        <span style="margin-left:auto" class="xs muted">acct #2478 · grok-sso-02</span></div>
+      <div class="sample-bd">{<span class="hl">"error"</span>:{"type":"rate_limit_error","message":"Too many concurrent requests"}}</div>
+    </div>
+    <div class="sample">
+      <div class="sample-hd"><span class="pill pill-bad" style="height:18px">504</span><span class="mono">14:35:11.337</span>
+        <span style="margin-left:auto" class="xs muted">acct #2481 · grok-sso-04</span></div>
+      <div class="sample-bd">{<span class="hl">"error"</span>:{"type":"timeout","message":"Upstream did not respond in 30s"}}</div>
+    </div>
+
+    <div class="ds">该窗口内每分钟可用率</div>
+    <div class="tl2">
+      <span style="background:#fbbf24"></span><span style="background:#f87171"></span><span style="background:#f87171"></span><span style="background:#fbbf24"></span>
+      <span style="background:#f87171"></span><span style="background:#f87171"></span><span style="background:#fbbf24"></span><span style="background:#6ee7b7"></span>
+      <span style="background:#10b981"></span><span style="background:#10b981"></span><span style="background:#6ee7b7"></span><span style="background:#10b981"></span>
+      <span style="background:#10b981"></span><span style="background:#10b981"></span><span style="background:#10b981"></span><span style="background:#6ee7b7"></span>
+      <span style="background:#10b981"></span><span style="background:#10b981"></span><span style="background:#10b981"></span><span style="background:#10b981"></span>
+      <span style="background:#10b981"></span><span style="background:#10b981"></span><span style="background:#10b981"></span><span style="background:#10b981"></span>
+      <span style="background:#10b981"></span><span style="background:#10b981"></span><span style="background:#10b981"></span><span style="background:#10b981"></span>
+      <span style="background:#10b981"></span><span style="background:#10b981"></span>
+    </div>
+    <div class="row" style="justify-content:space-between;font-size:10.4px;color:var(--text-3)">
+      <span>13:40</span><span style="color:var(--ok-600);font-weight:650">13:52 切换备用账号 →</span><span>14:00</span>
+    </div>
+  </div>
+  <div class="drill-ft">
+    <button class="btn btn-sm btn-secondary">复制请求示例</button>
+    <button class="btn btn-sm btn-secondary">查看该账号</button>
+    <button class="btn btn-sm btn-primary">关闭</button>
+  </div>
+</aside>
+
+<!-- ============ ② 首次回填中 ============ -->
+<section class="view" data-v="boot">
+  <div class="state-note"><span class="tag">状态 ②</span>
+    <div><b>首次启用被动监控</b>：系统在后台静默聚合 90 分钟 / 24 小时 / 7 天 / 30 天窗口。此时矩阵的部分格子没有数据，
+      <b>不能当成 0% 或故障</b>；页面用斜纹表示「尚未覆盖」，并在顶部给出进度与预计完成时间。</div></div>
+
+  <div class="boot">
+    <svg class="i i-20" style="color:#3b82f6;flex:0 0 auto"><use href="#i-refresh"/></svg>
+    <div style="flex:1">
+      <div class="row" style="justify-content:space-between"><b style="font-size:13px">正在补齐历史监控数据</b>
+        <span class="xs" style="color:#2563eb;font-weight:700">38% · 预计 12 分钟后完成</span></div>
+      <div class="bar"><i></i></div>
+      <div class="xs muted" style="margin-top:6px">已完成 90 分钟窗口；24 小时窗口回填至 09:20。期间数据仅供参考。</div>
+    </div>
+    <button class="btn btn-sm btn-secondary" style="flex:0 0 auto">后台运行</button>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <div class="card-hd"><h3>可用率矩阵</h3><span class="pill pill-info">回填中 · 部分窗口未覆盖</span></div>
+    <div class="card-bd">
+      <table class="mx-mini">
+        <colgroup><col style="width:200px" /><col span="24" /></colgroup>
+        <tbody id="bootBody"></tbody>
+      </table>
+      <div class="legend" style="margin-top:10px"><span><i class="c-ok"></i>正常</span><span><i class="c-warn"></i>波动</span>
+        <span><i class="c-part"></i>尚未覆盖（回填中）</span><span><i class="c-none"></i>无流量</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ ③ 刷新中 ============ -->
+<section class="view" data-v="stale">
+  <div class="state-note"><span class="tag">状态 ③</span>
+    <div><b>自动刷新 / 切换筛选时保留旧数据并淡化</b>，只有手动点刷新才出骨架屏。避免每次轮询整页闪烁、也避免新数据到达前出现空白。
+      右上角固定显示「正在更新」与上次成功时间，让用户知道看到的是哪一版数据。</div></div>
+
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-hd"><h3>可用率矩阵</h3>
+      <span class="pill pill-info"><svg class="i" style="width:11px;height:11px" class="spin"><use href="#i-refresh"/></svg>正在更新 · 上次 14:38</span></div>
+    <div class="card-bd stale">
+      <table class="mx-mini"><colgroup><col style="width:200px" /><col span="24" /></colgroup><tbody id="staleBody"></tbody></table>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-hd"><h3>手动刷新 · 骨架屏</h3><span class="xs muted">仅在点击「刷新」时出现</span></div>
+    <div class="card-bd">
+      <div class="skel" style="height:16px;width:38%;margin-bottom:14px"></div>
+      <div class="stack" style="gap:8px">
+        <div class="skel" style="height:18px"></div><div class="skel" style="height:18px"></div>
+        <div class="skel" style="height:18px"></div><div class="skel" style="height:18px;width:72%"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ ④ 筛选无结果 ============ -->
+<section class="view" data-v="empty">
+  <div class="state-note"><span class="tag">状态 ④</span>
+    <div><b>区分「筛选太窄」与「真的没有流量」</b>：前者给出放宽建议（可直接点掉某个筛选条件），后者说明原因并引导去开启监控范围。
+      不能用同一句「暂无数据」打发两种完全不同的情况。</div></div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+    <div class="card">
+      <div class="card-hd"><h3>筛选无结果</h3><span class="pill pill-neutral">当前筛选</span></div>
+      <div class="card-bd">
+        <div class="row gap-6" style="flex-wrap:wrap;margin-bottom:6px">
+          <span class="chip">平台：Grok</span><span class="chip">分组：Claude Pro 池</span><span class="chip">模型：claude-opus-4.6</span>
+        </div>
+        <div class="empty">
+          <div class="ic"><svg class="i i-20"><use href="#i-filter"/></svg></div>
+          <h4>没有同时满足这三个条件的项目</h4>
+          <p>「Grok 平台」与「Claude Pro 池」没有交集。试着放宽其中一个条件：</p>
+          <div class="acts"><button class="btn btn-sm btn-secondary">移除「分组」筛选</button>
+            <button class="btn btn-sm btn-secondary">移除「模型」筛选</button></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-hd"><h3>范围内确实没有流量</h3><span class="pill pill-neutral">无数据</span></div>
+      <div class="card-bd">
+        <div class="row gap-6" style="flex-wrap:wrap;margin-bottom:6px"><span class="chip">分组：Kimi 企业版</span></div>
+        <div class="empty">
+          <div class="ic"><svg class="i i-20"><use href="#i-signal"/></svg></div>
+          <h4>该分组 24 小时内没有真实请求</h4>
+          <p>它还没有客户流量，因此无法计算可用率。可以给它绑定一个主动探测项，让用户状态页照常展示「可试用」。</p>
+          <div class="acts"><button class="btn btn-sm btn-primary">绑定探测项</button>
+            <button class="btn btn-sm btn-secondary">查看可用渠道</button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ ⑤ 全样本不足 ============ -->
+<section class="view" data-v="nosample">
+  <div class="state-note"><span class="tag">状态 ⑤</span>
+    <div><b>样本不足不显示 100%</b>：当计入请求数低于阈值（默认 20）时，整行标灰并写「样本不足」，
+      不使用任何看起来正常的数值。悬停可看到还差多少样本，并提示降低阈值或延长窗口。</div></div>
+
+  <div class="card">
+    <div class="card-hd"><h3>可用率矩阵</h3>
+      <span class="pill pill-neutral">样本阈值 20 次</span>
+      <span class="xs muted" style="margin-left:auto">当前筛选下 6 行均未达标</span></div>
+    <div class="card-bd">
+      <table class="mx-mini">
+        <colgroup><col style="width:240px" /><col span="24" /><col style="width:120px" /></colgroup>
+        <thead><tr><th></th><th colspan="6">00</th><th colspan="6">06</th><th colspan="6">12</th><th colspan="6">18</th><th style="text-align:right">样本</th></tr></thead>
+        <tbody id="nsBody"></tbody>
+      </table>
+    </div>
+    <div class="row" style="padding:10px 16px;border-top:1px solid var(--border);gap:12px">
+      <span class="xs muted">灰色 = 该时间片无请求或样本低于阈值；不会显示为 100%。</span>
+      <div style="margin-left:auto" class="row gap-8">
+        <button class="btn btn-sm btn-secondary">降低样本阈值至 10</button>
+        <button class="btn btn-sm btn-secondary">切换到近 7 天</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+(function () {
+  try {
+  let seed = 12;
+  const rnd = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
+  const cell = () => { const r = rnd(); return r < 0.03 ? 'c-none' : r < 0.1 ? 'c-warn' : 'c-ok'; };
+  const row = (color, letter, name, meta, n = 24) =>
+    `<tr><td class="l"><span class="row gap-8"><span class="plat" style="background:${color};width:18px;height:18px;font-size:8px">${letter}</span>${name}
+      <span class="xs muted" style="font-weight:500">${meta}</span></span></td>` +
+    Array.from({ length: n }, cell).map(c => `<td><div class="c ${c}"></div></td>`).join('') + '</tr>';
+
+  document.getElementById('miniBody').innerHTML =
+    row('#d97757', 'C', 'claude-opus-4.6', '99.8%') +
+    row('#10a37f', 'O', 'gpt-5.4', '96.4%') +
+    row('#8b5cf6', 'X', 'grok-4.1-fast', '91.2%');
+
+  // ② backfill: first 9 slots uncovered (striped)
+  const bootRow = (color, letter, name) =>
+    `<tr><td class="l"><span class="row gap-8"><span class="plat" style="background:${color};width:18px;height:18px;font-size:8px">${letter}</span>${name}</span></td>` +
+    Array.from({ length: 24 }, (_, i) => `<td><div class="c ${i < 9 ? 'c-part' : (i < 10 ? 'c-none' : 'c-ok')}"></div></td>`).join('') + '</tr>';
+  document.getElementById('bootBody').innerHTML =
+    bootRow('#d97757', 'C', 'claude-opus-4.6') + bootRow('#10a37f', 'O', 'gpt-5.4') + bootRow('#4285f4', 'G', 'gemini-3-pro');
+
+  document.getElementById('staleBody').innerHTML =
+    row('#d97757', 'C', 'claude-opus-4.6', '99.8%') + row('#10a37f', 'O', 'gpt-5.4', '96.4%') + row('#8b5cf6', 'X', 'grok-4.1-fast', '91.2%');
+
+  const ns = [
+    ['#f97316', 'K', 'kimi-pro', '3 / 20'],
+    ['#22c55e', 'Z', 'zhipu-glm-4', '0 / 20'],
+    ['#0ea5e9', 'D', 'deepseek-chat', '7 / 20'],
+  ];
+  document.getElementById('nsBody').innerHTML = ns.map(([c, l, n, s]) =>
+    `<tr><td class="l"><span class="row gap-8"><span class="plat" style="background:${c};width:18px;height:18px;font-size:8px">${l}</span>${n}</span></td>` +
+    Array.from({ length: 24 }, () => `<td><div class="c ${rnd() < 0.2 ? 'c-none' : 'c-part'}"></div></td>`).join('') +
+    `<td style="text-align:right"><span class="pill pill-neutral" style="height:18px">数据不足</span><div class="xs muted" style="margin-top:2px">${s}</div></td></tr>`
+  ).join('');
+
+
+})();
+</script>
+<!--#INCLUDE runtime#-->
+</body>
+</html>
+})();
+</script>
+<!--#INCLUDE runtime#-->
+</body>
+</html>

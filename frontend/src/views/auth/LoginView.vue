@@ -1,17 +1,73 @@
 <template>
   <AuthLayout>
-    <div class="space-y-6">
+    <div class="flex flex-col gap-6">
       <!-- Title -->
-      <div class="text-center">
-        <h2 class="text-2xl font-bold text-gray-900 dark:text-white">
+      <div>
+        <h2 class="text-[22px] font-bold tracking-[-0.02em] text-ink">
           {{ t('auth.welcomeBack') }}
         </h2>
-        <p class="mt-2 text-sm text-gray-500 dark:text-dark-400">
+        <p class="mt-1.5 text-body text-ink-3">
           {{ t('auth.signInToAccount') }}
         </p>
       </div>
-      <!-- Login Form -->
-      <form @submit.prevent="handleLogin" class="space-y-5">
+
+      <!-- Passkey (primary one-tap path when available) -->
+      <button
+        v-if="showPasskeyLogin"
+        type="button"
+        class="btn btn-secondary w-full"
+        :disabled="authActionDisabled"
+        @click="handlePasskeyLogin"
+      >
+        <Icon name="key" size="md" />
+        {{ passkeyLoading ? t('auth.passkeySigningIn') : t('auth.passkeySignIn') }}
+      </button>
+
+      <!-- OAuth providers -->
+      <div v-if="showOAuthLogin" class="space-y-2.5">
+        <EmailOAuthButtons
+          :disabled="authActionDisabled"
+          :github-enabled="githubOAuthEnabled"
+          :google-enabled="googleOAuthEnabled"
+          :show-divider="false"
+          @start="handleOAuthStart"
+        />
+        <LinuxDoOAuthSection
+          v-if="linuxdoOAuthEnabled"
+          :disabled="authActionDisabled"
+          :show-divider="false"
+          @start="handleOAuthStart"
+        />
+        <WechatOAuthSection
+          v-if="wechatOAuthEnabled"
+          :disabled="authActionDisabled"
+          :show-divider="false"
+          @start="handleOAuthStart"
+        />
+        <DingTalkOAuthSection
+          v-if="dingtalkOAuthEnabled"
+          :disabled="authActionDisabled"
+          :show-divider="false"
+          @start="handleOAuthStart"
+        />
+        <OidcOAuthSection
+          v-if="oidcOAuthEnabled"
+          :disabled="authActionDisabled"
+          :provider-name="oidcOAuthProviderName"
+          :show-divider="false"
+          @start="handleOAuthStart"
+        />
+      </div>
+
+      <!-- Divider -->
+      <div v-if="showOAuthLogin || showPasskeyLogin" class="flex items-center gap-3">
+        <div class="h-px flex-1 bg-edge"></div>
+        <span class="text-meta text-ink-3">{{ t('auth.oauthOrEmailDivider', '或使用邮箱登录') }}</span>
+        <div class="h-px flex-1 bg-edge"></div>
+      </div>
+
+
+      <form @submit.prevent="handleLogin" class="flex flex-col gap-4">
         <!-- Email Input -->
         <div>
           <label for="email" class="input-label">
@@ -101,7 +157,7 @@
         <button
           type="submit"
           :disabled="authActionDisabled || (turnstileEnabled && !turnstileToken)"
-          class="btn btn-primary w-full"
+          class="btn btn-primary h-10 w-full"
         >
           <svg
             v-if="isLoading"
@@ -139,60 +195,6 @@
           @open="showAgreementModal = true"
         />
 
-        <div v-if="showPasskeyLogin || showOAuthLogin" class="space-y-3 pt-1">
-          <div class="flex items-center gap-3">
-            <div class="h-px flex-1 bg-gray-200 dark:bg-dark-700"></div>
-            <span class="text-xs text-gray-500 dark:text-dark-400">
-              {{ t('auth.oauthOrContinue') }}
-            </span>
-            <div class="h-px flex-1 bg-gray-200 dark:bg-dark-700"></div>
-          </div>
-
-          <button
-            v-if="showPasskeyLogin"
-            type="button"
-            class="btn btn-secondary w-full"
-            :disabled="authActionDisabled"
-            @click="handlePasskeyLogin"
-          >
-            <Icon name="key" size="md" class="mr-2" />
-            {{ passkeyLoading ? t('auth.passkeySigningIn') : t('auth.passkeySignIn') }}
-          </button>
-
-          <EmailOAuthButtons
-            :disabled="authActionDisabled"
-            :github-enabled="githubOAuthEnabled"
-            :google-enabled="googleOAuthEnabled"
-            :show-divider="false"
-            @start="handleOAuthStart"
-          />
-
-          <LinuxDoOAuthSection
-            v-if="linuxdoOAuthEnabled"
-            :disabled="authActionDisabled"
-            :show-divider="false"
-            @start="handleOAuthStart"
-          />
-          <DingTalkOAuthSection
-            v-if="dingtalkOAuthEnabled"
-            :disabled="authActionDisabled"
-            :show-divider="false"
-            @start="handleOAuthStart"
-          />
-          <WechatOAuthSection
-            v-if="wechatOAuthEnabled"
-            :disabled="authActionDisabled"
-            :show-divider="false"
-            @start="handleOAuthStart"
-          />
-          <OidcOAuthSection
-            v-if="oidcOAuthEnabled"
-            :disabled="authActionDisabled"
-            :provider-name="oidcOAuthProviderName"
-            :show-divider="false"
-            @start="handleOAuthStart"
-          />
-        </div>
       </form>
     </div>
 

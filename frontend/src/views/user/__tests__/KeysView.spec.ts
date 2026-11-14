@@ -173,6 +173,7 @@ const DataTableStub = {
           <slot name="cell-id" :value="row.id" :row="row" />
         </div>
         <slot name="cell-name" :value="row.name" :row="row" />
+        <slot name="cell-group" :row="row" />
         <slot name="cell-actions" :row="row" />
         <div data-test="current-concurrency">
           <slot name="cell-current_concurrency" :value="row.current_concurrency" :row="row" />
@@ -339,19 +340,43 @@ describe('user KeysView column settings', () => {
 
     expect(visibleColumnKeys(wrapper)).toEqual([
       'name',
-      'key',
       'group',
       'current_concurrency',
       'usage',
+      'rate_limit',
       'expires_at',
       'status',
-      'created_at',
+      'last_used_at',
       'actions',
     ])
-    expect(visibleColumnKeys(wrapper)).not.toContain('rate_limit')
-    expect(visibleColumnKeys(wrapper)).not.toContain('last_used_at')
+    expect(visibleColumnKeys(wrapper)).not.toContain('key')
+    expect(visibleColumnKeys(wrapper)).not.toContain('created_at')
     expect(visibleColumnKeys(wrapper)).not.toContain('last_used_ip')
     expect(visibleColumnKeys(wrapper)).not.toContain('id')
+  })
+
+  it('requires confirmation before an inline group change and supports cancel', async () => {
+    getAvailableGroups.mockResolvedValue([{ id: 42, name: 'Target group', platform: 'openai', rate_multiplier: 0.8 }])
+    const wrapper = await mountView()
+    await wrapper.get('button[title="keys.clickToChangeGroup"]').trigger('click')
+    const option = wrapper.findComponent({ name: 'GroupOptionItem' }).element.closest('button')!
+    option.click()
+    await nextTick()
+    const confirmation = wrapper.findAllComponents({ name: 'ConfirmDialog' })
+      .find(dialog => dialog.props('title') === 'keys.confirmGroupChangeTitle')!
+    expect(confirmation.props('show')).toBe(true)
+    expect(updateKey).not.toHaveBeenCalled()
+    confirmation.vm.$emit('cancel')
+    await nextTick()
+    expect(confirmation.props('show')).toBe(false)
+    expect(updateKey).not.toHaveBeenCalled()
+    await wrapper.get('button[title="keys.clickToChangeGroup"]').trigger('click')
+    wrapper.findComponent({ name: 'GroupOptionItem' }).element.closest('button')!.click()
+    await nextTick()
+    confirmation.vm.$emit('confirm')
+    await flushPromises()
+    expect(updateKey).toHaveBeenCalledWith(1, { group_id: 42 })
+    wrapper.unmount()
   })
 
   it('opens bulk editing with only selected visible keys', async () => {
@@ -414,16 +439,16 @@ describe('user KeysView column settings', () => {
     wrapper.unmount()
   })
 
-  it('shows a hidden column when toggled and persists the preference', async () => {
+  it('hides a visible column when toggled and persists the preference', async () => {
     const wrapper = await mountView()
 
     await wrapper.get('button[title="Column Settings"]').trigger('click')
     await getButtonByText(wrapper, 'Rate Limit').trigger('click')
     await nextTick()
 
-    expect(visibleColumnKeys(wrapper)).toContain('rate_limit')
+    expect(visibleColumnKeys(wrapper)).not.toContain('rate_limit')
     expect(localStorage.getItem('api-key-hidden-columns')).toBe(
-      JSON.stringify(['id', 'last_used_at', 'last_used_ip'])
+      JSON.stringify(['id', 'key', 'last_used_ip', 'created_at', 'rate_limit'])
     )
     expect(localStorage.getItem('api-key-column-settings-version')).toBe('3')
   })

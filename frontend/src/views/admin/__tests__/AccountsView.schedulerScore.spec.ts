@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { flushPromises, mount } from '@vue/test-utils'
+import { config, flushPromises, mount } from '@vue/test-utils'
 
 import AccountsView from '../AccountsView.vue'
+
+config.global.stubs.RouterLink = { template: '<a><slot /></a>' }
 
 const {
   listAccounts,

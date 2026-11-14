@@ -47,6 +47,24 @@
     </div>
 
     <template v-else-if="draft">
+      <!-- 三个 Tab 各自回答一个问题：收哪些流量 / 什么算错误 / 什么颜色（设计 12 号稿、03 §5）。
+           定稿就这三个：探测请求模板的管理在「主动探测」列表页，不在这里再开一个入口。 -->
+      <nav class="tabs inline-flex flex-wrap" role="tablist" :aria-label="t('channelMonitorV2.settings.tabsAria')">
+        <button
+          v-for="item in settingsTabs"
+          :key="item.value"
+          type="button"
+          role="tab"
+          class="tab"
+          :class="tab === item.value ? 'tab-active' : ''"
+          :aria-selected="tab === item.value"
+          :data-settings-tab="item.value"
+          @click="tab = item.value"
+        >
+          {{ t(`channelMonitorV2.settings.tabs.${item.value}`) }}
+        </button>
+      </nav>
+
       <div class="card divide-y divide-gray-100 !rounded-3xl !border-0 shadow-sm ring-1 ring-gray-900/5 dark:divide-dark-700 dark:!bg-dark-800 dark:ring-dark-700">
         <div class="flex flex-wrap items-center justify-between gap-4 px-5 py-4">
           <div>
@@ -81,9 +99,8 @@
             </button>
           </div>
         </div>
-      </div>
 
-      <div class="card overflow-hidden !rounded-3xl !border-0 shadow-sm ring-1 ring-gray-900/5 dark:!bg-dark-800 dark:ring-dark-700">
+        <div v-if="tab === 'traffic'" class="border-t border-gray-100 dark:border-dark-700">
         <div class="card-header !py-3">
           <h3 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('channelMonitorV2.settings.platformsTitle') }}</h3>
           <p class="mt-0.5 text-xs text-gray-500 dark:text-dark-400">
@@ -135,9 +152,10 @@
             </span>
           </div>
         </div>
+        </div>
       </div>
 
-      <div class="card overflow-hidden !rounded-3xl !border-0 shadow-sm ring-1 ring-gray-900/5 dark:!bg-dark-800 dark:ring-dark-700">
+      <div v-if="tab === 'traffic'" class="card overflow-hidden !rounded-3xl !border-0 shadow-sm ring-1 ring-gray-900/5 dark:!bg-dark-800 dark:ring-dark-700">
         <div class="card-header flex flex-wrap items-center justify-between gap-2 !py-3">
           <div>
             <h3 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('channelMonitorV2.settings.groupsTitle') }}</h3>
@@ -179,7 +197,7 @@
         </div>
       </div>
 
-      <div class="card overflow-hidden !rounded-3xl !border-0 shadow-sm ring-1 ring-gray-900/5 dark:!bg-dark-800 dark:ring-dark-700">
+      <div v-if="tab === 'errors'" class="card overflow-hidden !rounded-3xl !border-0 shadow-sm ring-1 ring-gray-900/5 dark:!bg-dark-800 dark:ring-dark-700">
         <div class="card-header !py-3">
           <h3 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('channelMonitorV2.settings.errorsTitle') }}</h3>
           <p class="mt-0.5 text-xs text-gray-500 dark:text-dark-400">
@@ -216,7 +234,7 @@
         </div>
       </div>
 
-      <div class="card overflow-hidden !rounded-3xl !border-0 shadow-sm ring-1 ring-gray-900/5 dark:!bg-dark-800 dark:ring-dark-700">
+      <div v-if="tab === 'health'" class="card overflow-hidden !rounded-3xl !border-0 shadow-sm ring-1 ring-gray-900/5 dark:!bg-dark-800 dark:ring-dark-700">
         <div class="card-header !py-3">
           <h3 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('channelMonitorV2.settings.healthTitle') }}</h3>
           <p class="mt-0.5 text-xs text-gray-500 dark:text-dark-400">
@@ -257,9 +275,26 @@
             <input v-model.number="criticalCachePercent" class="input" type="number" min="0" max="100" step="0.1" />
           </label>
         </div>
+
+        <!-- 设计主线 §2.3 / 03 §5.2：把当前阈值翻译成用户会看到的结论，改之前就能看到 -->
+        <div class="border-t border-gray-100 px-5 py-4 dark:border-dark-700" data-testid="settings-user-preview">
+          <h4 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('channelMonitorV2.settings.previewTitle') }}</h4>
+          <p class="mt-0.5 text-xs text-gray-500 dark:text-dark-400">{{ t('channelMonitorV2.settings.previewHint') }}</p>
+          <div v-if="availabilityPreview" class="mt-3 flex flex-wrap items-center gap-3">
+            <StatusPill :tone="previewTone" :label="previewLabel" />
+            <span class="text-xs text-gray-500 dark:text-dark-400">
+              {{ t('channelMonitorV2.settings.previewBasis', {
+                availability: formatPreviewRate(availabilityPreview.availability),
+                errorRate: formatPreviewRate(availabilityPreview.errorRate),
+              }) }}
+            </span>
+          </div>
+          <p v-else class="mt-3 text-xs text-gray-500 dark:text-dark-400">{{ t('channelMonitorV2.settings.previewUnavailable') }}</p>
+          <p class="mt-2 text-[11px] leading-relaxed text-gray-400 dark:text-dark-400">{{ t('channelMonitorV2.settings.previewScope') }}</p>
+        </div>
       </div>
 
-      <div class="space-y-2">
+      <div v-if="tab === 'traffic'" class="space-y-2">
         <div class="rounded-2xl border border-primary-200 bg-primary-50/80 px-4 py-3 text-sm text-primary-900 dark:border-primary-800/50 dark:bg-primary-900/20 dark:text-primary-100">
           <template v-if="namedModelCount === 0">
             {{ t('channelMonitorV2.settings.namedModelsEmpty') }}
@@ -286,6 +321,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Select from '@/components/common/Select.vue'
+import StatusPill, { type StatusTone } from '@/components/common/StatusPill.vue'
 import { CONCRETE_PLATFORM_OPTIONS } from '@/constants/platforms'
 import { platformLabel } from '@/utils/platformColors'
 import Toggle from '@/components/common/Toggle.vue'
@@ -295,20 +331,29 @@ import { extractApiErrorMessage } from '@/utils/apiError'
 import { getChannelMonitorMode, isChannelMonitorV2Mode } from '@/utils/featureFlags'
 import {
   getConfig,
+  getSnapshot,
   updateConfig,
   MONITOR_ERROR_CATEGORIES,
+  type HealthState,
   type MonitorConfig,
+  type MonitorSnapshot,
 } from '@/api/channelMonitorV2'
+import { formatPreviewRate, previewAvailability } from './settingsPreview'
 import { adminAPI } from '@/api/admin'
 import type { AdminGroup } from '@/types'
 
 const { t, te } = useI18n()
 const appStore = useAppStore()
 const loading = ref(true)
+/** Settings is organised by question, not by field group (design prototype 12). */
+const settingsTabs = [{ value: 'traffic' }, { value: 'errors' }, { value: 'health' }] as const
+const tab = ref<(typeof settingsTabs)[number]['value']>('traffic')
 const saving = ref(false)
 const draft = ref<MonitorConfig | null>(null)
 const original = ref('')
 const groups = ref<AdminGroup[]>([])
+/** A real snapshot of current traffic; the preview never invents one. */
+const snapshot = ref<MonitorSnapshot | null>(null)
 const selectedPlatform = ref('')
 const availablePlatforms = computed(() =>
   CONCRETE_PLATFORM_OPTIONS.filter(
@@ -386,6 +431,26 @@ const criticalErrorPercent = percentModel('critical_error_rate')
 const warningCachePercent = percentModel('warning_cache_rate')
 const criticalCachePercent = percentModel('critical_cache_rate')
 
+const availabilityPreview = computed(() =>
+  snapshot.value
+    ? previewAvailability({
+        metrics: snapshot.value.metrics,
+        health: snapshot.value.health,
+        thresholds: draft.value?.health_thresholds,
+      })
+    : null
+)
+const previewTone = computed<StatusTone>(() =>
+  ({ healthy: 'ok', warning: 'warn', critical: 'bad', unknown: 'neutral' } as Record<HealthState, StatusTone>)[
+    availabilityPreview.value?.state ?? 'unknown'
+  ]
+)
+const previewLabel = computed(() =>
+  availabilityPreview.value
+    ? t(`channelMonitorV2.settings.previewStates.${availabilityPreview.value.state}`)
+    : t('channelMonitorV2.settings.previewNoData')
+)
+
 function setModels(platform: MonitorConfig['platforms'][number], event: Event) {
   platform.models = [
     ...new Set(
@@ -436,7 +501,14 @@ function normalizeConfig(value: MonitorConfig): MonitorConfig {
 async function load() {
   loading.value = true
   try {
-    const [value, groupRows] = await Promise.all([getConfig(), adminAPI.groups.getAllIncludingInactive()])
+    // The preview is optional evidence: a failed snapshot must not block configuration.
+    const [value, groupRows, snapshotValue] = await Promise.all([
+      getConfig(),
+      adminAPI.groups.getAllIncludingInactive(),
+      getSnapshot({ range: '24h', platforms: [], groupIds: [], models: [] }).catch(() => null),
+    ])
+    snapshot.value = snapshotValue
+
     const normalized = normalizeConfig(value)
     draft.value = structuredClone(normalized)
     groups.value = groupRows

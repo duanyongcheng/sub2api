@@ -1,5 +1,5 @@
 <template>
-  <div class="table-page-layout" :class="{ 'mobile-mode': isMobile }">
+  <div class="table-page-layout" :class="{ 'mobile-mode': isMobile, compact }">
     <!-- 固定区域：操作按钮 -->
     <div v-if="$slots.actions" class="layout-section-fixed">
       <slot name="actions" />
@@ -27,6 +27,8 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 
+defineProps<{ compact?: boolean }>()
+
 const isMobile = ref(false)
 
 const checkMobile = () => {
@@ -52,6 +54,20 @@ onUnmounted(() => {
 
 .layout-section-fixed {
   @apply flex-shrink-0;
+}
+
+.table-page-layout.compact {
+  gap: 12px;
+}
+
+.compact .table-scroll-container :deep(th) {
+  padding: 10px 12px;
+  font-size: 11px;
+}
+
+.compact .table-scroll-container :deep(td) {
+  padding: 9px 12px;
+  font-size: 12.5px;
 }
 
 .layout-section-scrollable {

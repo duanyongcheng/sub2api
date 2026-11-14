@@ -1,7 +1,12 @@
 <template>
   <div v-if="groups && groups.length > 0" class="relative max-w-56">
-    <!-- 限制列宽但不裁切行高，完整显示分组名称和 +N 按钮 -->
-    <div class="flex flex-wrap gap-1">
+    <!--
+      限制列宽但不裁切行高，完整显示分组名称和 +N 按钮。
+      GroupBadge 根节点是 inline-flex，作为 flex 子项会被压缩到比内容更窄，
+      里面的 min-w-0 + overflow-wrap:anywhere 就会把「Claude Max 主力池」拆成
+      「Claude」「Max」「主力池」三行；这里禁止收缩 + 单行省略，保持一个胶囊一行。
+    -->
+    <div class="flex min-w-0 flex-wrap gap-1">
       <GroupBadge
         v-for="group in displayGroups"
         :key="group.id"
@@ -10,8 +15,8 @@
         :subscription-type="group.subscription_type"
         :rate-multiplier="group.rate_multiplier"
         :show-rate="false"
-        :truncate="false"
-        class="min-w-0 max-w-full"
+        :truncate="true"
+        class="min-w-0 max-w-full shrink-0 [&>span]:truncate"
       />
       <!-- 更多数量徽章 -->
       <button

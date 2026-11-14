@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { flushPromises, mount } from '@vue/test-utils'
+import { config, flushPromises, mount } from '@vue/test-utils'
 
 import AccountsView from '../AccountsView.vue'
+
+config.global.stubs.RouterLink = { template: '<a><slot /></a>' }
 
 const {
   listAccounts,
@@ -193,6 +195,7 @@ describe('admin AccountsView usage windows hint', () => {
   })
 
   it('renders the upstream billing trust warning next to the declared-rate column', async () => {
+    localStorage.setItem('account-hidden-columns', JSON.stringify([]))
     const wrapper = mountView()
     await flushPromises()
 

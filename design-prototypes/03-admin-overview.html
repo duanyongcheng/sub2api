@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<title>Sub2API Admin · 运营概览（重设计原型）</title>
+<link rel="stylesheet" href="assets/proto.css" />
+<link rel="stylesheet" href="assets/shell.css" />
+<style>
+  .kpi.inverse .val { color: var(--warn-600); }
+  .alert-strip {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding: 11px 14px; border-radius: var(--r-lg);
+    background: var(--warn-50); border: 1px solid color-mix(in srgb, var(--warn-500) 30%, transparent);
+  }
+  .alert-strip .item { display: flex; align-items: center; gap: 7px; font-size: 12.6px; font-weight: 600; color: var(--warn-600); cursor: pointer; }
+  .alert-strip .item:hover { text-decoration: underline; }
+  .alert-strip .sepv { width: 1px; height: 14px; background: color-mix(in srgb, var(--warn-500) 30%, transparent); }
+
+  .two-col { display: grid; grid-template-columns: minmax(0,1.72fr) minmax(0,1fr); gap: 16px; align-items: start; }
+  .three-col { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 16px; }
+
+  .rev-legend { display: flex; gap: 16px; font-size: 11.8px; color: var(--text-2); }
+  .rev-legend i { width: 9px; height: 9px; border-radius: 3px; display: inline-block; margin-right: 6px; }
+
+  .health-row { display: grid; grid-template-columns: 96px 1fr 54px; gap: 10px; align-items: center; font-size: 12.4px; }
+  .health-bar { position: relative; height: 8px; border-radius: var(--r-full); background: var(--surface-3); overflow: hidden; display: flex; }
+  .health-bar span { height: 100%; }
+  .tbl-cost th, .tbl-cost td { padding: 9px 14px !important; font-size: 12.4px; white-space: nowrap; }
+  .num-strong { font-variant-numeric: tabular-nums; font-weight: 650; color: var(--text); }
+
+  .task { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--r-md); border: 1px solid var(--border); background: var(--surface-2); }
+  .task .t { font-size: 12.6px; font-weight: 600; }
+  .task .d { font-size: 11.2px; color: var(--text-3); margin-top: 2px; }
+  .task .cnt-badge { margin-left: auto; font-size: 12px; font-weight: 750; font-variant-numeric: tabular-nums; }
+
+  .plat-mini { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px dashed var(--border); }
+  .plat-mini:last-child { border-bottom: 0; }
+  .plat-mini .bar { flex: 1; height: 6px; border-radius: var(--r-full); background: var(--surface-3); overflow: hidden; }
+</style>
+</head>
+<body class="app">
+<svg class="icon-sprite" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <defs>
+    <!-- actions -->
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"/></symbol>
+    <symbol id="i-edit" viewBox="0 0 24 24"><path d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l9.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 4.5v15m7.5-7.5h-15"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><path d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></symbol>
+    <symbol id="i-more" viewBox="0 0 24 24"><path d="M6.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM12.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM18.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0z"/></symbol>
+    <!-- status -->
+    <symbol id="i-chart" viewBox="0 0 24 24"><path d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><path d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></symbol>
+    <symbol id="i-link" viewBox="0 0 24 24"><path d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244"/></symbol>
+    <symbol id="i-sync" viewBox="0 0 24 24"><path d="M19.5 12c0-1.232-.046-2.453-.138-3.662a4.006 4.006 0 00-3.7-3.7 48.678 48.678 0 00-7.324 0 4.006 4.006 0 00-3.7 3.7c-.017.22-.032.441-.046.662M19.5 12l3-3m-3 3l-3-3m-12 3c0 1.232.046 2.453.138 3.662a4.006 4.006 0 003.7 3.7 48.656 48.656 0 007.324 0 4.006 4.006 0 003.7-3.7c.017-.22.032-.441.046-.662M4.5 12l3 3m-3-3l-3 3"/></symbol>
+    <symbol id="i-chevronDown" viewBox="0 0 24 24"><path d="M19.5 8.25l-7.5 7.5-7.5-7.5"/></symbol>
+    <symbol id="i-chevronRight" viewBox="0 0 24 24"><path d="M8.25 4.5l7.5 7.5-7.5 7.5"/></symbol>
+    <symbol id="i-chevronLeft" viewBox="0 0 24 24"><path d="M15.75 19.5L8.25 12l7.5-7.5"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"/></symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178zM15 12a3 3 0 11-6 0 3 3 0 016 0z"/></symbol>
+    <symbol id="i-eyeOff" viewBox="0 0 24 24"><path d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88"/></symbol>
+    <symbol id="i-cog" viewBox="0 0 24 24"><path d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281zM15 12a3 3 0 11-6 0 3 3 0 016 0z"/></symbol>
+    <symbol id="i-grid" viewBox="0 0 24 24"><path d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z"/></symbol>
+    <symbol id="i-chat" viewBox="0 0 24 24"><path d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z"/></symbol>
+    <symbol id="i-arrowRight" viewBox="0 0 24 24"><path d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></symbol>
+    <symbol id="i-arrowUp" viewBox="0 0 24 24"><path d="M5 10l7-7m0 0l7 7m-7-7v18"/></symbol>
+    <symbol id="i-arrowDown" viewBox="0 0 24 24"><path d="M19 14l-7 7m0 0l-7-7m7 7V3"/></symbol>
+    <symbol id="i-checkCircle" viewBox="0 0 24 24"><path d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></symbol>
+    <symbol id="i-xCircle" viewBox="0 0 24 24"><path d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><path d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z"/></symbol>
+    <symbol id="i-warning" viewBox="0 0 24 24"><path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></symbol>
+    <symbol id="i-user" viewBox="0 0 24 24"><path d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"/></symbol>
+    <symbol id="i-userPlus" viewBox="0 0 24 24"><path d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24"><path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></symbol>
+    <symbol id="i-document" viewBox="0 0 24 24"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></symbol>
+    <symbol id="i-clipboard" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><path d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24"><path d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></symbol>
+    <symbol id="i-filter" viewBox="0 0 24 24"><path d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 01-.659 1.591l-5.432 5.432a2.25 2.25 0 00-.659 1.591v2.927a2.25 2.25 0 01-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 00-.659-1.591L3.659 7.409A2.25 2.25 0 013 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0112 3z"/></symbol>
+    <symbol id="i-globe" viewBox="0 0 24 24"><path d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 013 12c0-1.605.42-3.113 1.157-4.418"/></symbol>
+    <symbol id="i-sort" viewBox="0 0 24 24"><path d="M8.25 15L12 18.75 15.75 15m-7.5-6L12 5.25 15.75 9"/></symbol>
+    <symbol id="i-key" viewBox="0 0 24 24"><path d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><path d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/></symbol>
+    <symbol id="i-calendar" viewBox="0 0 24 24"><path d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5"/></symbol>
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75"/></symbol>
+    <symbol id="i-terminal" viewBox="0 0 24 24"><path d="M6.75 7.5l3 2.25-3 2.25m4.5 0h3m-9 8.25h13.5A2.25 2.25 0 0021 18V6a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 6v12a2.25 2.25 0 002.25 2.25z"/></symbol>
+    <symbol id="i-gift" viewBox="0 0 24 24"><path d="M21 11.25v8.25a1.5 1.5 0 01-1.5 1.5H5.25a1.5 1.5 0 01-1.5-1.5v-8.25M12 4.875A2.625 2.625 0 109.375 7.5H12m0-2.625V7.5m0-2.625A2.625 2.625 0 1114.625 7.5H12m0 0V21m-8.625-9.75h18c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125h-18c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z"/></symbol>
+    <symbol id="i-creditCard" viewBox="0 0 24 24"><path d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z"/></symbol>
+    <symbol id="i-mail" viewBox="0 0 24 24"><path d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75"/></symbol>
+    <symbol id="i-chartBar" viewBox="0 0 24 24"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></symbol>
+    <symbol id="i-trendingUp" viewBox="0 0 24 24"><path d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></symbol>
+    <symbol id="i-trendingDown" viewBox="0 0 24 24"><path d="M13 17h8m0 0v-8m0 8l-8-8-4 4-6-6"/></symbol>
+    <symbol id="i-database" viewBox="0 0 24 24"><path d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125v-3.75"/></symbol>
+    <symbol id="i-cube" viewBox="0 0 24 24"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></symbol>
+    <symbol id="i-bell" viewBox="0 0 24 24"><path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></symbol>
+    <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></symbol>
+    <symbol id="i-sparkles" viewBox="0 0 24 24"><path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z"/></symbol>
+    <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M2.25 15a4.5 4.5 0 004.5 4.5H18a3.75 3.75 0 001.332-7.257 3 3 0 00-3.758-3.848 5.25 5.25 0 00-10.233 2.33A4.502 4.502 0 002.25 15z"/></symbol>
+    <symbol id="i-server" viewBox="0 0 24 24"><path d="M5.25 14.25h13.5m-13.5 0a3 3 0 01-3-3m3 3a3 3 0 100 6h13.5a3 3 0 100-6m-16.5-3a3 3 0 013-3h13.5a3 3 0 013 3m-19.5 0a4.5 4.5 0 01.9-2.7L5.737 5.1a3.375 3.375 0 012.7-1.35h7.126c1.062 0 2.062.5 2.7 1.35l2.587 3.45a4.5 4.5 0 01.9 2.7m-19.5 0h19.5m-19.5 0a4.5 4.5 0 004.5 4.5h10.5a4.5 4.5 0 004.5-4.5"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><path d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z"/></symbol>
+    <symbol id="i-book" viewBox="0 0 24 24"><path d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"/></symbol>
+    <symbol id="i-dollar" viewBox="0 0 24 24"><path d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></symbol>
+    <symbol id="i-ban" viewBox="0 0 24 24"><path d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></symbol>
+    <symbol id="i-login" viewBox="0 0 24 24"><path d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9"/></symbol>
+    <symbol id="i-swap" viewBox="0 0 24 24"><path d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"/></symbol>
+    <symbol id="i-cpu" viewBox="0 0 24 24"><path d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/></symbol>
+    <symbol id="i-chatBubble" viewBox="0 0 24 24"><path d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></symbol>
+    <symbol id="i-calculator" viewBox="0 0 24 24"><path d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></symbol>
+    <symbol id="i-fire" viewBox="0 0 24 24"><path d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z"/></symbol>
+    <symbol id="i-badge" viewBox="0 0 24 24"><path d="M9 12.75L11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 01-1.043 3.296 3.745 3.745 0 01-3.296 1.043A3.745 3.745 0 0112 21c-1.268 0-2.39-.63-3.068-1.593a3.746 3.746 0 01-3.296-1.043 3.745 3.745 0 01-1.043-3.296A3.745 3.745 0 013 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 011.043-3.296 3.746 3.746 0 013.296-1.043A3.746 3.746 0 0112 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 013.296 1.043 3.746 3.746 0 011.043 3.296A3.745 3.745 0 0121 12z"/></symbol>
+    <symbol id="i-brain" viewBox="0 0 24 24"><path d="M12 18v-5.25m0 0a6.01 6.01 0 001.5-.189m-1.5.189a6.01 6.01 0 01-1.5-.189m3.75 7.478a12.06 12.06 0 01-4.5 0m3.75 2.383a14.406 14.406 0 01-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 10-7.517 0c.85.493 1.509 1.333 1.509 2.316V18"/></symbol>
+    <symbol id="i-externalLink" viewBox="0 0 24 24"><path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></symbol>
+    <symbol id="i-bell2" viewBox="0 0 24 24"><path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></symbol>
+    <symbol id="i-plug" viewBox="0 0 24 24"><path d="M13.5 10.5V6.75a4.5 4.5 0 119 0v3.75M3.75 21.75h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H3.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"/></symbol>
+    <symbol id="i-layers" viewBox="0 0 24 24"><path d="M6.429 9.75L2.25 12l4.179 2.25m0-4.5l5.571 3 5.571-3m-11.142 0L2.25 7.5 12 2.25l9.75 5.25-4.179 2.25m0 0l4.179 2.25L12 17.25 2.25 12m15.321-2.25l4.179 2.25L12 17.25l-9.75-5.25"/></symbol>
+    <symbol id="i-signal" viewBox="0 0 24 24"><path d="M9.348 14.651a3.75 3.75 0 010-5.303m5.304 0a3.75 3.75 0 010 5.303m-7.425 2.122a6.75 6.75 0 010-9.546m9.546 0a6.75 6.75 0 010 9.546M5.106 18.894c-3.808-3.807-3.808-9.98 0-13.788m13.788 0c3.808 3.807 3.808 9.98 0 13.788M12 12h.008v.008H12V12zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"/></symbol>
+    <symbol id="i-ticket" viewBox="0 0 24 24"><path d="M16.5 6v.75m0 3v.75m0 3v.75m0 3V18m-9-5.25h5.25M7.5 15h3M3.375 5.25c-.621 0-1.125.504-1.125 1.125v3.026a2.999 2.999 0 010 5.198v3.026c0 .621.504 1.125 1.125 1.125h17.25c.621 0 1.125-.504 1.125-1.125v-3.026a2.999 2.999 0 010-5.198V6.375c0-.621-.504-1.125-1.125-1.125H3.375z"/></symbol>
+    <symbol id="i-orderList" viewBox="0 0 24 24"><path d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z"/></symbol>
+    <symbol id="i-activity" viewBox="0 0 24 24"><path d="M3 12h4.5l3-8.25L15 20.25l3-8.25h3"/></symbol>
+  </defs>
+</svg>
+
+
+
+<aside class="sidebar">
+  <div class="sb-brand">
+    <div class="sb-logo">S2</div>
+    <div class="stack">
+      <div class="sb-name">Sub2API</div>
+      <div class="row gap-6">v1.4.2 <span class="sb-ver" style="margin-left:6px">ADMIN</span></div>
+    </div>
+  </div>
+  <nav class="sb-scroll">
+<div class="sb-group">
+<div class="sb-group-t">总览</div>
+<a class="sb-item on"><svg class="i"><use href="#i-grid"/></svg>概览</a>
+<a class="sb-item"><svg class="i"><use href="#i-activity"/></svg>运维监控<span class="tail"><span class="pill pill-warn" style="height:18px">3</span></span></a>
+</div>
+<div class="sb-group">
+<div class="sb-group-t">流量</div>
+<a class="sb-item"><svg class="i"><use href="#i-server"/></svg>账号池<span class="tail">248</span></a>
+<a class="sb-item"><svg class="i"><use href="#i-layers"/></svg>分组与定价</a>
+<a class="sb-item"><svg class="i"><use href="#i-cpu"/></svg>渠道定价</a>
+<a class="sb-item"><svg class="i"><use href="#i-signal"/></svg>渠道监控</a>
+</div>
+<div class="sb-group">
+<div class="sb-group-t">客户</div>
+<a class="sb-item"><svg class="i"><use href="#i-users"/></svg>用户</a>
+<a class="sb-item"><svg class="i"><use href="#i-creditCard"/></svg>订阅</a>
+<a class="sb-item"><svg class="i"><use href="#i-orderList"/></svg>订单<span class="tail"><span class="cnt">12</span></span></a>
+<a class="sb-item"><svg class="i"><use href="#i-dollar"/></svg>支付配置</a>
+<a class="sb-item"><svg class="i"><use href="#i-ticket"/></svg>兑换码 / 优惠码</a>
+<a class="sb-item"><svg class="i"><use href="#i-userPlus"/></svg>邀请返利</a>
+</div>
+<div class="sb-group">
+<div class="sb-group-t">系统</div>
+<a class="sb-item"><svg class="i"><use href="#i-shield"/></svg>安全审计</a>
+<a class="sb-item"><svg class="i"><use href="#i-clipboard"/></svg>操作日志</a>
+<a class="sb-item"><svg class="i"><use href="#i-plug"/></svg>插件</a>
+<a class="sb-item"><svg class="i"><use href="#i-cog"/></svg>系统设置</a>
+</div>
+<div class="sb-group">
+<div class="sb-group-t">我的账户</div>
+<a class="sb-item"><svg class="i"><use href="#i-key"/></svg>API 密钥</a>
+<a class="sb-item"><svg class="i"><use href="#i-chart"/></svg>使用记录</a>
+<a class="sb-item"><svg class="i"><use href="#i-creditCard"/></svg>我的订阅</a>
+<a class="sb-item"><svg class="i"><use href="#i-user"/></svg>个人资料</a>
+</div>
+  </nav>
+  <div class="sb-foot">
+    <div class="usage-meter">
+      <div class="row" style="justify-content:space-between"><span class="xs bold">本月额度</span><span class="xs muted">72%</span></div>
+      <div class="progress"><i style="width:72%"></i></div>
+      <div class="xs muted">已用 $218.40 / $300.00</div>
+    </div>
+    <a class="sb-item" data-toggle-theme><svg class="i"><use href="#i-moon"/></svg><span>深色模式</span></a>
+    <a class="sb-item"><svg class="i"><use href="#i-chevronLeft"/></svg>收起侧栏</a>
+  </div>
+</aside>
+
+<div class="main">
+  <header class="topbar">
+    <div class="tb-title"><h1>运营概览</h1><span>2026-11-08 14:40 · 数据每 60 秒刷新</span></div>
+    <div class="tb-search"><svg class="i i-16"><use href="#i-search"/></svg><span class="grow">全局搜索：用户 / 账号 / 订单…</span><span class="kbd">⌘K</span></div>
+    <div class="tb-right">
+      <div class="tb-icon"><svg class="i"><use href="#i-bell"/></svg><span class="badge-dot"></span></div>
+      <div class="tb-icon"><svg class="i"><use href="#i-filter"/></svg></div><div class="tb-icon"><svg class="i"><use href="#i-globe"/></svg></div>
+      <div class="user-chip"><div class="avatar" style="background:linear-gradient(135deg,#334155,#0f172a)">AD</div><div class="stack"><span class="nm">系统管理员</span><span class="rl">admin@sub2api.dev</span></div><svg class="i i-16 muted"><use href="#i-chevronDown"/></svg></div>
+    </div>
+  </header>
+
+
+  <main class="page">
+    <div class="page-hd">
+      <div>
+        <h2>运营概览</h2>
+        <p>把「需要你今天做决定的事」放最上面：异常账号、失败突增、待发货订单、成本倒挂分组。</p>
+      </div>
+      <div class="actions">
+        <div class="seg"><button>今日</button><button class="on">近 7 天</button><button>近 30 天</button></div>
+        <button class="btn btn-secondary"><svg class="i i-16"><use href="#i-calendar"/></svg>自定义</button>
+        <button class="btn btn-primary"><svg class="i i-16"><use href="#i-download"/></svg>导出报表</button>
+      </div>
+    </div>
+
+    <!-- action strip -->
+    <div class="alert-strip">
+      <span class="item" style="cursor:default"><svg class="i i-16"><use href="#i-warning"/></svg>需要处理 3 项</span>
+      <span class="sepv"></span>
+      <span class="item">12 个账号额度即将耗尽 <svg class="i i-14"><use href="#i-arrowRight"/></svg></span>
+      <span class="sepv"></span>
+      <span class="item">OpenAI 平台错误率 4.2%（阈值 3%）<svg class="i i-14"><use href="#i-arrowRight"/></svg></span>
+      <span class="sepv"></span>
+      <span class="item">12 笔订单已支付待发货 <svg class="i i-14"><use href="#i-arrowRight"/></svg></span>
+      <span style="margin-left:auto" class="xs muted">上次检查 14:39:12</span>
+    </div>
+
+    <!-- KPI -->
+    <section class="kpis">
+      <div class="kpi">
+        <div class="lbl"><svg class="i"><use href="#i-dollar"/></svg>净收入（实际扣费）</div>
+        <div class="val">$8,412.60</div>
+        <div class="sub"><span class="trend trend-up"><svg class="i" style="width:11px;height:11px"><use href="#i-arrowUp"/></svg>12.4%</span>较上一周期</div>
+        <div class="spark-wrap"><svg viewBox="0 0 108 46" width="108" height="46"><path d="M0,34 L12,31 L24,33 L36,25 L48,27 L60,20 L72,23 L84,14 L96,17 L108,10" fill="none" stroke="#0d9488" stroke-width="1.7"/></svg></div>
+      </div>
+      <div class="kpi inverse">
+        <div class="lbl"><svg class="i"><use href="#i-server"/></svg>上游成本</div>
+        <div class="val">$5,986.14</div>
+        <div class="sub"><span class="trend trend-up" style="color:var(--warn-600)"><svg class="i" style="width:11px;height:11px"><use href="#i-arrowUp"/></svg>18.9%</span>增速超过收入</div>
+        <div class="spark-wrap"><svg viewBox="0 0 108 46" width="108" height="46"><path d="M0,36 L12,32 L24,30 L36,26 L48,27 L60,18 L72,20 L84,12 L96,14 L108,6" fill="none" stroke="#d97706" stroke-width="1.7"/></svg></div>
+      </div>
+      <div class="kpi">
+        <div class="lbl"><svg class="i"><use href="#i-trendingUp"/></svg>毛利率</div>
+        <div class="val">28.8<span class="unit">%</span></div>
+        <div class="sub"><span class="trend trend-down"><svg class="i" style="width:11px;height:11px"><use href="#i-arrowDown"/></svg>2.1pt</span>目标 35%</div>
+        <div class="spark-wrap"><svg viewBox="0 0 108 46" width="108" height="46"><path d="M0,16 L12,18 L24,17 L36,22 L48,20 L60,26 L72,24 L84,28 L96,27 L108,31" fill="none" stroke="#94a3b8" stroke-width="1.7"/></svg></div>
+      </div>
+      <div class="kpi">
+        <div class="lbl"><svg class="i"><use href="#i-cpu"/></svg>请求 / 成功率</div>
+        <div class="val">2.41M<span class="unit">/ 99.58%</span></div>
+        <div class="sub"><span class="trend trend-up"><svg class="i" style="width:11px;height:11px"><use href="#i-arrowUp"/></svg>9.6%</span>活跃用户 1,284</div>
+        <div class="spark-wrap"><svg viewBox="0 0 108 46" width="108" height="46"><path d="M0,30 L12,27 L24,29 L36,22 L48,24 L60,17 L72,19 L84,12 L96,15 L108,9" fill="none" stroke="#94a3b8" stroke-width="1.7"/></svg></div>
+      </div>
+    </section>
+
+    <section class="two-col">
+      <div class="stack" style="gap:16px">
+        <!-- Revenue vs cost -->
+        <div class="card">
+          <div class="card-hd">
+            <div><h3>收入 vs 成本</h3><div class="xs muted" style="margin-top:2px">柱状为收入（标准价 / 实付），折线为上游成本</div></div>
+            <div class="rev-legend">
+              <span><i style="background:#0d9488"></i>收入</span>
+              <span><i style="background:#99f6e4"></i>标准价</span>
+              <span><i style="background:#f59e0b"></i>成本</span>
+            </div>
+          </div>
+          <div class="card-bd" style="padding-bottom:10px">
+            <svg viewBox="0 0 760 240" width="100%" height="250">
+              <g class="chart-grid">
+                <line x1="50" y1="24" x2="740" y2="24"/><line x1="50" y1="74" x2="740" y2="74"/>
+                <line x1="50" y1="124" x2="740" y2="124"/><line x1="50" y1="174" x2="740" y2="174"/>
+              </g>
+              <g class="chart-axis">
+                <text x="8" y="28">$1.6k</text><text x="8" y="78">$1.2k</text><text x="8" y="128">$800</text><text x="8" y="178">$400</text>
+                <text x="80" y="214">11/02</text><text x="180" y="214">11/03</text><text x="280" y="214">11/04</text>
+                <text x="380" y="214">11/05</text><text x="480" y="214">11/06</text><text x="580" y="214">11/07</text><text x="680" y="214">11/08</text>
+              </g>
+              <g>
+                <rect x="86" y="118" width="22" height="76" rx="3" fill="#14b8a6"/><rect x="109" y="104" width="14" height="90" rx="3" fill="#99f6e4"/>
+                <rect x="186" y="108" width="22" height="86" rx="3" fill="#14b8a6"/><rect x="209" y="96" width="14" height="98" rx="3" fill="#99f6e4"/>
+                <rect x="286" y="126" width="22" height="68" rx="3" fill="#14b8a6"/><rect x="309" y="112" width="14" height="82" rx="3" fill="#99f6e4"/>
+                <rect x="386" y="88" width="22" height="106" rx="3" fill="#14b8a6"/><rect x="409" y="74" width="14" height="120" rx="3" fill="#99f6e4"/>
+                <rect x="486" y="102" width="22" height="92" rx="3" fill="#14b8a6"/><rect x="509" y="90" width="14" height="104" rx="3" fill="#99f6e4"/>
+                <rect x="586" y="70" width="22" height="124" rx="3" fill="#14b8a6"/><rect x="609" y="58" width="14" height="136" rx="3" fill="#99f6e4"/>
+                <rect x="686" y="60" width="22" height="134" rx="3" fill="#14b8a6"/><rect x="709" y="48" width="14" height="146" rx="3" fill="#99f6e4"/>
+              </g>
+              <path d="M108,150 L208,142 L308,138 L408,124 L508,116 L608,104 L708,92"
+                    fill="none" stroke="#f59e0b" stroke-width="2.4" stroke-linecap="round"/>
+              <g fill="#f59e0b">
+                <circle cx="108" cy="150" r="3.2"/><circle cx="208" cy="142" r="3.2"/><circle cx="308" cy="138" r="3.2"/>
+                <circle cx="408" cy="124" r="3.2"/><circle cx="508" cy="116" r="3.2"/><circle cx="608" cy="104" r="3.2"/>
+                <circle cx="708" cy="92" r="4" stroke="#fff" stroke-width="2"/>
+              </g>
+              <g>
+                <rect x="56" y="150" width="160" height="46" rx="8" fill="#0f172a" opacity=".92"/>
+                <text x="70" y="167" fill="#94a3b8" font-size="10">11/08</text>
+                <text x="70" y="182" fill="#fff" font-size="11">收入 $1,412 · 成本 $1,008</text>
+                <text x="70" y="192" fill="#5eead4" font-size="10">毛利率 28.6%</text>
+              </g>
+            </svg>
+          </div>
+          <div class="card" style="margin:0 18px 18px;box-shadow:none;background:var(--surface-2)">
+            <table class="tbl tbl-cost">
+              <thead><tr><th>分组</th><th>收入</th><th>上游成本</th><th>毛利率</th><th>请求量</th><th>风险</th></tr></thead>
+              <tbody>
+                <tr><td><div class="row gap-8"><span class="plat" style="background:#d97757;width:20px;height:20px;font-size:9px">C</span><b style="color:var(--text)">Claude Pro 池</b></div></td>
+                  <td class="num-strong">$4,208.10</td><td class="num">$2,612.40</td><td><span class="pill pill-ok">37.9%</span></td><td class="num">1.02M</td><td><span class="sm muted">—</span></td></tr>
+                <tr><td><div class="row gap-8"><span class="plat" style="background:#10a37f;width:20px;height:20px;font-size:9px">O</span><b style="color:var(--text)">OpenAI 标准</b></div></td>
+                  <td class="num-strong">$2,104.80</td><td class="num">$1,986.20</td><td><span class="pill pill-warn">5.6%</span></td><td class="num">842k</td><td><span class="pill pill-warn">倍率偏低</span></td></tr>
+                <tr><td><div class="row gap-8"><span class="plat" style="background:#d97757;width:20px;height:20px;font-size:9px">C</span><b style="color:var(--text)">Claude 低价池</b></div></td>
+                  <td class="num-strong">$1,266.30</td><td class="num">$1,142.60</td><td><span class="pill pill-warn">9.8%</span></td><td class="num">386k</td><td><span class="sm muted">—</span></td></tr>
+                <tr><td><div class="row gap-8"><span class="plat" style="background:#4285f4;width:20px;height:20px;font-size:9px">G</span><b style="color:var(--text)">Gemini Pro</b></div></td>
+                  <td class="num-strong">$833.40</td><td class="num">$245.00</td><td><span class="pill pill-ok">70.6%</span></td><td class="num">164k</td><td><span class="sm muted">—</span></td></tr>
+                <tr><td><div class="row gap-8"><span class="plat" style="background:#8b5cf6;width:20px;height:20px;font-size:9px">X</span><b style="color:var(--text)">Grok 体验池</b></div></td>
+                  <td class="num-strong">$—</td><td class="num">$0.00</td><td><span class="pill pill-bad">-2.4%</span></td><td class="num">14k</td><td><span class="pill pill-bad">成本倒挂</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- traffic -->
+        <div class="three-col">
+          <div class="card">
+            <div class="card-hd"><h3>并发与排队</h3><span class="pill pill-ok">正常</span></div>
+            <div class="card-bd">
+              <div class="row" style="justify-content:space-between;align-items:baseline">
+                <span class="val" style="font-size:26px;font-weight:720">186<span class="xs muted" style="font-weight:600">/ 512</span></span>
+                <span class="sm muted">峰值 402</span>
+              </div>
+              <div class="progress" style="margin-top:10px;height:8px"><i style="width:36%"></i></div>
+              <div class="xs muted" style="margin-top:8px">排队 3 · 限流 128 次/小时</div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-hd"><h3>延迟分位</h3><span class="pill pill-warn">TTFT 偏高</span></div>
+            <div class="card-bd">
+              <svg viewBox="0 0 220 84" width="100%" height="84">
+                <g fill="#cbd5e1">
+                  <rect x="4" y="46" width="18" height="34" rx="3"/><rect x="30" y="38" width="18" height="42" rx="3"/>
+                  <rect x="56" y="30" width="18" height="50" rx="3"/><rect x="82" y="44" width="18" height="36" rx="3"/>
+                  <rect x="108" y="56" width="18" height="24" rx="3"/><rect x="134" y="64" width="18" height="16" rx="3"/>
+                  <rect x="160" y="70" width="18" height="10" rx="3"/><rect x="186" y="74" width="18" height="6" rx="3"/>
+                </g>
+                <rect x="56" y="30" width="18" height="50" rx="3" fill="#14b8a6"/>
+                <text x="4" y="20" fill="#64748b" font-size="10">P50 1.4s · P95 3.1s · P99 6.8s</text>
+              </svg>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-hd"><h3>账号池健康</h3><a class="xs bold" style="color:var(--p-600)">管理 →</a></div>
+            <div class="card-bd stack" style="gap:11px">
+              <div class="health-row"><span class="sm">Claude</span>
+                <div class="health-bar"><span style="width:78%;background:#10b981"></span><span style="width:14%;background:#f59e0b"></span><span style="width:8%;background:#ef4444"></span></div>
+                <span class="sm bold" style="text-align:right">86</span></div>
+              <div class="health-row"><span class="sm">OpenAI</span>
+                <div class="health-bar"><span style="width:62%;background:#10b981"></span><span style="width:24%;background:#f59e0b"></span><span style="width:14%;background:#ef4444"></span></div>
+                <span class="sm bold" style="text-align:right">72</span></div>
+              <div class="health-row"><span class="sm">Gemini</span>
+                <div class="health-bar"><span style="width:92%;background:#10b981"></span><span style="width:6%;background:#f59e0b"></span><span style="width:2%;background:#ef4444"></span></div>
+                <span class="sm bold" style="text-align:right">48</span></div>
+              <div class="health-row"><span class="sm">Grok</span>
+                <div class="health-bar"><span style="width:54%;background:#10b981"></span><span style="width:12%;background:#f59e0b"></span><span style="width:34%;background:#ef4444"></span></div>
+                <span class="sm bold" style="text-align:right">14</span></div>
+              <div class="row gap-12 xs muted" style="margin-top:2px">
+                <span><i style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#10b981;margin-right:4px"></i>可用</span>
+                <span><i style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#f59e0b;margin-right:4px"></i>降级</span>
+                <span><i style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#ef4444;margin-right:4px"></i>不可用</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- right rail -->
+      <div class="stack" style="gap:16px">
+        <div class="card">
+          <div class="card-hd"><h3>待办</h3><span class="pill pill-warn">6 项</span></div>
+          <div class="card-bd stack" style="gap:8px">
+            <div class="task">
+              <div class="qa-ic" style="width:28px;height:28px;border-radius:8px;display:grid;place-items:center;background:var(--warn-50);color:var(--warn-600)"><svg class="i i-16"><use href="#i-server"/></svg></div>
+              <div><div class="t">额度即将耗尽的账号</div><div class="d">Claude 6 个 · OpenAI 6 个</div></div>
+              <span class="cnt-badge" style="color:var(--warn-600)">12</span>
+            </div>
+            <div class="task">
+              <div class="qa-ic" style="width:28px;height:28px;border-radius:8px;display:grid;place-items:center;background:var(--bad-50);color:var(--bad-600)"><svg class="i i-16"><use href="#i-orderList"/></svg></div>
+              <div><div class="t">已支付未发货订单</div><div class="d">最长等待 8 分钟</div></div>
+              <span class="cnt-badge" style="color:var(--bad-600)">12</span>
+            </div>
+            <div class="task">
+              <div class="qa-ic" style="width:28px;height:28px;border-radius:8px;display:grid;place-items:center;background:var(--bad-50);color:var(--bad-600)"><svg class="i i-16"><use href="#i-shield"/></svg></div>
+              <div><div class="t">风控命中待复核</div><div class="d">其中 3 个用户已自动封禁</div></div>
+              <span class="cnt-badge" style="color:var(--bad-600)">28</span>
+            </div>
+            <div class="task">
+              <div class="qa-ic" style="width:28px;height:28px;border-radius:8px;display:grid;place-items:center;background:var(--info-50);color:var(--info-600)"><svg class="i i-16"><use href="#i-userPlus"/></svg></div>
+              <div><div class="t">返利提现申请</div><div class="d">金额合计 $426.80</div></div>
+              <span class="cnt-badge" style="color:var(--info-600)">4</span>
+            </div>
+            <div class="task">
+              <div class="qa-ic" style="width:28px;height:28px;border-radius:8px;display:grid;place-items:center;background:var(--surface-3);color:var(--text-2)"><svg class="i i-16"><use href="#i-refresh"/></svg></div>
+              <div><div class="t">渠道探测失败</div><div class="d">gpt-5.4 连续 3 次超时</div></div>
+              <span class="cnt-badge">2</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-hd"><h3>平台流量占比</h3><span class="sm muted">按请求</span></div>
+          <div class="card-bd">
+            <div class="plat-mini"><span class="plat" style="background:#d97757">C</span><span class="sm" style="width:64px">Anthropic</span>
+              <div class="bar"><div style="width:63%;height:100%;background:#d97757;border-radius:999px"></div></div><span class="sm bold num">58%</span></div>
+            <div class="plat-mini"><span class="plat" style="background:#10a37f">O</span><span class="sm" style="width:64px">OpenAI</span>
+              <div class="bar"><div style="width:26%;height:100%;background:#10a37f;border-radius:999px"></div></div><span class="sm bold num">35%</span></div>
+            <div class="plat-mini"><span class="plat" style="background:#4285f4">G</span><span class="sm" style="width:64px">Google</span>
+              <div class="bar"><div style="width:11%;height:100%;background:#4285f4;border-radius:999px"></div></div><span class="sm bold num">12%</span></div>
+            <div class="plat-mini"><span class="plat" style="background:#8b5cf6">X</span><span class="sm" style="width:64px">Grok</span>
+              <div class="bar"><div style="width:3%;height:100%;background:#8b5cf6;border-radius:999px"></div></div><span class="sm bold num">1%</span></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-hd"><h3>新注册用户</h3><span class="pill pill-ok">+18.4%</span></div>
+          <div class="card-bd">
+            <div class="row" style="align-items:baseline;gap:8px"><span style="font-size:26px;font-weight:720;letter-spacing:-.03em">128</span><span class="sm muted">本周 · 昨日 24</span></div>
+            <svg viewBox="0 0 220 56" width="100%" height="56" style="margin-top:10px">
+              <path d="M0,44 L31,38 L62,40 L93,30 L124,32 L155,22 L186,26 L220,14" fill="none" stroke="#0d9488" stroke-width="2"/>
+              <path d="M0,44 L31,38 L62,40 L93,30 L124,32 L155,22 L186,26 L220,14 L220,56 L0,56 Z" fill="rgba(20,184,166,.12)"/>
+            </svg>
+            <div class="row" style="justify-content:space-between;font-size:11px;color:var(--text-3);margin-top:4px">
+              <span>11/02</span><span>11/04</span><span>11/06</span><span>11/08</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="background:var(--surface-2)">
+          <div class="card-bd" style="padding:14px 16px">
+            <div class="row gap-8" style="font-size:12.6px;font-weight:650"><svg class="i i-16" style="color:var(--p-600)"><use href="#i-bolt"/></svg>快捷入口</div>
+            <div class="row gap-8" style="margin-top:10px;flex-wrap:wrap">
+              <button class="btn btn-sm btn-secondary">新建账号</button>
+              <button class="btn btn-sm btn-secondary">新建分组</button>
+              <button class="btn btn-sm btn-secondary">生成兑换码</button>
+              <button class="btn btn-sm btn-secondary">发布公告</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+<script>
+// Prototype-only runtime: theme toggle, segmented controls, row selection, drawer/modal open.
+document.addEventListener('click', (e) => {
+  const seg = e.target.closest('.seg button, .tabs a');
+  if (seg) { [...seg.parentElement.children].forEach(c => c.classList.remove('on')); seg.classList.add('on'); }
+  const theme = e.target.closest('[data-toggle-theme]');
+  if (theme) {
+    const h = document.documentElement;
+    h.dataset.theme = h.dataset.theme === 'dark' ? 'light' : 'dark';
+    theme.querySelector('span').textContent = h.dataset.theme === 'dark' ? '浅色模式' : '深色模式';
+  }
+  const open = e.target.closest('[data-open]');
+  if (open) { const el = document.querySelector(open.dataset.open); if (el) el.classList.remove('hide'); }
+  const close = e.target.closest('[data-close]');
+  if (close) { const el = document.querySelector(close.dataset.close); if (el) el.classList.add('hide'); }
+  const rowSel = e.target.closest('tbody tr[data-selectable]');
+  if (rowSel) { rowSel.classList.toggle('sel'); const cb = rowSel.querySelector('input[type=checkbox]'); if (cb) cb.checked = rowSel.classList.contains('sel'); }
+});
+</script>
+</body>
+</html>

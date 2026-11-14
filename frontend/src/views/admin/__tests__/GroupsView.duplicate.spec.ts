@@ -6,6 +6,8 @@ import type { AdminGroup } from '@/types'
 import GroupsView from '@/views/admin/GroupsView.vue'
 import { adminAPI } from '@/api/admin'
 
+vi.mock('@/api/admin/dashboard', () => ({ getModelStats: vi.fn().mockResolvedValue({ models: [] }) }))
+
 const {
   listGroups,
   duplicateGroup,
@@ -156,6 +158,7 @@ function mountView() {
   return mount(GroupsView, {
     global: {
       stubs: {
+        GroupEconomicsSummary: true,
         AppLayout: AppLayoutStub,
         TablePageLayout: TablePageLayoutStub,
         DataTable: DataTableStub,
@@ -342,14 +345,38 @@ describe('GroupsView duplicate action', () => {
     await wrapper.findAll('button').find(button => button.text() === 'common.edit')!.trigger('click')
     await flushPromises()
 
+    await wrapper.get('[data-group-tab="pricing"]').trigger('click')
+    await wrapper.get('[data-pricing-details="0"]').trigger('click')
+
     expect(wrapper.get<HTMLInputElement>('[data-reasoning-effort="high"]').element.value).toBe('1.5')
     await wrapper.get('[data-reasoning-effort="high"]').setValue('0.5')
     await wrapper.get('[data-reasoning-effort="max"]').setValue('')
+    await wrapper.get('input[aria-label="example-model admin.channels.form.inputPrice"]').setValue('2.4')
     await wrapper.get('#edit-group-form').trigger('submit')
     await flushPromises()
     expect(updateGroup).toHaveBeenCalledWith(42, expect.objectContaining({
-      model_pricing: [expect.objectContaining({ reasoning_effort_multipliers: { high: 0.5 } })],
+      model_pricing: [expect.objectContaining({ input_price: 2.4e-6, output_price: 15e-6, reasoning_effort_multipliers: { high: 0.5 } })],
     }))
+    wrapper.unmount()
+  })
+
+  it('keeps a dirty group selected until discard is confirmed', async () => {
+    listGroups.mockResolvedValue({ items: [sourceGroup, { ...sourceGroup, id: 99, name: 'Second' }], total: 2, pages: 1 })
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.get('[data-tour="edit-group-form-name"]').setValue('Unsaved name')
+    await wrapper.get('[data-group-id="99"]').trigger('click')
+    const confirmation = wrapper.findAllComponents({ name: 'ConfirmDialog' }).find(dialog => dialog.props('title') === 'admin.groups.workspace.unsavedTitle')!
+    expect(confirmation.props('show')).toBe(true)
+    expect((wrapper.get('[data-tour="edit-group-form-name"]').element as HTMLInputElement).value).toBe('Unsaved name')
+    confirmation.vm.$emit('cancel')
+    await flushPromises()
+    expect(confirmation.props('show')).toBe(false)
+    await wrapper.get('[data-group-id="99"]').trigger('click')
+    confirmation.vm.$emit('confirm')
+    await flushPromises()
+    expect((wrapper.get('[data-tour="edit-group-form-name"]').element as HTMLInputElement).value).toBe('Second')
+    expect(updateGroup).not.toHaveBeenCalled()
     wrapper.unmount()
   })
 
@@ -370,6 +397,8 @@ describe('GroupsView duplicate action', () => {
     await wrapper.findAll('button').find(button => button.text() === 'common.edit')!.trigger('click')
     await flushPromises()
 
+    await wrapper.get('[data-group-tab="pricing"]').trigger('click')
+    await wrapper.get('[data-pricing-details="0"]').trigger('click')
     await wrapper.get('[data-reasoning-effort="high"]').setValue('0')
     await wrapper.get('#edit-group-form').trigger('submit')
     expect(updateGroup).not.toHaveBeenCalled()

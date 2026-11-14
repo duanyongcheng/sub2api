@@ -17,11 +17,13 @@ func (s channelMonitorRuntimeStub) GetChannelMonitorRuntime(context.Context) Cha
 	return s.rt
 }
 
-func TestRunCheck_ModeV2NeverProbes(t *testing.T) {
+func TestRunCheck_ProbesDisabledRetiresActiveProbes(t *testing.T) {
 	svc := NewChannelMonitorService(nil, nil)
 	svc.SetRuntimeReader(channelMonitorRuntimeStub{rt: ChannelMonitorRuntime{
 		Enabled: true,
 		Mode:    ChannelMonitorModeV2,
+		// Mode alone no longer decides: the dedicated switch does.
+		ProbesEnabled: false,
 	}})
 
 	results, err := svc.RunCheck(context.Background(), 1)
@@ -56,8 +58,25 @@ func TestNormalizeChannelMonitorMode(t *testing.T) {
 }
 
 func TestChannelMonitorRuntimeActiveProbesAllowed(t *testing.T) {
-	require.False(t, (ChannelMonitorRuntime{Enabled: false, Mode: ChannelMonitorModeV1}).ActiveProbesAllowed())
-	require.True(t, (ChannelMonitorRuntime{Enabled: true, Mode: ChannelMonitorModeV1}).ActiveProbesAllowed())
-	require.False(t, (ChannelMonitorRuntime{Enabled: true, Mode: ChannelMonitorModeV2}).ActiveProbesAllowed())
-	require.True(t, (ChannelMonitorRuntime{Enabled: true, Mode: ChannelMonitorModeV2}).PassiveAggregationAllowed())
+	require.False(t, (ChannelMonitorRuntime{Enabled: false, ProbesEnabled: true}).ActiveProbesAllowed())
+	require.True(t, (ChannelMonitorRuntime{Enabled: true, ProbesEnabled: true}).ActiveProbesAllowed())
+	require.False(t, (ChannelMonitorRuntime{Enabled: true, ProbesEnabled: false}).ActiveProbesAllowed())
+	// The probe switch is independent of the mode: v2 aggregation and probes can
+	// run on the same site, so a cold group can be probed while traffic is still
+	// aggregated for the groups that have real requests.
+	probesAndAggregation := ChannelMonitorRuntime{Enabled: true, Mode: ChannelMonitorModeV2, ProbesEnabled: true}
+	require.True(t, probesAndAggregation.ActiveProbesAllowed())
+	require.True(t, probesAndAggregation.PassiveAggregationAllowed())
+	// v1 mode with probes off stays fully quiet.
+	require.False(t, (ChannelMonitorRuntime{Enabled: true, Mode: ChannelMonitorModeV1, ProbesEnabled: false}).ActiveProbesAllowed())
+}
+
+func TestResolveChannelMonitorProbesEnabled(t *testing.T) {
+	// Unset keeps the legacy behaviour: only v1 mode probes.
+	require.True(t, resolveChannelMonitorProbesEnabled(ChannelMonitorModeV1, ""))
+	require.False(t, resolveChannelMonitorProbesEnabled(ChannelMonitorModeV2, ""))
+	// An explicit value always wins, so a v2 site can opt into probes.
+	require.True(t, resolveChannelMonitorProbesEnabled(ChannelMonitorModeV2, "true"))
+	require.False(t, resolveChannelMonitorProbesEnabled(ChannelMonitorModeV1, "false"))
+	require.True(t, resolveChannelMonitorProbesEnabled(ChannelMonitorModeV2, " TRUE "))
 }

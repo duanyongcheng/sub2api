@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { apiClient } from '../client'
-import { getMatrix, repeatedArrayParamsSerializer } from '../channelMonitorV2'
+import { getMatrix, getSnapshot, repeatedArrayParamsSerializer } from '../channelMonitorV2'
 
 afterEach(() => vi.restoreAllMocks())
 
@@ -32,6 +32,23 @@ describe('channel monitor V2 query serialization', () => {
         group_id: [7],
         model: undefined,
         group_by: 'platform_group',
+      },
+    }))
+  })
+
+  it('sends an optional fixed admin interval without changing ordinary range queries', async () => {
+    const get = vi.spyOn(apiClient, 'get').mockResolvedValue({ data: {} })
+    const filter = {
+      range: '24h' as const, platforms: ['openai'], groupIds: [7], models: ['gpt-5'],
+      start: '2026-11-08T13:00:00.000Z', end: '2026-11-08T14:00:00.000Z',
+    }
+
+    await getSnapshot(filter, true)
+
+    expect(get).toHaveBeenCalledWith('/admin/channel-monitor-v2/snapshot', expect.objectContaining({
+      params: {
+        range: '24h', platform: ['openai'], group_id: [7], model: ['gpt-5'],
+        start: '2026-11-08T13:00:00.000Z', end: '2026-11-08T14:00:00.000Z',
       },
     }))
   })

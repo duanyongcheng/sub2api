@@ -1,5 +1,4 @@
 <template>
-  <AppLayout>
     <div class="space-y-4">
       <!-- Filters -->
       <div class="card p-4">
@@ -7,15 +6,26 @@
           <div class="flex-1 sm:max-w-64">
             <input v-model="orderSearch" type="text" :placeholder="t('payment.admin.searchOrders')" class="input" @input="debounceLoadOrders" />
           </div>
-          <Select v-model="orderFilters.status" :options="statusFilterOptions" class="w-36" @change="loadOrders" />
-          <Select v-model="orderFilters.payment_type" :options="paymentTypeFilterOptions" class="w-40" @change="loadOrders" />
-          <Select v-model="orderFilters.order_type" :options="orderTypeFilterOptions" class="w-36" @change="loadOrders" />
+          <Select v-model="orderFilters.status" :options="statusFilterOptions" class="w-36" @change="reloadFromFirstPage" />
+          <Select v-model="orderFilters.payment_type" :options="paymentTypeFilterOptions" class="w-40" @change="reloadFromFirstPage" />
+          <Select v-model="orderFilters.order_type" :options="orderTypeFilterOptions" class="w-36" @change="reloadFromFirstPage" />
           <div class="flex flex-1 flex-wrap items-center justify-end gap-2">
+            <ReportExportMenu
+              :formats="['csv']"
+              :label="t('payment.admin.exportOrders')"
+              :title="t('payment.admin.exportOrdersHint')"
+              :busy="exporting"
+              data-testid="orders-export"
+              @export="exportOrders"
+            />
             <button @click="loadOrders" :disabled="ordersLoading" class="btn btn-secondary" :title="t('common.refresh')">
               <Icon name="refresh" size="md" :class="ordersLoading ? 'animate-spin' : ''" />
             </button>
           </div>
         </div>
+        <p v-if="exportDone > 0 && exporting" class="mt-2 text-xs text-gray-500 dark:text-gray-400" role="status">
+          {{ t('payment.admin.exportProgress', { current: exportDone, total: exportTotal || '?' }) }}
+        </p>
       </div>
 
       <!-- Table -->
@@ -112,19 +122,20 @@
     </BaseDialog>
 
     <AdminRefundDialog :show="showRefundDialog" :order="selectedOrder" :submitting="refundSubmitting" :require-force="refundRequireForce" :warning="refundWarning" @confirm="handleRefund" @cancel="closeRefundDialog" />
-  </AppLayout>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 import { useAppStore } from '@/stores/app'
 import { adminPaymentAPI } from '@/api/admin/payment'
 import { extractI18nErrorMessage } from '@/utils/apiError'
 import { formatOrderDateTime } from '@/components/payment/orderUtils'
 import type { PaymentOrder } from '@/types/payment'
-import AppLayout from '@/components/layout/AppLayout.vue'
 import Pagination from '@/components/common/Pagination.vue'
+import ReportExportMenu from '@/components/common/ReportExportMenu.vue'
+import { downloadReport, reportFileStem, type ExportFormat } from '@/utils/reportExport'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Select from '@/components/common/Select.vue'
 import Icon from '@/components/icons/Icon.vue'
@@ -144,10 +155,13 @@ interface AuditLog {
 const { t } = useI18n()
 const appStore = useAppStore()
 
+const route = useRoute()
 const ordersLoading = ref(false)
 const orders = ref<PaymentOrder[]>([])
 const orderSearch = ref('')
-const orderFilters = reactive({ status: '', payment_type: '', order_type: '' })
+// Deep links from the page's "needs attention" strip preselect a status.
+const initialStatus = typeof route.query.status === 'string' ? route.query.status : ''
+const orderFilters = reactive({ status: initialStatus, payment_type: '', order_type: '' })
 const orderPagination = reactive({ page: 1, page_size: 20, total: 0 })
 const selectedOrder = ref<PaymentOrder | null>(null)
 const showDetailDialog = ref(false)
@@ -184,6 +198,7 @@ async function loadOrders() {
   } finally { ordersLoading.value = false }
 }
 
+function reloadFromFirstPage() { orderPagination.page = 1; loadOrders() }
 function handleOrderPageChange(page: number) { orderPagination.page = page; loadOrders() }
 function handleOrderPageSizeChange(size: number) { orderPagination.page_size = size; orderPagination.page = 1; loadOrders() }
 
@@ -307,5 +322,92 @@ async function handleQueryRefund(order: PaymentOrder) {
 
 function formatDateTime(dateStr: string): string { return formatOrderDateTime(dateStr) }
 
-onMounted(() => loadOrders())
+/**
+ * 导出订单（原型 08 的「全部订单」视图需要一个可带走的版本）。
+ *
+ * Walks every page of the *current filter* rather than just the visible page,
+ * so the file answers the same question the screen does. Cancels cleanly and
+ * never writes a partial file that looks complete.
+ */
+const exporting = ref(false)
+const exportDone = ref(0)
+const exportTotal = ref(0)
+let exportAbort: AbortController | null = null
+
+function orderExportRow(order: PaymentOrder): Array<string | number | null> {
+  return [
+    order.out_trade_no,
+    order.id,
+    order.user_id ? `#${order.user_id}` : '',
+    t(`payment.admin.${order.order_type === 'subscription' ? 'subscriptionOrder' : 'balanceOrder'}`),
+    order.amount,
+    order.currency || 'USD',
+    order.pay_amount,
+    order.payment_type,
+    t(`payment.status.${String(order.status).toLowerCase()}`, order.status),
+    order.created_at,
+    order.paid_at || '',
+    order.refund_amount ?? '',
+  ]
+}
+
+async function exportOrders(format: ExportFormat) {
+  if (exporting.value) return
+  exporting.value = true
+  exportDone.value = 0
+  exportTotal.value = orderPagination.total
+  const controller = new AbortController()
+  exportAbort = controller
+  try {
+    const header = [
+      t('payment.orders.orderNo'), t('payment.orders.orderId'), t('payment.admin.colUser'),
+      t('payment.admin.orderType'), t('payment.orders.amount'), t('payment.admin.currency'),
+      t('payment.orders.payAmount'), t('payment.orders.paymentMethod'), t('payment.orders.status'),
+      t('payment.orders.createdAt'), t('payment.admin.paidAt'), t('payment.admin.refundAmount'),
+    ]
+    const rows: Array<Array<string | number | null>> = [header]
+    let page = 1
+    while (!controller.signal.aborted) {
+      const res = await adminPaymentAPI.getOrders({
+        page, page_size: 100,
+        keyword: orderSearch.value || undefined,
+        status: orderFilters.status || undefined,
+        payment_type: orderFilters.payment_type || undefined,
+        order_type: orderFilters.order_type || undefined,
+      })
+      const items = res.data.items || []
+      rows.push(...items.map(orderExportRow))
+      exportDone.value += items.length
+      exportTotal.value = res.data.total || exportDone.value
+      if (items.length < 100 || exportDone.value >= (res.data.total || 0)) break
+      page += 1
+    }
+    if (controller.signal.aborted) return
+    if (rows.length <= 1) {
+      appStore.showWarning(t('reportExport.empty'))
+      return
+    }
+    const today = formatLocalDate(new Date())
+    await downloadReport({
+      sheets: [{ name: t('payment.admin.ordersSheet', '订单'), rows }],
+      format,
+      fileName: reportFileStem('orders', today, today),
+    })
+    appStore.showSuccess(t('reportExport.success'))
+  } catch (err: unknown) {
+    if (!controller.signal.aborted) appStore.showError(extractI18nErrorMessage(err, t, 'payment.errors', t('common.error')))
+  } finally {
+    if (exportAbort === controller) exportAbort = null
+    exporting.value = false
+  }
+}
+
+function formatLocalDate(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+}
+
+// The page drives loading so switching tabs does not refetch.
+onBeforeUnmount(() => { exportAbort?.abort(); if (debounceTimer) clearTimeout(debounceTimer) })
+defineExpose({ init: () => loadOrders() })
 </script>

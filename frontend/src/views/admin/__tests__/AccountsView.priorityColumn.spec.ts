@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { flushPromises, mount } from '@vue/test-utils'
+import { config, flushPromises, mount } from '@vue/test-utils'
 
 import AccountsView from '../AccountsView.vue'
+import DataTable from '@/components/common/DataTable.vue'
+
+config.global.stubs.RouterLink = { template: '<a><slot /></a>' }
 
 const { listAccounts } = vi.hoisted(() => ({
   listAccounts: vi.fn()
@@ -53,7 +56,7 @@ const DataTableStub = {
   `
 }
 
-function mountView() {
+function mountView(realTable = false) {
   return mount(AccountsView, {
     global: {
       stubs: {
@@ -61,7 +64,7 @@ function mountView() {
         TablePageLayout: {
           template: '<div><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>'
         },
-        DataTable: DataTableStub,
+        DataTable: realTable ? false : DataTableStub,
         AccountTableActions: { template: '<div><slot name="after" /></div>' },
         AccountTableFilters: true,
         AccountBulkActionsBar: true,
@@ -136,6 +139,69 @@ describe('admin AccountsView priority column preferences', () => {
       'today_stats'
     ])
   })
+
+  it('keeps saved columns until an explicit reset and preserves the selected server sort', async () => {
+    localStorage.setItem('account-hidden-columns', JSON.stringify(['priority', 'today_stats']))
+    localStorage.setItem('account-hidden-columns-version', 'scheduler-score-hidden-by-default')
+    localStorage.setItem('account-table-sort', JSON.stringify({ key: 'upstream_billing_rate', order: 'desc' }))
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.find('[data-column="scheduler_score"]').exists()).toBe(true)
+    expect(wrapper.find('[data-column="priority"]').exists()).toBe(false)
+    expect(listAccounts.mock.lastCall?.[2].include_scheduler_score).toBe('1')
+
+    await wrapper.get('.account-columns button').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-column="scheduler_score"]').exists()).toBe(false)
+    expect(wrapper.find('[data-column="platform"]').exists()).toBe(false)
+    expect(wrapper.find('[data-column="today_stats"]').exists()).toBe(true)
+    expect(wrapper.find('[data-column="priority"]').exists()).toBe(true)
+    expect(listAccounts.mock.lastCall?.[2]).toMatchObject({
+      include_scheduler_score: '0', sort_by: 'upstream_billing_rate', sort_order: 'desc'
+    })
+    expect(JSON.parse(localStorage.getItem('account-hidden-columns')!)).toContain('platform')
+    wrapper.unmount()
+  })
+
+  it.each(['priority', 'upstream_billing_rate'])(
+    'retains the persisted %s server sort with real DataTable after hide, reset, and remount',
+    async (key) => {
+      const expectedSort = { key, order: 'desc' }
+      // Start with a saved layout in which the server-sorted column is visible.
+      localStorage.setItem('account-hidden-columns', JSON.stringify(['scheduler_score']))
+      localStorage.setItem('account-hidden-columns-version', 'scheduler-score-hidden-by-default')
+      localStorage.setItem('account-table-sort', JSON.stringify(expectedSort))
+      const wrapper = mountView(true)
+      await flushPromises()
+      const table = wrapper.getComponent(DataTable)
+      const columnVisible = () => table.props('columns').some(column => column.key === key)
+      const storedSort = () => JSON.parse(localStorage.getItem('account-table-sort')!)
+      expect(columnVisible()).toBe(true)
+      expect(storedSort()).toEqual(expectedSort)
+
+      const checkbox = wrapper.get('.account-columns').findAll('label')
+        .find(label => label.text() === `admin.accounts.columns.${key === 'upstream_billing_rate' ? 'upstreamBillingRate' : key}`)!
+        .get('input')
+      await checkbox.setValue(false)
+      await flushPromises()
+      expect(columnVisible()).toBe(false)
+      expect(storedSort()).toEqual(expectedSort)
+
+      await wrapper.get('.account-columns button').trigger('click')
+      await flushPromises()
+      expect(storedSort()).toEqual(expectedSort)
+      expect(table.emitted('sort')).toBeUndefined()
+      wrapper.unmount()
+
+      const remounted = mountView(true)
+      await flushPromises()
+      expect(storedSort()).toEqual(expectedSort)
+      expect(listAccounts).toHaveBeenLastCalledWith(1, 20, expect.objectContaining({
+        sort_by: key, sort_order: 'desc'
+      }), expect.objectContaining({ signal: expect.any(AbortSignal) }))
+      remounted.unmount()
+    }
+  )
 
   it('keeps priority visible while migrating older saved preferences', async () => {
     localStorage.setItem('account-hidden-columns', JSON.stringify(['today_stats']))

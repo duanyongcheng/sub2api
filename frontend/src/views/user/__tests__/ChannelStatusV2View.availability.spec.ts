@@ -1,5 +1,6 @@
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { reactive } from 'vue'
 import { coverage, health, metrics, row } from '@/features/channel-monitor-v2/__tests__/availabilityFixtures'
 import FilterMultiSelect from '@/features/channel-monitor-v2/FilterMultiSelect.vue'
 import ChannelStatusV2View from '../ChannelStatusV2View.vue'
@@ -18,8 +19,8 @@ vi.mock('vue-i18n', async (importOriginal) => ({
   useI18n: () => ({ t: (key: string) => key, locale: { value: 'en' } }),
 }))
 let wrapper: VueWrapper
-async function view(embedded = true) {
-  wrapper = mount(ChannelStatusV2View, { props: { embedded }, global: { stubs: {
+async function view(embedded = true, syncRoute?: boolean) {
+  wrapper = mount(ChannelStatusV2View, { props: { embedded, syncRoute }, global: { stubs: {
     AvailabilityBoard: { name: 'AvailabilityBoard', props: ['rows', 'children', 'layout', 'loading'], template: '<div data-testid="board" />' },
     AvailabilityErrors: { name: 'AvailabilityErrors', props: ['rows'], template: '<div data-testid="errors" />' },
     AppLayout: { template: '<div><slot /></div>' },
@@ -116,5 +117,27 @@ describe('V2 availability page', () => {
     const [groups, models] = wrapper.findAllComponents(FilterMultiSelect)
     expect(groups.props('options')).toEqual([{ value: '7', label: 'DeepSeek / DS' }])
     expect(models.props('options').map((item: { label: string }) => item.label)).toEqual(['Kimi / moonshot-v1', 'Kimi-K2'])
+  })
+
+  it('preserves URL filters when embedded under the monitor tabs', async () => {
+    mocks.query = { view: 'availability', range: '7d', tab: 'errors' }
+    await view(true, true)
+    expect(mocks.getSnapshot).toHaveBeenCalledWith(expect.objectContaining({ range: '7d' }), false, expect.any(AbortSignal))
+    expect(mocks.getErrors).toHaveBeenCalledOnce()
+    await button('DeepSeek').trigger('click')
+    await flushPromises()
+    expect(mocks.replace).toHaveBeenCalledWith({ query: expect.objectContaining({ view: 'availability', platform: 'deepseek' }) })
+  })
+
+  it('follows query navigation for the embedded user availability view', async () => {
+    mocks.query = reactive({ view: 'availability', range: '24h', platform: '', tab: 'models' })
+    await view(true, true)
+    mocks.query.range = '7d'
+    mocks.query.platform = 'deepseek'
+    mocks.query.tab = 'errors'
+    await flushPromises()
+    expect(mocks.getSnapshot).toHaveBeenLastCalledWith(expect.objectContaining({ range: '7d', platforms: ['deepseek'] }), false, expect.any(AbortSignal))
+    expect(mocks.getErrors).toHaveBeenCalled()
+    expect(mocks.replace).toHaveBeenLastCalledWith({ query: expect.objectContaining({ view: 'availability', range: '7d', platform: 'deepseek', tab: 'errors' }) })
   })
 })

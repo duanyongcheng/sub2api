@@ -1,9 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { flushPromises, mount } from '@vue/test-utils'
+import { config, flushPromises, mount } from '@vue/test-utils'
 
 import AccountsView from '../AccountsView.vue'
+
+config.global.stubs.RouterLink = { template: '<a><slot /></a>' }
 import AccountActionMenu from '@/components/admin/account/AccountActionMenu.vue'
-import PlatformTypeBadge from '@/components/common/PlatformTypeBadge.vue'
+import AccountIdentityChips from '@/components/account/AccountIdentityChips.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import HelpTooltip from '@/components/common/HelpTooltip.vue'
 
@@ -93,7 +95,7 @@ const mountView = () =>
         CreateAccountModal: true,
         EditAccountModal: true,
         BulkEditAccountModal: true,
-        PlatformTypeBadge: true,
+        AccountIdentityChips: true,
         AccountCapacityCell: true,
         AccountStatusIndicator: true,
         AccountTodayStatsCell: true,
@@ -223,7 +225,6 @@ const mountViewWithRow = () =>
           template: `<div>
             <div v-for="(row, idx) in (data || [])" :key="idx">
               <slot name="cell-name" :row="row" :value="row.name" />
-              <slot name="cell-platform_type" :row="row" />
             </div>
           </div>`
         },
@@ -245,7 +246,7 @@ const mountViewWithRow = () =>
         CreateAccountModal: true,
         EditAccountModal: true,
         BulkEditAccountModal: true,
-        PlatformTypeBadge: true,
+        AccountIdentityChips: true,
         AccountCapacityCell: true,
         AccountStatusIndicator: true,
         AccountTodayStatsCell: true,
@@ -275,7 +276,7 @@ describe('admin AccountsView — 账号行展示', () => {
     vi.unstubAllGlobals()
   })
 
-  it('影子行 email 单元格显示 parent_email，PlatformTypeBadge 接收 parent_plan_type/parent_privacy_mode', async () => {
+  it('影子行 email 单元格显示 parent_email，类型单元格接收 parent_plan_type/parent_privacy_mode', async () => {
     const shadowAccount = {
       id: 100,
       name: '影子账号',
@@ -297,8 +298,8 @@ describe('admin AccountsView — 账号行展示', () => {
     // 1. email 单元格通过 OR 兜底渲染 parent_email
     expect(wrapper.text()).toContain('parent@example.com')
 
-    // 2. PlatformTypeBadge 收到 parent_plan_type 和 parent_privacy_mode
-    const badge = wrapper.findComponent(PlatformTypeBadge)
+    // 2. AccountIdentityChips 收到 parent_plan_type 和 parent_privacy_mode
+    const badge = wrapper.findComponent(AccountIdentityChips)
     expect(badge.exists()).toBe(true)
     expect(badge.props('planType')).toBe('plus')
     expect(badge.props('privacyMode')).toBe('false')
@@ -307,7 +308,7 @@ describe('admin AccountsView — 账号行展示', () => {
     wrapper.unmount()
   })
 
-  it('仅将具有安全 base_url 的 API Key 账号名称链接到站点主页', async () => {
+  it('keeps details available for every name and gives safe API-key homepages a separate link', async () => {
     listAccounts.mockResolvedValue({
       items: [
         { id: 101, name: 'relay-account', platform: 'openai', type: 'apikey', credentials: { base_url: 'https://relay.example.com/api/v1/' } },
@@ -323,25 +324,21 @@ describe('admin AccountsView — 账号行展示', () => {
     const wrapper = mountViewWithRow()
     await flushPromises()
 
-    const links = wrapper.findAll('a')
+    const links = wrapper.findAll('a[target="_blank"]')
     expect(links).toHaveLength(1)
     const [link] = links
-    expect(link.text()).toBe('relay-account')
+    expect(link.attributes('aria-label')).toBe('relay-account · https://relay.example.com')
+    expect(wrapper.findAll('button').filter(button => ['relay-account', 'oauth-account', 'invalid-url'].includes(button.text()))).toHaveLength(3)
     expect(link.attributes()).toMatchObject({
       href: 'https://relay.example.com',
       target: '_blank',
       rel: 'noopener noreferrer',
     })
-    expect(link.classes()).toEqual(expect.arrayContaining([
-      'border-dotted',
-      'text-gray-900',
-      'dark:text-white',
-    ]))
-    expect(link.classes()).not.toContain('text-primary-600')
+    expect(link.classes()).toContain('text-ink-2')
     const tooltip = wrapper.findComponent(HelpTooltip)
     expect(tooltip.props('content')).toBe('https://relay.example.com')
     expect(tooltip.props('widthClass')).toBe('w-max max-w-sm break-all')
-    expect(tooltip.classes()).toEqual(expect.arrayContaining(['self-start']))
+    expect(tooltip.classes()).toContain('shrink-0')
     expect(wrapper.text()).toContain('oauth-account')
     expect(wrapper.text()).toContain('invalid-url')
 
@@ -468,7 +465,7 @@ describe('admin AccountsView — 账号行展示', () => {
     const wrapper = mountViewWithRow()
     await flushPromises()
 
-    const badges = wrapper.findAllComponents(PlatformTypeBadge)
+    const badges = wrapper.findAllComponents(AccountIdentityChips)
     expect(badges.map((badge) => badge.props('planType'))).toEqual([
       'FREE',
       'SuperGrok Heavy',
@@ -537,7 +534,7 @@ describe('admin AccountsView — 账号行展示', () => {
     const wrapper = mountViewWithRow()
     await flushPromises()
 
-    expect(wrapper.findAllComponents(PlatformTypeBadge).map((badge) => badge.props('planType'))).toEqual([
+    expect(wrapper.findAllComponents(AccountIdentityChips).map((badge) => badge.props('planType'))).toEqual([
       'SuperGrok',
       'SuperGrok Heavy',
       undefined,
@@ -570,13 +567,13 @@ describe('admin AccountsView — 账号行展示', () => {
 
     const wrapper = mountViewWithRow()
     await flushPromises()
-    expect(wrapper.findComponent(PlatformTypeBadge).props('planType')).toBe('Free')
+    expect(wrapper.findComponent(AccountIdentityChips).props('planType')).toBe('Free')
 
     await vi.advanceTimersByTimeAsync(6000)
     await flushPromises()
 
     expect(listWithEtag).toHaveBeenCalledTimes(1)
-    expect(wrapper.findComponent(PlatformTypeBadge).props('planType')).toBe('SuperGrok')
+    expect(wrapper.findComponent(AccountIdentityChips).props('planType')).toBe('SuperGrok')
     wrapper.unmount()
   })
 })

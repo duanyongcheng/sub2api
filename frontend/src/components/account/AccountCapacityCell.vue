@@ -1,5 +1,13 @@
 <template>
-  <div class="flex flex-col gap-0.5">
+  <div v-if="compact" class="grid gap-1.5 tabular-nums" :title="t('admin.accounts.workspace.concurrency')">
+    <span class="whitespace-nowrap text-sm font-medium text-ink">
+      {{ hasConcurrency ? account.current_concurrency : '—' }}<span class="text-xs font-normal text-ink-2"> / {{ account.concurrency }}</span>
+    </span>
+    <div v-if="hasConcurrency && account.concurrency > 0" class="h-1 overflow-hidden rounded-full bg-surface-3" aria-hidden="true">
+      <div class="h-full rounded-full" :class="concurrencyPercent >= 100 ? 'bg-red-500' : concurrencyPercent >= 80 ? 'bg-amber-500' : 'bg-primary-500'" :style="{ width: `${concurrencyPercent}%` }" />
+    </div>
+  </div>
+  <div v-else class="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
     <!-- 并发槽位 -->
     <CapacityBadge :color-class="concurrencyClass" :current="currentConcurrency" :max="account.concurrency">
       <svg class="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -45,16 +53,21 @@ import QuotaBadge from '@/components/account/QuotaBadge.vue'
 
 const props = defineProps<{
   account: Account
+  compact?: boolean
 }>()
 
 const { t } = useI18n()
 
 // ====== 并发 ======
-const currentConcurrency = computed(() => props.account.current_concurrency || 0)
+const hasConcurrency = computed(() => typeof props.account.current_concurrency === 'number' && Number.isFinite(props.account.current_concurrency))
+const concurrencyPercent = computed(() => hasConcurrency.value && props.account.concurrency > 0
+  ? Math.max(0, Math.min(100, (props.account.current_concurrency! / props.account.concurrency) * 100)) : 0)
+const currentConcurrency = computed(() => hasConcurrency.value ? props.account.current_concurrency! : '—')
 
 const concurrencyClass = computed(() => {
-  const current = currentConcurrency.value
+  const current = props.account.current_concurrency
   const max = props.account.concurrency
+  if (current == null || !Number.isFinite(current)) return 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
   if (current >= max) return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
   if (current > 0) return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
   return 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'

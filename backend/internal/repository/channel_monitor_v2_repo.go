@@ -749,6 +749,9 @@ func (r *channelMonitorV2Repository) loadErrorDetails(ctx context.Context, filte
 		"current_error.created_at < $2",
 		"NOT current_error.is_count_tokens",
 		"(COALESCE(current_error.status_code, 0) >= 400 OR current_error.error_type = 'cyber_policy')",
+		// Mirror channelMonitorV2Where: skip errors with no recorded model name so
+		// the details table matches the aggregated numbers (which exclude them).
+		channelMonitorV2ErrorModelSQL + " <> 'unknown'",
 		`(NULLIF(current_error.request_id, '') IS NULL OR NOT EXISTS (
 				SELECT 1 FROM ops_error_logs newer
 				WHERE newer.request_id = current_error.request_id
@@ -778,7 +781,7 @@ func (r *channelMonitorV2Repository) loadErrorDetails(ctx context.Context, filte
 	query := `SELECT
 			lower(COALESCE(NULLIF(TRIM(current_error.platform), ''), 'unknown')) AS platform,
 			COALESCE(current_error.group_id, 0) AS group_id,
-			COALESCE(NULLIF(TRIM(current_error.requested_model), ''), NULLIF(TRIM(current_error.model), ''), 'unknown') AS model,
+			` + channelMonitorV2ErrorModelSQL + ` AS model,
 			COALESCE(current_error.error_type, '') AS error_type,
 			COALESCE(current_error.error_owner, '') AS error_owner,
 			COALESCE(current_error.error_source, '') AS error_source,
@@ -1162,6 +1165,10 @@ func channelMonitorV2WhereWithRollup(filter service.ChannelMonitorV2Filter, cfg 
 func channelMonitorV2Where(filter service.ChannelMonitorV2Filter, cfg service.ChannelMonitorV2Config, alias string) (string, []any) {
 	conditions := []string{alias + ".bucket_start >= $1", alias + ".bucket_start < $2"}
 	args := []any{filter.Start, filter.End}
+	// Legacy aggregates use the literal 'unknown' for unattributed traffic.
+	// Keep them out of every read path while historical buckets await recompute
+	// or retention; new aggregation also excludes them. Source logs stay intact.
+	conditions = append(conditions, fmt.Sprintf("%s.model <> 'unknown'", alias))
 	platforms := channelMonitorV2EnabledPlatforms(cfg)
 	if len(filter.Platforms) > 0 {
 		platforms = intersectStrings(platforms, filter.Platforms)

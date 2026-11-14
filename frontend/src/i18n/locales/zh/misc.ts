@@ -1,4 +1,15 @@
 export default {
+  reportExport: {
+    export: '导出',
+    exporting: '正在生成…',
+    exportHint: '导出为文件，口径与页面一致',
+    format: { xlsx: 'Excel（.xlsx）', csv: 'CSV（.csv）' },
+    formatHint: { xlsx: '多张工作表', csv: '单表，便于脚本比对' },
+    success: '导出完成',
+    failed: '导出失败，请重试',
+    empty: '当前范围没有可导出的数据',
+  },
+
 
   // Subscription Progress (Header component)
   subscriptionProgress: {
@@ -517,6 +528,24 @@ export default {
         channels: '支付渠道',
         plans: '订阅套餐',
       },
+      ordersTitle: '订单',
+      ordersSubtitle: '概览看经营，全部订单看履约，套餐看货架：三件事在同一页，不用来回跳。',
+      ordersTabs: '订单视图',
+      ordersTab: { overview: '概览', list: '全部订单', plans: '套餐' },
+      ordersTabHint: {
+        overview: '每日收入、支付方式分布与消费排行',
+        list: '按状态、渠道与类型筛选；退款与重试都在行内',
+        plans: '订阅套餐的价格、有效期与上架状态',
+      },
+      needsAttention: '需要处理',
+      attentionUndelivered: '{count} 笔已支付未到账',
+      attentionUndeliveredHint: '钱已到、额度没发，先在列表里重试',
+      attentionRefunds: '{count} 笔退款申请',
+      attentionRefundsHint: '客户申请退款，等待管理员处理',
+      exportOrders: '导出',
+      exportOrdersHint: '导出当前筛选下的全部订单（自动翻页），不是只有这一页',
+      exportProgress: '正在导出 {current} / {total} 笔…',
+      ordersSheet: '订单',
       todayRevenue: '今日收入',
       totalRevenue: '总收入',
       todayOrders: '今日订单',

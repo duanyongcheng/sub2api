@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sub2API · 设计主线：一条请求穿过整个系统</title>
+<link rel="stylesheet" href="assets/proto.css" />
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; background: radial-gradient(1100px 620px at 15% -12%, rgba(20,184,166,.13), transparent 60%), var(--bg);
+    color: var(--text); font-family: var(--font); -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 54px 32px 90px; }
+  .brand { display: flex; align-items: center; gap: 11px; }
+  .logo { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; font-weight: 800;
+    background: linear-gradient(140deg, var(--p-400), var(--p-700)); color: #fff; font-size: 14px; }
+  h1 { font-size: 30px; letter-spacing: -.035em; margin: 24px 0 8px; }
+  .lead { font-size: 14px; color: var(--text-2); line-height: 1.8; max-width: 720px; }
+
+  .flow { margin-top: 38px; display: grid; gap: 0; }
+  .step { position: relative; display: grid; grid-template-columns: 70px 1fr 214px; gap: 18px; align-items: start;
+    padding: 12px 0; }
+  .step:not(:last-child)::after { content: ""; position: absolute; left: 34px; top: 62px; bottom: -14px; width: 2px;
+    background: linear-gradient(180deg, var(--p-300), var(--border-strong)); }
+  .num { position: relative; z-index: 1; width: 70px; display: flex; justify-content: center; }
+  .num b { width: 38px; height: 38px; border-radius: 13px; display: grid; place-items: center;
+    background: var(--surface); border: 1px solid var(--border-strong); color: var(--p-700); font-size: 15px; font-weight: 780;
+    box-shadow: var(--sh-sm); }
+  .step.key .num b { background: linear-gradient(180deg, var(--p-500), var(--p-600)); color: #fff; border-color: transparent; }
+  .sbody h3 { font-size: 16px; letter-spacing: -.02em; display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+  .sbody h3 .route { font-family: var(--mono); font-size: 11.5px; font-weight: 600; color: var(--p-700);
+    background: var(--p-50); padding: 2px 7px; border-radius: 5px; }
+  [data-theme="dark"] .sbody h3 .route { background: rgba(20,184,166,.12); color: var(--p-300); }
+  .sbody p { font-size: 13px; color: var(--text-2); line-height: 1.8; margin-top: 7px; }
+  .sbody .kv { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .sbody .kv span { font-size: 11.4px; color: var(--text-2); background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: 6px; padding: 3px 8px; }
+  .sbody .kv span b { color: var(--text); }
+  .cardlink { display: block; height: 100%; padding: 12px 14px; border-radius: var(--r-md); border: 1px solid var(--border);
+    background: var(--surface); text-decoration: none; color: inherit; transition: .16s; }
+  .cardlink:hover { border-color: var(--p-300); transform: translateY(-1px); box-shadow: var(--sh-md); }
+  .cardlink .t { font-size: 12px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+  .cardlink .d { font-size: 11.2px; color: var(--text-3); margin-top: 4px; line-height: 1.6; }
+  .cardlink .s { margin-top: 8px; height: 76px; border-radius: 5px; overflow: hidden; border: 1px solid var(--border); position: relative; }
+  .cardlink .s img { position: absolute; top: 0; left: 0; width: 100%; display: block; }
+
+  .sec-h { display: flex; align-items: baseline; gap: 12px; margin: 56px 0 16px; }
+  .sec-h h2 { font-size: 18px; letter-spacing: -.02em; margin: 0; }
+  .sec-h span { font-size: 12.5px; color: var(--text-3); }
+
+  .cross { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 14px; }
+  .cc { padding: 16px 17px; border-radius: var(--r-lg); background: var(--surface); border: 1px solid var(--border); }
+  .cc h4 { font-size: 13.6px; display: flex; align-items: center; gap: 7px; }
+  .cc p { font-size: 12.4px; color: var(--text-2); line-height: 1.8; margin-top: 8px; }
+  .cc .note { margin-top: 10px; font-size: 11.6px; color: var(--text-3); padding-top: 9px; border-top: 1px dashed var(--border); }
+
+  .aud { display: grid; grid-template-columns: 150px 1fr 1fr 1fr; border: 1px solid var(--border); border-radius: var(--r-lg);
+    overflow: hidden; background: var(--surface); }
+  .aud > div { padding: 11px 14px; font-size: 12.3px; border-bottom: 1px solid var(--border); color: var(--text-2); }
+  .aud > div:nth-child(4n+1) { font-weight: 680; color: var(--text); background: var(--surface-2); }
+  .aud .hd { font-size: 11px; font-weight: 750; letter-spacing: .05em; text-transform: uppercase; color: var(--text-3);
+    background: var(--surface-2); }
+  .aud .neg { color: var(--bad-600); }
+  .aud .pos { color: var(--ok-600); font-weight: 650; }
+
+  .sched { width: 100%; border-collapse: separate; border-spacing: 0 8px; font-size: 12.6px; }
+  .sched td { padding: 11px 14px; background: var(--surface); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  .sched td:first-child { border-left: 1px solid var(--border); border-radius: 10px 0 0 10px; font-weight: 750; color: var(--p-700); width: 74px; }
+  .sched td:last-child { border-right: 1px solid var(--border); border-radius: 0 10px 10px 0; color: var(--text-3); width: 260px; }
+  .sched tr.must td { background: var(--p-50); }
+  [data-theme="dark"] .sched tr.must td { background: rgba(20,184,166,.08); }
+
+  .todo { display: grid; grid-template-columns: 1fr 120px 1fr; gap: 0; border: 1px solid var(--border); border-radius: var(--r-lg);
+    overflow: hidden; background: var(--surface); font-size: 12.3px; }
+  .todo > div { padding: 10px 14px; border-bottom: 1px solid var(--border); color: var(--text-2); }
+  .todo > div:nth-child(3n+2) { text-align: center; }
+  .todo .hd { background: var(--surface-2); font-weight: 700; color: var(--text); font-size: 11.4px; }
+
+  .closing { margin-top: 56px; padding: 26px 28px; border-radius: var(--r-xl); border: 1px solid color-mix(in srgb, var(--p-500) 30%, transparent);
+    background: linear-gradient(120deg, rgba(20,184,166,.09), transparent 62%); }
+  .closing h3 { font-size: 16px; letter-spacing: -.02em; }
+  .closing p { font-size: 14px; line-height: 1.95; color: var(--text-2); margin-top: 10px; max-width: 900px; }
+  .closing p b { color: var(--text); }
+  footer { margin-top: 46px; padding-top: 20px; border-top: 1px solid var(--border); display: flex; gap: 18px; flex-wrap: wrap;
+    font-size: 12px; color: var(--text-3); }
+  @media (max-width: 1000px) { .step { grid-template-columns: 62px 1fr; } .step > .cardlink { display: none; } .cross { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand">
+    <div class="logo">S2</div>
+    <div><div style="font-weight:700;font-size:14px">Sub2API</div>
+      <div style="font-size:11px;color:var(--text-3)">设计主线 · 2026-11</div></div>
+  </div>
+
+  <h1>一条请求，穿过整个系统</h1>
+  <p class="lead">
+    之前 13 个原型是分开的「点」。这条主线用一个真实对象——一次 API 请求——把它们串成链路：
+    <b>走哪个分组 → 落在哪个账号 → 扣谁的钱 → 出什么事 → 谁看得见</b>。
+    界面之所以这样组织，是因为业务的连接方式本来就长这样。
+  </p>
+
+  <div class="flow">
+    <!-- ① -->
+    <div class="step">
+      <div class="num"><b>①</b></div>
+      <div class="sbody">
+        <h3>入口 · API 密钥 <span class="route">/keys</span></h3>
+        <p>请求以谁的身份进来、受什么限制。<b>分组</b>是整条链路的分岔点——它同时决定计费、可用性和客户能看到什么。</p>
+        <div class="kv">
+          <span><b>group_id</b> → 决定路由</span><span>额度 → 余额扣款</span><span>速率限制 → 429</span><span>IP 名单 → 入口拒绝</span>
+        </div>
+      </div>
+      <a class="cardlink" href="02-api-keys.html">
+        <div class="t">原型 02 · API 密钥</div>
+        <div class="d">行内换组是全站唯一同时改变计费与可用性的操作，必须给影响提示</div>
+        <div class="s"><img src="shots/02-api-keys.png" alt="" /></div>
+      </a>
+    </div>
+
+    <!-- ② -->
+    <div class="step">
+      <div class="num"><b>②</b></div>
+      <div class="sbody">
+        <h3>路由 · 分组与定价 <span class="route">/admin/groups</span></h3>
+        <p>这把密钥能用哪些模型、按什么价扣费、走到哪个上游。定价表上直接显示<b>毛利</b>，把定价与成本的关系前移到编辑现场。</p>
+        <div class="kv"><span>模型白名单 → model_unsupported</span><span>倍率 / 高峰倍率 → 标准价</span><span>复合路由 → 账号候选</span><span>利润控制 → 成本倒挂告警</span></div>
+      </div>
+      <a class="cardlink" href="05-admin-groups.html">
+        <div class="t">原型 05 · 分组与定价</div>
+        <div class="d">左列表右配置，10 个 Tab，逐模型定价可内联编辑</div>
+        <div class="s"><img src="shots/05-admin-groups.png" alt="" /></div>
+      </a>
+    </div>
+
+    <!-- ③ -->
+    <div class="step key">
+      <div class="num"><b>③</b></div>
+      <div class="sbody">
+        <h3>执行 · 账号池 <span class="route">/admin/accounts</span></h3>
+        <p>请求实际落在哪个上游账号上——整条链路的<b>物理执行点</b>。账号失效、配额耗尽、代理异常都发生在这里。</p>
+        <div class="kv"><span>优先级 + 权重 + 并发上限</span><span>粘性会话 TTL 1h</span><span>429/529 自动切换 → 计入切换次数</span><span>临时不可调度</span></div>
+      </div>
+      <a class="cardlink" href="04-admin-accounts.html">
+        <div class="t">原型 04 · 账号池</div>
+        <div class="d">平台 Tab + 配额/并发/调度同行呈现，详情抽屉</div>
+        <div class="s"><img src="shots/04-admin-accounts.png" alt="" /></div>
+      </a>
+    </div>
+
+    <!-- ④ -->
+    <div class="step">
+      <div class="num"><b>④</b></div>
+      <div class="sbody">
+        <h3>计费 · 使用记录 <span class="route">/usage</span></h3>
+        <p>每次请求落一条记录，同时产生三个数：<b>实际费用</b>（扣客户）、<b>标准费用</b>（体现节省）、<b>上游成本</b>（算毛利）。</p>
+        <div class="kv"><span>毛利 = 实际费用 − 上游成本</span><span>这个公式决定了概览页必须是「收入 vs 成本」双轴</span></div>
+      </div>
+      <a class="cardlink" href="01-user-workbench.html">
+        <div class="t">原型 01 · 工作台</div>
+        <div class="d">记录的聚合结果：KPI、趋势、按平台分项</div>
+        <div class="s"><img src="shots/01-user-workbench.png" alt="" /></div>
+      </a>
+    </div>
+
+    <!-- ⑤ -->
+    <div class="step key">
+      <div class="num"><b>⑤</b></div>
+      <div class="sbody">
+        <h3>观测与归因 · 渠道监控 <span class="route">/admin/channels/monitor</span></h3>
+        <p>把记录按「平台 / 分组 / 模型」聚合出可用率，再把 17 类错误归因成 <b>4 个责任方</b>——这是全套设计里最能体现价值的一环：
+          它把「不可用的现象」还原成「谁的责任、去哪个页面修」。</p>
+        <div class="kv"><span>上游平台 → 切备用</span><span><b>我们的账号池 → 跳回 ③</b></span><span>客户端 → 忽略</span><span>平台内部 → 跳 ⑥</span></div>
+      </div>
+      <a class="cardlink" href="11-admin-monitor-board.html">
+        <div class="t">原型 11 · 主看板</div>
+        <div class="d">结论条 + 4 档矩阵 + 归因卡 + 忽略影响预览</div>
+        <div class="s"><img src="shots/11-admin-monitor-board.png" alt="" /></div>
+      </a>
+    </div>
+
+    <!-- ⑥ -->
+    <div class="step">
+      <div class="num"><b>⑥</b></div>
+      <div class="sbody">
+        <h3>兜底 · 运维监控 <span class="route">/admin/ops</span></h3>
+        <p>当归因是「平台内部」或上游持续异常，进入运维视角：实时 QPS、延迟分位、错误明细、告警与系统日志。</p>
+        <div class="kv"><span>WebSocket 实时推送</span><span>健康环 6 项 KPI</span><span>告警事件固定右栏</span></div>
+      </div>
+      <a class="cardlink" href="07-admin-ops.html">
+        <div class="t">原型 07 · 运维监控</div>
+        <div class="d">错误、告警、日志三类「需要行动」的信息集中</div>
+        <div class="s"><img src="shots/07-admin-ops.png" alt="" /></div>
+      </a>
+    </div>
+
+    <!-- ⑦ -->
+    <div class="step key">
+      <div class="num"><b>⑦</b></div>
+      <div class="sbody">
+        <h3>呈现 · 同一份数据，三个版本</h3>
+        <p>把 ⑤ 的结论按受众裁剪：客户只看到「我能不能用」以及<b>凭什么这么说</b>；管理员看毛利与待办；运维看错误与告警。</p>
+        <div class="kv"><span>客户：服务状态（10）</span><span>管理员：运营概览（03）</span><span>管理员：订单（08）</span><span>运维：运维监控（07）</span></div>
+      </div>
+      <a class="cardlink" href="10-user-channel-status.html">
+        <div class="t">原型 10 · 用户状态页</div>
+        <div class="d">一个分组一个结论 + 证据来源（真实流量 / 主动探测）</div>
+        <div class="s"><img src="shots/10-user-channel-status.png" alt="" /></div>
+      </a>
+    </div>
+  </div>
+
+  <!-- 贯穿性决策 -->
+  <div class="sec-h"><h2>三条贯穿性决策</h2><span>不是某一页的事，而是横跨全站的规则</span></div>
+  <div class="cross">
+    <div class="cc">
+      <h4>① 两种证据</h4>
+      <p>有客户流量的分组用<b>真实流量</b>（连续色条，teal）；没有流量的新分组用<b>主动探测</b>（离散点阵，靛蓝）。</p>
+      <div class="note">探测失败只标「探测异常」，<b>不改变可用结论</b>；多探测项任一项通过即可用，卡片主项取<b>响应最快</b>。</div>
+    </div>
+    <div class="cc">
+      <h4>② 四档状态色</h4>
+      <p>正常 ≥99% / 波动 90–99% / 异常 &lt;90% / 无样本。矩阵用离散色便于扫读，健康分作为连续值只在<b>悬停</b>时显示。</p>
+      <div class="note">探测异常用虚线灰标，视觉权重低于状态 pill——表达「这是内部问题，不是你的问题」。</div>
+    </div>
+    <div class="cc">
+      <h4>③ 一个分组 = 一个结论 + 一个证据</h4>
+      <p>管理端的归因结论直接决定客户看到什么。账号池 Token 失效时，客户看到的是「可用」（已切备用），管理员看到的是待办。</p>
+      <div class="note">而不是把 401 直接抛给客户，让他以为服务挂了、客服工单增加。</div>
+    </div>
+  </div>
+
+  <!-- 受众裁剪 -->
+  <div class="sec-h"><h2>同一个 429，在五个页面里有五种正确说法</h2><span>按受众裁剪，而不是复制粘贴</span></div>
+  <div class="aud">
+    <div class="hd">页面</div><div class="hd">看到什么</div><div class="hd">措辞</div><div class="hd">下一步</div>
+
+    <div>③ 账号池</div><div>grok-sso-04 连续 429，被标记降级</div><div class="neg">「429 限流 · 已降级」</div><div>刷新或临时摘除</div>
+    <div>⑤ 渠道监控</div><div>grok-4.1-fast 该行变黄，错误率 4.2%</div><div>「2 行异常 · 主因上游 429 占 74%」</div><div>只看异常 / 下钻</div>
+    <div>⑬ 下钻</div><div>错误样本 + 分钟级时间线 + 切换点</div><div>「与你方配置无关，已切备用」</div><div>查看涉及账号</div>
+    <div>⑦ 服务状态</div><div>该分组显示「波动」</div><div class="pos">「上游限流，已自动切换，不影响使用」</div><div>无需操作</div>
+    <div>⑦ 运营概览</div><div>该分组毛利下降，进入待办</div><div>「上游成本增速超过收入」</div><div>调价 / 换池</div>
+  </div>
+
+  <!-- 排期 -->
+  <div class="sec-h"><h2>研发排期：按链路，不按页面</h2><span>先做骨架，再做血肉</span></div>
+  <table class="sched">
+    <tr class="must"><td>P0</td><td><b>设计令牌 + 4 个基础组件</b>（KpiCard / StatusPill / PageHeader / ActionStrip）</td><td>全站复用，后续每页都省时间</td></tr>
+    <tr class="must"><td>P1</td><td><b>① 密钥 → ② 分组 → ③ 账号池</b> 三页改造（主链路骨架）</td><td>改动立刻被客户感知</td></tr>
+    <tr class="must"><td>P2</td><td><b>⑤ 渠道监控</b>：矩阵 4 档 + 归因卡 + 下钻</td><td>解决「3 秒定位」与「责任方」</td></tr>
+    <tr><td>P3</td><td><b>⑦ 用户状态页</b>：两种证据合并（需 `group_id` 迁移）</td><td>客户透明度 + 新分组转化</td></tr>
+    <tr><td>P4</td><td><b>⑤ 配置抽屉</b>：绑定 / 聚合 / 阈值</td><td>依赖 P3</td></tr>
+    <tr><td>P5</td><td><b>③ 运营概览</b>重组（待办置顶）</td><td>业务价值最高，但可收尾</td></tr>
+  </table>
+
+  <!-- 待办 -->
+  <div class="sec-h"><h2>诚实的待办</h2><span>没做完的写清楚，比假装做完了有用</span></div>
+  <div class="todo">
+    <div class="hd">项</div><div class="hd">状态</div><div class="hd">说明</div>
+    <div>边界四态（回填中 / 刷新中 / 筛选无结果 / 样本不足）</div><div><span class="pill pill-warn">仅规格</span></div><div>规格见 docs/03 §6；其中 ③④ 建议沿用现有 V2 行为，不要重造</div>
+    <div>`group_id` 数据迁移</div><div><span class="pill pill-bad">未设计</span></div><div>需确认：一个分组多探测项上限、分组删除后的重绑流程</div>
+    <div>设置抽屉另三个 Tab</div><div><span class="pill pill-neutral">未出图</span></div><div>Tab 栏已在原型 12 预留</div>
+    <div>移动端 / 国际化</div><div><span class="pill pill-neutral">未覆盖</span></div><div>当前原型均为 1600 宽桌面中文布局</div>
+  </div>
+
+  <div class="closing">
+    <h3>一页话总结</h3>
+    <p>
+      一次请求从密钥出发，经分组定价决定「按什么价、走哪条路」，在账号池落地执行，产生<b>计费</b>与<b>可用率</b>两类数据；
+      可用率被归因成「谁的责任」，再按受众裁剪成三个版本——管理员看毛利与待办，运维看错误与告警，
+      客户只看到「我能不能用」以及<b>凭什么这么说</b>。
+    </p>
+  </div>
+
+  <footer>
+    <span>配套文档：<a href="docs/00-设计主线.md">00 设计主线</a> · <a href="docs/01-前端菜单与功能点分析.md">01 菜单与功能点</a> · <a href="docs/02-设计规范与实现映射.md">02 规范与映射</a> · <a href="docs/03-渠道监控设计方案.md">03 渠道监控</a></span>
+    <span style="margin-left:auto"><a href="index.html">← 返回原型总览</a></span>
+  </footer>
+</div>
+</body>
+</html>

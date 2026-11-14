@@ -1,5 +1,4 @@
 <template>
-  <AppLayout>
     <div class="space-y-6">
       <!-- Header with Day Switcher -->
       <div class="flex items-center justify-end">
@@ -67,17 +66,15 @@
         </div>
       </template>
     </div>
-  </AppLayout>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue'
+import { ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { adminPaymentAPI } from '@/api/admin/payment'
 import { extractI18nErrorMessage } from '@/utils/apiError'
 import type { CurrencyAmounts, DashboardStats, TopUserPaymentStats } from '@/types/payment'
-import AppLayout from '@/components/layout/AppLayout.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import Icon from '@/components/icons/Icon.vue'
 import OrderStatsCards from '@/components/admin/payment/OrderStatsCards.vue'
@@ -136,5 +133,10 @@ async function loadDashboard() {
 }
 
 watch(days, () => loadDashboard())
-onMounted(() => loadDashboard())
+
+/** Mounted by the orders page tab; load only when that tab is first shown. */
+function init() {
+  loadDashboard()
+}
+defineExpose({ init })
 </script>

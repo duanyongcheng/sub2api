@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<!--META {"active":"ops","role":"admin","title":"运维监控","sub":"实时 QPS · 延迟 · 错误 · 告警"} -->
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<title>Sub2API Admin · 运维监控（重设计原型）</title>
+<link rel="stylesheet" href="assets/proto.css" />
+<link rel="stylesheet" href="assets/shell.css" />
+<style>
+  .ops-hd {
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    padding: 12px 16px; border-radius: var(--r-lg); background: var(--surface); border: 1px solid var(--border);
+  }
+  .health-ring { position: relative; width: 54px; height: 54px; flex: 0 0 auto; }
+  .health-ring svg { transform: rotate(-90deg); }
+  .health-ring .v { position: absolute; inset: 0; display: grid; place-items: center; font-size: 17px; font-weight: 750; color: var(--ok-600); }
+
+  .kpi-strip { display: grid; grid-template-columns: repeat(6, minmax(0,1fr)); gap: 12px; }
+  .ok-card { padding: 13px 14px; border-radius: var(--r-lg); background: var(--surface); border: 1px solid var(--border); position: relative; }
+  .ok-card .k { font-size: 11px; font-weight: 650; color: var(--text-3); display: flex; align-items: center; gap: 5px; }
+  .ok-card .v { margin-top: 6px; font-size: 21px; font-weight: 730; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+  .ok-card .d { margin-top: 4px; font-size: 11px; color: var(--text-3); display: flex; gap: 8px; }
+  .ok-card .more { position: absolute; right: 10px; top: 10px; font-size: 11px; color: var(--p-600); font-weight: 650; opacity: 0; }
+  .ok-card:hover .more { opacity: 1; }
+
+  .grid-main { display: grid; grid-template-columns: 300px minmax(0,1fr) 300px; gap: 16px; align-items: start; }
+  .live-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 10.5px; font-weight: 750; color: var(--ok-600); letter-spacing: .04em; }
+  .live-badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--ok-500); box-shadow: 0 0 0 3px rgba(16,185,129,.16); }
+
+  .conc-list { display: flex; flex-direction: column; gap: 9px; }
+  .conc-row { display: flex; align-items: center; gap: 9px; font-size: 12.2px; }
+  .conc-row .nm { width: 84px; color: var(--text-2); }
+  .conc-row .track { flex: 1; height: 7px; border-radius: 999px; background: var(--surface-3); overflow: hidden; display: flex; }
+  .conc-row .n { width: 38px; text-align: right; font-variant-numeric: tabular-nums; font-weight: 650; color: var(--text); }
+
+  .alarm { display: grid; grid-template-columns: 8px 1fr auto; gap: 10px; padding: 9px 0; border-bottom: 1px dashed var(--border); font-size: 12.2px; }
+  .alarm:last-child { border-bottom: 0; }
+  .alarm .lv { width: 6px; height: 6px; border-radius: 50%; margin-top: 5px; }
+
+  .log-table td, .log-table th { padding: 7px 12px !important; font-size: 11.8px; white-space: nowrap; }
+  .lvl { font-size: 10px; font-weight: 750; padding: 2px 6px; border-radius: 4px; letter-spacing: .04em; }
+  .lvl-err { background: var(--bad-50); color: var(--bad-600); }
+  .lvl-warn { background: var(--warn-50); color: var(--warn-600); }
+  .lvl-info { background: var(--info-50); color: var(--info-600); }
+</style>
+</head>
+<body class="app">
+<!--#INCLUDE icons#-->
+<!--#SHELL#-->
+
+  <main class="page">
+    <!-- header bar -->
+    <div class="ops-hd">
+      <div class="health-ring">
+        <svg width="54" height="54" viewBox="0 0 54 54">
+          <circle cx="27" cy="27" r="22" fill="none" stroke="var(--surface-3)" stroke-width="6"/>
+          <circle cx="27" cy="27" r="22" fill="none" stroke="#10b981" stroke-width="6" stroke-linecap="round"
+                  stroke-dasharray="138" stroke-dashoffset="18"/>
+        </svg>
+        <div class="v">87</div>
+      </div>
+      <div>
+        <div class="row gap-8"><h2 style="font-size:17px;letter-spacing:-.02em">系统健康 · 良好</h2><span class="pill pill-warn">2 项待关注</span></div>
+        <div class="xs muted" style="margin-top:3px">DB 正常 · Redis 正常 · CPU 46% · 内存 61% · TTFT P99 4.2s</div>
+      </div>
+      <div class="grow" style="flex:1"></div>
+      <div class="seg"><button>5 分钟</button><button class="on">1 小时</button><button>6 小时</button><button>24 小时</button></div>
+      <div class="select" style="height:34px;font-size:12.6px">全部平台<svg class="i i-14"><use href="#i-chevronDown"/></svg></div>
+      <div class="select" style="height:34px;font-size:12.6px">全部分组<svg class="i i-14"><use href="#i-chevronDown"/></svg></div>
+      <div class="row gap-8 xs muted"><span class="kbd">自动刷新 30s</span></div>
+      <button class="btn btn-secondary btn-icon"><svg class="i i-16"><use href="#i-refresh"/></svg></button>
+      <button class="btn btn-secondary btn-icon"><svg class="i i-16"><use href="#i-cog"/></svg></button>
+    </div>
+
+    <!-- KPI strip -->
+    <div class="kpi-strip">
+      <div class="ok-card"><div class="k"><svg class="i i-14"><use href="#i-cpu"/></svg>实时 QPS<span class="live-badge" style="margin-left:auto">WS</span></div>
+        <div class="v">186.4</div><div class="d"><span>峰值 402</span><span>平均 121</span></div><span class="more">明细 →</span></div>
+      <div class="ok-card"><div class="k"><svg class="i i-14"><use href="#i-bolt"/></svg>TPS</div>
+        <div class="v">24.1k</div><div class="d"><span>峰值 51.2k</span><span>较昨日 +8%</span></div><span class="more">明细 →</span></div>
+      <div class="ok-card"><div class="k"><svg class="i i-14"><use href="#i-checkCircle"/></svg>SLA 成功率</div>
+        <div class="v" style="color:var(--ok-600)">99.58%</div><div class="d"><span style="color:var(--ok-600)">● 高于阈值 99%</span></div><span class="more">明细 →</span></div>
+      <div class="ok-card"><div class="k"><svg class="i i-14"><use href="#i-warning"/></svg>上游错误率</div>
+        <div class="v" style="color:var(--warn-600)">1.82%</div><div class="d"><span>排除 429/529 → 0.61%</span></div><span class="more">明细 →</span></div>
+      <div class="ok-card"><div class="k"><svg class="i i-14"><use href="#i-clock"/></svg>延迟 P95</div>
+        <div class="v">2.84<span class="xs muted">s</span></div><div class="d"><span>P50 1.12s</span><span>P99 6.4s</span></div><span class="more">明细 →</span></div>
+      <div class="ok-card"><div class="k"><svg class="i i-14"><use href="#i-brain"/></svg>首 Token P95</div>
+        <div class="v">3.42<span class="xs muted">s</span></div><div class="d"><span>阈值 3.0s</span><span style="color:var(--warn-600)">超限</span></div><span class="more">明细 →</span></div>
+    </div>
+
+    <div class="grid-main">
+      <!-- concurrency -->
+      <div class="stack" style="gap:16px">
+        <div class="card">
+          <div class="card-hd"><h3>并发与排队</h3><span class="pill pill-ok">余量充足</span></div>
+          <div class="card-bd">
+            <div class="row" style="justify-content:space-between;align-items:baseline">
+              <span style="font-size:29px;font-weight:740;letter-spacing:-.035em">186<span class="sm muted" style="font-weight:600">/ 512</span></span>
+              <span class="xs muted">36%</span>
+            </div>
+            <div class="progress" style="margin:10px 0 14px;height:8px"><i style="width:36%"></i></div>
+            <div class="conc-list">
+              <div class="conc-row"><span class="nm">Claude</span><div class="track"><div style="width:22%;background:#d97757"></div></div><span class="n">112</span></div>
+              <div class="conc-row"><span class="nm">OpenAI</span><div class="track"><div style="width:12%;background:#10a37f"></div></div><span class="n">58</span></div>
+              <div class="conc-row"><span class="nm">Gemini</span><div class="track"><div style="width:3%;background:#4285f4"></div></div><span class="n">14</span></div>
+              <div class="conc-row"><span class="nm">Grok</span><div class="track"><div style="width:1%;background:#8b5cf6"></div></div><span class="n">2</span></div>
+            </div>
+            <div class="sep" style="margin:12px 0"></div>
+            <div class="row" style="justify-content:space-between;font-size:12px"><span class="muted">排队中</span><span class="bold">3</span>
+              <span class="muted">限流 1h</span><span class="bold">128</span><span class="muted">异常</span><span class="bold" style="color:var(--bad-600)">2</span></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-hd"><h3>延迟直方图</h3><span class="xs muted">仅成功请求</span></div>
+          <div class="card-bd">
+            <svg viewBox="0 0 240 110" width="100%" height="110">
+              <g class="chart-grid"><line x1="0" y1="20" x2="240" y2="20"/><line x1="0" y1="60" x2="240" y2="60"/><line x1="0" y1="100" x2="240" y2="100"/></g>
+              <g fill="#99f6e4">
+                <rect x="4" y="42" width="20" height="58" rx="3"/><rect x="28" y="28" width="20" height="72" rx="3"/>
+                <rect x="52" y="36" width="20" height="64" rx="3"/><rect x="100" y="62" width="20" height="38" rx="3"/>
+                <rect x="124" y="76" width="20" height="24" rx="3"/><rect x="148" y="86" width="20" height="14" rx="3"/>
+                <rect x="172" y="92" width="20" height="8" rx="3"/><rect x="196" y="96" width="20" height="4" rx="3"/>
+                <rect x="220" y="98" width="16" height="2" rx="1"/>
+              </g>
+              <rect x="76" y="20" width="20" height="80" rx="3" fill="#14b8a6"/>
+              <g class="chart-axis"><text x="4" y="108">0.4s</text><text x="76" y="108" fill="#0f766e">1.2s</text><text x="172" y="108">8s</text><text x="216" y="108">16s</text></g>
+            </svg>
+            <div class="xs muted" style="margin-top:6px">最集中区间 <b style="color:var(--text)">0.9–1.4s</b>（占 28.4%）</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- throughput -->
+      <div class="card">
+        <div class="card-hd">
+          <div><h3>吞吐与错误趋势</h3><div class="xs muted" style="margin-top:2px">最近 1 小时 · 每分钟</div></div>
+          <div class="legend">
+            <span><i style="background:#14b8a6"></i>QPS</span>
+            <span><i style="background:#99f6e4"></i>Token/s</span>
+            <span><i style="background:#f87171"></i>错误率</span>
+          </div>
+        </div>
+        <div class="card-bd">
+          <svg viewBox="0 0 720 250" width="100%" height="260">
+            <defs>
+              <linearGradient id="qpsFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#14b8a6" stop-opacity=".26"/><stop offset="100%" stop-color="#14b8a6" stop-opacity="0"/>
+              </linearGradient>
+            </defs>
+            <g class="chart-grid">
+              <line x1="44" y1="24" x2="712" y2="24"/><line x1="44" y1="74" x2="712" y2="74"/>
+              <line x1="44" y1="124" x2="712" y2="124"/><line x1="44" y1="174" x2="712" y2="174"/>
+              <line x1="44" y1="224" x2="712" y2="224"/>
+            </g>
+            <g class="chart-axis">
+              <text x="6" y="28">400</text><text x="6" y="78">300</text><text x="6" y="128">200</text><text x="6" y="178">100</text>
+              <text x="54" y="244">13:40</text><text x="254" y="244">14:00</text><text x="454" y="244">14:20</text><text x="654" y="244">14:40</text>
+            </g>
+            <path d="M44,160 L74,150 L104,158 L134,140 L164,146 L194,128 L224,134 L254,116 L284,124 L314,104 L344,112 L374,96 L404,108 L434,92 L464,100 L494,86 L524,94 L554,78 L584,88 L614,74 L644,82 L674,68 L712,76 L712,224 L44,224 Z" fill="url(#qpsFill)"/>
+            <path d="M44,160 L74,150 L104,158 L134,140 L164,146 L194,128 L224,134 L254,116 L284,124 L314,104 L344,112 L374,96 L404,108 L434,92 L464,100 L494,86 L524,94 L554,78 L584,88 L614,74 L644,82 L674,68 L712,76"
+                  fill="none" stroke="#0d9488" stroke-width="2.2" stroke-linejoin="round"/>
+            <path d="M44,186 L104,182 L164,188 L224,178 L284,184 L344,176 L404,182 L464,174 L524,180 L584,172 L644,178 L712,170"
+                  fill="none" stroke="#5eead4" stroke-width="1.8" stroke-dasharray="5 4"/>
+            <path d="M44,214 L74,212 L104,216 L134,210 L164,212 L194,208 L224,214 L254,206 L284,210 L314,204 L344,212 L374,206 L404,200 L434,208 L464,202 L494,210 L524,198 L554,204 L584,208 L614,196 L644,204 L674,200 L712,202"
+                  fill="none" stroke="#f87171" stroke-width="1.8"/>
+            <circle cx="674" cy="68" r="4.5" fill="#0d9488" stroke="#fff" stroke-width="2"/>
+            <rect x="600" y="26" width="104" height="40" rx="7" fill="#0f172a" opacity=".92"/>
+            <text x="612" y="42" fill="#94a3b8" font-size="10">14:38</text>
+            <text x="612" y="57" fill="#fff" font-size="11">QPS 387 · 错误 0.9%</text>
+          </svg>
+        </div>
+        <div class="sep"></div>
+        <div class="card-bd" style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px">
+          <div><div class="xs muted">请求总数</div><div class="bold" style="font-size:16px;margin-top:2px">671,208</div></div>
+          <div><div class="xs muted">Token 总数</div><div class="bold" style="font-size:16px;margin-top:2px">4.12B</div></div>
+          <div><div class="xs muted">账号切换次数</div><div class="bold" style="font-size:16px;margin-top:2px">1,204</div></div>
+          <div><div class="xs muted">重试成功率</div><div class="bold" style="font-size:16px;margin-top:2px;color:var(--ok-600)">96.8%</div></div>
+        </div>
+      </div>
+
+      <!-- alarms -->
+      <div class="stack" style="gap:16px">
+        <div class="card">
+          <div class="card-hd"><h3>告警事件</h3><span class="pill pill-bad">3 未处理</span></div>
+          <div class="card-bd" style="padding-top:8px;padding-bottom:8px">
+            <div class="alarm">
+              <span class="lv" style="background:var(--bad-500)"></span>
+              <div><div class="bold" style="font-size:12.3px">上游错误率 &gt; 2%（OpenAI）</div><div class="xs muted">14:12 起 · 持续 26 分钟 · 已发邮件</div></div>
+              <div class="stack gap-6" style="align-items:flex-end"><button class="btn btn-sm btn-ghost">静默</button></div>
+            </div>
+            <div class="alarm">
+              <span class="lv" style="background:var(--warn-500)"></span>
+              <div><div class="bold" style="font-size:12.3px">TTFT P99 &gt; 4s</div><div class="xs muted">13:58 起 · 持续 40 分钟</div></div>
+              <div class="stack gap-6" style="align-items:flex-end"><button class="btn btn-sm btn-ghost">处理</button></div>
+            </div>
+            <div class="alarm">
+              <span class="lv" style="background:var(--warn-500)"></span>
+              <div><div class="bold" style="font-size:12.3px">账号可用数 &lt; 80%</div><div class="xs muted">14:02 · Claude Pro 池</div></div>
+              <div class="stack gap-6" style="align-items:flex-end"><button class="btn btn-sm btn-ghost">处理</button></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-hd"><h3>请求错误 Top</h3><span class="xs muted">近 1h</span></div>
+          <div class="card-bd side-list" style="padding-top:6px">
+            <div class="rowitem" style="display:flex;gap:8px;align-items:center;padding:7px 0;font-size:12.2px"><span class="pill pill-warn">429</span><span style="flex:1" class="truncate">rate_limit_exceeded</span><span class="bold">8,412</span></div>
+            <div class="rowitem" style="display:flex;gap:8px;align-items:center;padding:7px 0;font-size:12.2px"><span class="pill pill-bad">529</span><span style="flex:1" class="truncate">overloaded_error</span><span class="bold">2,104</span></div>
+            <div class="rowitem" style="display:flex;gap:8px;align-items:center;padding:7px 0;font-size:12.2px"><span class="pill pill-bad">401</span><span style="flex:1" class="truncate">invalid_api_key</span><span class="bold">1,112</span></div>
+            <div class="rowitem" style="display:flex;gap:8px;align-items:center;padding:7px 0;font-size:12.2px"><span class="pill pill-neutral">—</span><span style="flex:1" class="truncate">context_length_exceeded</span><span class="bold">742</span></div>
+          </div>
+          <div style="padding:0 16px 14px"><button class="btn btn-sm btn-secondary" style="width:100%">打开错误明细</button></div>
+        </div>
+
+        <div class="card">
+          <div class="card-hd"><h3>实时连接</h3></div>
+          <div class="card-bd">
+            <div class="row gap-8" style="font-size:12.2px"><span class="live-badge">WS 已连接</span><span class="muted" style="margin-left:auto">延迟 42ms</span></div>
+            <div class="progress" style="margin-top:10px;height:6px"><i style="width:100%;background:linear-gradient(90deg,#34d399,#10b981)"></i></div>
+            <div class="xs muted" style="margin-top:6px">上次事件 0.8s 前 · 断线自动重连</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- system logs -->
+    <div class="card">
+      <div class="card-hd">
+        <div class="row gap-10"><h3>系统日志</h3><span class="pill pill-ok">sink 健康</span><span class="xs muted">队列 12 · 已写 1.2M · 丢弃 0</span></div>
+        <div class="row gap-8">
+          <div class="field" style="height:32px;width:220px"><svg class="i i-14"><use href="#i-search"/></svg><input placeholder="关键词 / request_id…" /></div>
+          <div class="select" style="height:32px;font-size:12.3px">级别：WARN+<svg class="i i-14"><use href="#i-chevronDown"/></svg></div>
+          <button class="btn btn-sm btn-secondary">清理</button>
+        </div>
+      </div>
+      <table class="tbl log-table">
+        <thead><tr><th style="width:150px">时间</th><th style="width:76px">级别</th><th style="width:110px">组件</th><th style="width:180px">Request ID</th><th>消息</th><th style="width:90px">账号</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">14:38:02.114</td><td><span class="lvl lvl-err">ERROR</span></td><td class="mono">gateway</td><td class="mono muted">req_9f21ab4c</td><td class="truncate">upstream 529 overloaded, switching account claude-pro-02 → claude-pro-01</td><td class="mono">#2481</td></tr>
+          <tr><td class="mono">14:37:58.902</td><td><span class="lvl lvl-warn">WARN</span></td><td class="mono">scheduler</td><td class="mono muted">—</td><td class="truncate">account openai-team-03 token refresh failed: invalid_grant</td><td class="mono">#1102</td></tr>
+          <tr><td class="mono">14:37:41.377</td><td><span class="lvl lvl-info">INFO</span></td><td class="mono">billing</td><td class="mono muted">req_9f21a9e1</td><td class="truncate">usage recorded: claude-opus-4.6 in=48201 out=12033 cost=$0.62</td><td class="mono">#2481</td></tr>
+          <tr><td class="mono">14:37:20.018</td><td><span class="lvl lvl-warn">WARN</span></td><td class="mono">ratelimit</td><td class="mono muted">req_9f21a7c3</td><td class="truncate">key sk-s2-1c8b… hit 5h window limit (78%), returning 429</td><td class="mono">—</td></tr>
+          <tr><td class="mono">14:36:55.640</td><td><span class="lvl lvl-info">INFO</span></td><td class="mono">monitor</td><td class="mono muted">—</td><td class="truncate">channel probe round finished: 126 ok / 3 failed in 4.2s</td><td class="mono">—</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+</div>
+<!--#INCLUDE runtime#-->
+</body>
+</html>

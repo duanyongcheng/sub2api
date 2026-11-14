@@ -69,6 +69,14 @@ docker-compose.override.yml
 .classpath
 
 # ===================
+# 本地 AI / 任务工具数据
+# ===================
+.agents/
+.cursor/
+.pi/
+.trellis/
+
+# ===================
 # 操作系统
 # ===================
 .DS_Store

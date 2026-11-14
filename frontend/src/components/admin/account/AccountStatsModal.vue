@@ -3,6 +3,8 @@
     :show="show"
     :title="t('admin.accounts.usageStatistics')"
     width="extra-wide"
+    variant="drawer"
+    drawer-width="960px"
     @close="handleClose"
   >
     <div class="space-y-6">

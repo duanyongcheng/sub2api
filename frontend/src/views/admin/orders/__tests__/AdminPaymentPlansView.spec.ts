@@ -97,6 +97,8 @@ describe('AdminPaymentPlansView', () => {
       },
     })
 
+    // The merged orders page owns loading (tab switch / refresh); the panel only exposes init().
+    ;(wrapper.vm as unknown as { init: () => void }).init()
     await flushPromises()
 
     expect(wrapper.text()).toContain('¥499.00CNY')

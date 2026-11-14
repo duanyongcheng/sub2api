@@ -172,6 +172,7 @@ export default {
     todayTokens: 'Today Tokens',
     todayCacheCreation: 'Today Cache Creation',
     todayCacheRead: 'Today Cache Read',
+    cacheHitRate: 'Cache Hit Rate',
     todayCost: 'Today Cost',
     rpmTpm: 'RPM / TPM',
     totalRequests: 'Total Requests',
