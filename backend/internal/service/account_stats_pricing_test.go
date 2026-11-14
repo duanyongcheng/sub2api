@@ -709,13 +709,15 @@ func TestResolveAccountStatsCost_DeepSeekPricingPriority(t *testing.T) {
 		customRule   bool
 		applyPricing bool
 		noChannel    bool
+		zeroTotal    bool
 		want         float64
 	}{
-		{name: "catalog", want: 1000 * 1.5e-7 * 2},
+		{name: "nominal_default", want: 0.002},
 		{name: "custom_rule", customRule: true, want: 1},
 		{name: "custom_rule_before_customer_price", customRule: true, applyPricing: true, want: 1},
 		{name: "customer_price", applyPricing: true, want: 0.75},
-		{name: "no_channel", noChannel: true},
+		{name: "zero_customer_price", applyPricing: true, zeroTotal: true},
+		{name: "no_channel", noChannel: true, want: 0.002},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			channel := &Channel{
@@ -737,9 +739,13 @@ func TestResolveAccountStatsCost_DeepSeekPricingPriority(t *testing.T) {
 			if tt.noChannel {
 				groupID = 99
 			}
+			totalCost := 0.75
+			if tt.zeroTotal {
+				totalCost = 0
+			}
 			cost := resolveAccountStatsCost(context.Background(), cs, newTestBillingService(),
-				1, groupID, "deepseek-v4-flash", UsageTokens{InputTokens: 1000}, 1, 0.75, "", peak, true)
-			if tt.noChannel {
+				1, groupID, "deepseek-v4-flash", UsageTokens{InputTokens: 1000}, 1, totalCost, "priority", peak, true)
+			if tt.zeroTotal {
 				require.Nil(t, cost)
 				return
 			}

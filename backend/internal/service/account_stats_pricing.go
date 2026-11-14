@@ -4,6 +4,8 @@ import (
 	"context"
 	"strings"
 	"time"
+
+	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
 )
 
 // resolveAccountStatsCost 计算账号统计定价费用。
@@ -12,12 +14,12 @@ import (
 // 优先级（先命中为准）：
 //  1. 自定义规则（始终尝试，不依赖 ApplyPricingToAccountStats 开关）
 //  2. ApplyPricingToAccountStats 启用时，直接使用本次请求的客户计费（倍率前的 totalCost）
-//  3. 模型定价文件（LiteLLM）中上游模型的默认价格
+//  3. 上游模型默认价格（DeepSeek 使用名义 CNY 价卡，其它模型使用 LiteLLM/fallback）
 //  4. nil → 走默认公式（total_cost × account_rate_multiplier）
 //
 // upstreamModel 是最终发往上游的模型 ID。
 // totalCost 是本次请求的客户计费（倍率前），用于优先级 2。
-// serviceTier 是最终参与用户计费的 OpenAI 服务层级，用于优先级 3。
+// serviceTier 是最终参与用户计费的 OpenAI 服务层级，仅用于其它模型的默认价格。
 // pricingAt 与本次客户计费使用同一时刻，避免跨峰谷请求的成本与售价错位。
 // longContextPricingEnabled 表示上游是否对本次请求收取长上下文费率，用于优先级 3；
 // 由 accountStatsLongContextPricingEnabled 按账号开关得出，不受分组售价开关影响。
@@ -41,36 +43,73 @@ func resolveAccountStatsCost(
 	if len(reasoningEfforts) > 0 {
 		reasoningEffort = reasoningEfforts[0]
 	}
-	if channelService == nil || upstreamModel == "" {
-		return nil
-	}
-	channel, err := channelService.GetChannelForGroup(ctx, groupID)
-	if err != nil || channel == nil {
+	if upstreamModel == "" {
 		return nil
 	}
 
-	platform := channelService.GetGroupPlatform(ctx, groupID)
-
-	// 优先级 1：自定义规则（始终尝试）
-	if cost := tryCustomRules(channel, accountID, groupID, platform, upstreamModel, tokens, requestCount, reasoningEffort); cost != nil {
-		return cost
-	}
-
-	// 优先级 2：渠道开启"应用模型定价到账号统计"时，直接使用客户计费（倍率前）
-	if channel.ApplyPricingToAccountStats {
-		cost := totalCost
-		if cost <= 0 {
+	var channel *Channel
+	// Ungrouped keys and groups without channels are supported request paths.
+	// Only DeepSeek gains a default estimate when there is no active channel.
+	if channelService != nil && groupID != 0 {
+		var err error
+		channel, err = channelService.GetChannelForGroup(ctx, groupID)
+		if err != nil {
+			// A lookup failure may hide explicit account pricing rules.
 			return nil
 		}
-		return &cost
+	}
+	if channel != nil {
+		platform := channelService.GetGroupPlatform(ctx, groupID)
+
+		// 优先级 1：自定义规则（始终尝试）
+		if cost := tryCustomRules(channel, accountID, groupID, platform, upstreamModel, tokens, requestCount, reasoningEffort); cost != nil {
+			return cost
+		}
+
+		// 优先级 2：渠道开启"应用模型定价到账号统计"时，直接使用客户计费（倍率前）
+		if channel.ApplyPricingToAccountStats {
+			cost := totalCost
+			if cost <= 0 {
+				return nil
+			}
+			return &cost
+		}
 	}
 
-	// 优先级 3：模型定价文件（LiteLLM）默认价格
-	if billingService != nil {
+	// DeepSeek upstream settlement uses nominal CNY amounts, independently of
+	// customer USD prices, inherited catalog metadata, and service-tier labels.
+	if isDeepSeekModel(upstreamModel) {
+		return calculateDeepSeekAccountStatsCost(upstreamModel, tokens, pricingAt)
+	}
+
+	// Preserve the existing channel requirement for other model defaults.
+	if channel != nil && billingService != nil {
 		return tryModelFilePricing(billingService, upstreamModel, tokens, serviceTier, pricingAt, longContextPricingEnabled, reasoningEffort)
 	}
 
 	return nil
+}
+
+// calculateDeepSeekAccountStatsCost uses the official CNY face-value card for
+// upstream statistics only. Tokens are exclusive buckets; no FX or account
+// multiplier belongs here. The flat calculator input intentionally inherits no
+// customer/catalog tier, long-context, image, or reasoning-effort prices.
+func calculateDeepSeekAccountStatsCost(model string, tokens UsageTokens, pricingAt time.Time) *float64 {
+	input, output, cacheRead := 1e-6, 4e-6, 2e-8 // Flash: CNY 1 / 4 / 0.02 per MTok.
+	if isDeepSeekProModel(model) {
+		input, output, cacheRead = 4.5e-6, 13.5e-6, 1.5e-7 // Pro: CNY 4.5 / 13.5 / 0.15 per MTok.
+	}
+	cost := calculateTokenStatsCost(&ChannelModelPricing{
+		InputPrice: &input, OutputPrice: &output, CacheReadPrice: &cacheRead,
+	}, tokens)
+	if cost == nil {
+		return nil
+	}
+	if pricingAt.IsZero() {
+		pricingAt = timezone.Now()
+	}
+	*cost *= deepseekPeakMultiplierAt(pricingAt)
+	return cost
 }
 
 // tryModelFilePricing 使用模型定价文件（LiteLLM/fallback）中的价格计算费用。
