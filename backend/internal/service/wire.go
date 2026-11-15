@@ -987,8 +987,42 @@ var ProviderSet = wire.NewSet(
 	ProvideChannelMonitorV2Service,
 	ProvideChannelMonitorV2Aggregator,
 	NewChannelMonitorRequestTemplateService,
+	ProvideIQDetectionProber,
+	NewIQDetectionService,
+	ProvideIQDetectionRunner,
 	ProvideUserPlatformQuotaUsageFlusher,
 )
+
+// ProvideIQDetectionProber 组装智商检测出站执行器并绑定为 IQDetectionProber 接口。
+func ProvideIQDetectionProber(
+	accountRepo AccountRepository,
+	openaiTokenProvider *OpenAITokenProvider,
+	httpUpstream HTTPUpstream,
+	cfg *config.Config,
+	tlsFPProfileService *TLSFingerprintProfileService,
+	pluginManager *PluginManager,
+	openaiGatewayService *OpenAIGatewayService,
+) IQDetectionProber {
+	return NewOpenAIIQDetectionProber(
+		accountRepo,
+		openaiTokenProvider,
+		httpUpstream,
+		cfg,
+		tlsFPProfileService,
+		pluginManager,
+		openaiGatewayService,
+	)
+}
+
+// ProvideIQDetectionRunner 创建并启动智商检测定时巡检器。
+func ProvideIQDetectionRunner(svc *IQDetectionService) *IQDetectionRunner {
+	runner := NewIQDetectionRunner(svc)
+	if os.Getenv("IQ_DETECTION_DISABLE_RUNNER") == "1" {
+		return runner
+	}
+	runner.Start()
+	return runner
+}
 
 // ProvideUserPlatformQuotaUsageFlusher 创建并启动 UserPlatformQuotaUsageFlusher。
 func ProvideUserPlatformQuotaUsageFlusher(cfg *config.Config, cache BillingCache, quotaRepo UserPlatformQuotaRepository, tw *TimingWheelService) *UserPlatformQuotaUsageFlusher {

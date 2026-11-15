@@ -209,6 +209,7 @@ export default {
     channelManagement: 'Channels',
     channelPricing: 'Channel Pricing',
     channelMonitor: 'Monitoring Configuration',
+    iqDetection: 'IQ Detection',
     channelStatus: 'Service Monitoring',
     riskControl: 'Risk Control',
     securityAudit: 'Security Audit',

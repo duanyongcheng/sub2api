@@ -121,6 +121,9 @@ func RegisterAdminRoutes(
 		registerChannelMonitorRoutes(admin, h, settingService)
 		registerChannelMonitorV2Routes(admin, h, settingService)
 
+		// 智商检测（Codex 降智抽检）
+		registerIQDetectionRoutes(admin, h)
+
 		// 风控中心
 		registerContentModerationRoutes(admin, h)
 
@@ -900,5 +903,19 @@ func channelMonitorModeV2Guard(settingService *service.SettingService) gin.Handl
 			return
 		}
 		c.Next()
+	}
+}
+
+func registerIQDetectionRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	if h == nil || h.Admin == nil || h.Admin.IQDetection == nil {
+		return
+	}
+	iq := admin.Group("/iq-detection")
+	{
+		iq.GET("/config", h.Admin.IQDetection.GetConfig)
+		iq.PUT("/config", h.Admin.IQDetection.UpdateConfig)
+		iq.GET("/overview", h.Admin.IQDetection.GetOverview)
+		iq.GET("/runs", h.Admin.IQDetection.ListRuns)
+		iq.POST("/run", h.Admin.IQDetection.RunNow)
 	}
 }

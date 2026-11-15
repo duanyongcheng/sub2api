@@ -494,6 +494,18 @@ export const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/admin/iq-detection',
+    name: 'AdminIQDetection',
+    component: () => import('@/features/iq-detection/IQDetectionView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'IQ Detection',
+      titleKey: 'iqDetection.title',
+      descriptionKey: 'iqDetection.description'
+    }
+  },
+  {
     path: '/monitor',
     name: 'ChannelStatus',
     component: () => import('@/views/user/ChannelStatusView.vue'),
