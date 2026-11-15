@@ -209,6 +209,7 @@ export default {
     channelManagement: '渠道管理',
     channelPricing: '渠道定价',
     channelMonitor: '监控配置',
+    iqDetection: '智商检测',
     channelStatus: '服务监控',
     riskControl: '风控中心',
     securityAudit: '安全审计',
