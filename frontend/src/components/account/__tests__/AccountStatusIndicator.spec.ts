@@ -8,7 +8,7 @@ vi.mock('vue-i18n', async () => {
   return {
     ...actual,
     useI18n: () => ({
-      t: (key: string) => key
+      t: (key: string, values?: Record<string, unknown>) => values ? `${key} ${JSON.stringify(values)}` : key
     })
   }
 })
@@ -106,7 +106,9 @@ describe('AccountStatusIndicator', () => {
       }
     })
 
-    expect(wrapper.find('.badge-warning').text()).toBe('admin.accounts.status.rateLimited')
+    expect(wrapper.find('.badge-warning').text()).toContain('admin.accounts.status.rateLimited')
+    expect(wrapper.find('.badge-warning').text()).toContain('429')
+    expect(wrapper.find('[title]').attributes('title')).toContain('2099')
     expect(wrapper.text()).toContain('admin.accounts.status.rateLimitedAutoResume')
     expect(wrapper.text()).not.toContain('admin.accounts.status.tempUnschedulable')
   })

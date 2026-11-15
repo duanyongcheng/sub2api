@@ -510,7 +510,7 @@
       <template #pagination><Pagination v-if="pagination.total > 0" :page="pagination.page" :total="pagination.total" :page-size="pagination.page_size" @update:page="handlePageChange" @update:pageSize="handlePageSizeChange" /></template>
     </TablePageLayout>
     </div>
-    <AccountDetailDrawer :show="showAccountDetail" :account="detailAccount" :today-stats="detailAccount ? todayStatsByAccountId[String(detailAccount.id)] ?? null : null" :today-stats-loading="todayStatsLoading" :today-stats-error="todayStatsError" @close="showAccountDetail = false" @edit="showAccountDetail = false; handleEdit($event)" @test="showAccountDetail = false; handleTest($event)" @stats="showAccountDetail = false; handleViewStats($event)" @refresh="handleRefresh" @temp-unsched="showAccountDetail = false; handleShowTempUnsched($event)" />
+    <AccountDetailModal :show="showAccountDetail" :account="detailAccount" :today-stats="detailAccount ? todayStatsByAccountId[String(detailAccount.id)] ?? null : null" :today-stats-loading="todayStatsLoading" :today-stats-error="todayStatsError" @close="showAccountDetail = false" @edit="showAccountDetail = false; handleEdit($event)" @test="showAccountDetail = false; handleTest($event)" @stats="showAccountDetail = false; handleViewStats($event)" @refresh="handleRefresh" @temp-unsched="showAccountDetail = false; handleShowTempUnsched($event)" />
     <CreateAccountModal :show="showCreate" :proxies="proxies" :groups="groups" @close="showCreate = false" @created="reload" />
     <EditAccountModal :show="showEdit" :account="edAcc" :proxies="proxies" :groups="groups" @close="showEdit = false" @updated="handleAccountUpdated" />
     <ReAuthAccountModal :show="showReAuth" :account="reAuthAcc" @close="closeReAuthModal" @reauthorized="handleAccountUpdated" />
@@ -567,7 +567,7 @@ import AccountPoolNavigator from '@/components/admin/account/AccountPoolNavigato
 import AccountPoolOverview from '@/components/admin/account/AccountPoolOverview.vue'
 import AccountColumnSettings from '@/components/admin/account/AccountColumnSettings.vue'
 import PlatformIcon from '@/components/common/PlatformIcon.vue'
-import AccountDetailDrawer from '@/components/admin/account/AccountDetailDrawer.vue'
+import AccountDetailModal from '@/components/admin/account/AccountDetailModal.vue'
 import { accountMonitorContext } from '@/features/channel-monitor-v2/accountMonitorContext'
 import DataTable from '@/components/common/DataTable.vue'
 import HelpTooltip from '@/components/common/HelpTooltip.vue'
