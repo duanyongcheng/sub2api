@@ -31,9 +31,7 @@
                 <Icon name="clock" size="xs" />
                 {{
                   overview.config.enabled
-                    ? t('iqDetection.overview.patrolEnabledBadge', {
-                        hours: overview.config.interval_hours
-                      })
+                    ? formatPatrolEnabledBadge(overview.config)
                     : t('iqDetection.overview.patrolDisabledBadge')
                 }}
               </span>
@@ -657,6 +655,7 @@ import {
   formatDateTime,
   formatLatencyMs,
   formatTps,
+  resolveConfigIntervalMinutes,
   verdictBadgeClasses,
   verdictDotClasses
 } from './verdictMeta'
@@ -729,6 +728,14 @@ function resolveGroupDisplayVerdict(group: IQDetectionGroupStatus): DisplayVerdi
     return 'inFlight'
   }
   return group.latest_run?.verdict ?? 'untested'
+}
+
+function formatPatrolEnabledBadge(cfg: IQDetectionConfig): string {
+  const mins = resolveConfigIntervalMinutes(cfg)
+  if (mins < 60) {
+    return t('iqDetection.overview.patrolEnabledMinutesBadge', { minutes: mins })
+  }
+  return t('iqDetection.overview.patrolEnabledHoursBadge', { hours: mins / 60 })
 }
 
 function formatGroupStatus(status: string): string {

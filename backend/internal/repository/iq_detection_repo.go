@@ -28,7 +28,7 @@ func (r *iqDetectionRepository) GetConfig(ctx context.Context) (*service.IQDetec
 		updatedBy sql.NullInt64
 	)
 	err := r.db.QueryRowContext(ctx, `
-		SELECT version, enabled, interval_hours, COALESCE(group_ids, '{}'),
+		SELECT version, enabled, interval_minutes, COALESCE(group_ids, '{}'),
 		       model, reasoning_effort, tests_per_group,
 		       last_scheduled_at, updated_at, updated_by
 		FROM iq_detection_config
@@ -36,7 +36,7 @@ func (r *iqDetectionRepository) GetConfig(ctx context.Context) (*service.IQDetec
 	).Scan(
 		&cfg.Version,
 		&cfg.Enabled,
-		&cfg.IntervalHours,
+		&cfg.IntervalMinutes,
 		pq.Array(&cfg.GroupIDs),
 		&cfg.Model,
 		&cfg.ReasoningEffort,
@@ -87,19 +87,21 @@ func (r *iqDetectionRepository) UpdateConfig(
 		UPDATE iq_detection_config
 		SET version = version + 1,
 		    enabled = $1,
-		    interval_hours = $2,
-		    group_ids = $3,
-		    model = $4,
-		    reasoning_effort = $5,
-		    tests_per_group = $6,
-		    updated_by = $7,
+		    interval_minutes = $2,
+		    interval_hours = $3,
+		    group_ids = $4,
+		    model = $5,
+		    reasoning_effort = $6,
+		    tests_per_group = $7,
+		    updated_by = $8,
 		    updated_at = NOW()
-		WHERE id = 1 AND version = $8
-		RETURNING version, enabled, interval_hours, COALESCE(group_ids, '{}'),
+		WHERE id = 1 AND version = $9
+		RETURNING version, enabled, interval_minutes, COALESCE(group_ids, '{}'),
 		          model, reasoning_effort, tests_per_group,
 		          last_scheduled_at, updated_at, updated_by`,
 		cfg.Enabled,
-		cfg.IntervalHours,
+		cfg.IntervalMinutes,
+		cfg.IntervalMinutes/60,
 		pq.Array(cfg.GroupIDs),
 		cfg.Model,
 		cfg.ReasoningEffort,
@@ -109,7 +111,7 @@ func (r *iqDetectionRepository) UpdateConfig(
 	).Scan(
 		&updated.Version,
 		&updated.Enabled,
-		&updated.IntervalHours,
+		&updated.IntervalMinutes,
 		pq.Array(&updated.GroupIDs),
 		&updated.Model,
 		&updated.ReasoningEffort,
@@ -156,16 +158,16 @@ func (r *iqDetectionRepository) ClaimScheduledWindow(
 		  AND COALESCE(array_length(group_ids, 1), 0) > 0
 		  AND (
 		      last_scheduled_at IS NULL
-		      OR last_scheduled_at + (interval_hours * INTERVAL '1 hour') <= $1
+		      OR last_scheduled_at + (interval_minutes * INTERVAL '1 minute') <= $1
 		  )
-		RETURNING version, enabled, interval_hours, COALESCE(group_ids, '{}'),
+		RETURNING version, enabled, interval_minutes, COALESCE(group_ids, '{}'),
 		          model, reasoning_effort, tests_per_group,
 		          last_scheduled_at, updated_at, updated_by`,
 		now.UTC(),
 	).Scan(
 		&cfg.Version,
 		&cfg.Enabled,
-		&cfg.IntervalHours,
+		&cfg.IntervalMinutes,
 		pq.Array(&cfg.GroupIDs),
 		&cfg.Model,
 		&cfg.ReasoningEffort,

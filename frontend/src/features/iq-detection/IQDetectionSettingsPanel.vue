@@ -301,14 +301,15 @@
           </div>
           <div class="tabs inline-flex flex-wrap" role="group" :aria-label="t('iqDetection.settings.intervalLabel')">
             <button
-              v-for="hrs in INTERVAL_OPTIONS"
-              :key="hrs"
+              v-for="mins in IQ_DETECTION_INTERVAL_OPTIONS"
+              :key="mins"
               type="button"
+              :data-testid="`iq-interval-opt-${mins}`"
               class="tab tabular-nums"
-              :class="draft.interval_hours === hrs ? 'tab-active' : ''"
-              @click="draft.interval_hours = hrs"
+              :class="draft.interval_minutes === mins ? 'tab-active' : ''"
+              @click="draft.interval_minutes = mins"
             >
-              {{ t('iqDetection.settings.intervalHoursOption', { hours: hrs }) }}
+              {{ formatIntervalOption(mins) }}
             </button>
           </div>
         </div>
@@ -368,14 +369,17 @@ import {
 import type {
   IQDetectionConfig,
   IQDetectionEffort,
-  IQDetectionIntervalHours
+  IQDetectionIntervalMinutes
 } from './types'
-import { formatDateTime } from './verdictMeta'
+import {
+  formatDateTime,
+  IQ_DETECTION_INTERVAL_OPTIONS,
+  resolveConfigIntervalMinutes
+} from './verdictMeta'
 
 const MODEL_PRESETS = ['gpt-5.4', 'gpt-5.5', 'gpt-5.6-sol', 'gpt-6', 'gpt-6.1-sol'] as const
 const EFFORT_OPTIONS: readonly IQDetectionEffort[] = ['low', 'medium', 'high', 'xhigh', 'max']
 const TESTS_PER_GROUP_OPTIONS = [1, 2, 3, 4, 5] as const
-const INTERVAL_OPTIONS: readonly IQDetectionIntervalHours[] = [6, 12, 24]
 
 const props = defineProps<{
   initialConfig?: IQDetectionConfig | null
@@ -400,10 +404,17 @@ const openaiGroups = ref<AdminGroup[]>([])
 
 let groupsAbortController: AbortController | null = null
 
+function formatIntervalOption(mins: IQDetectionIntervalMinutes): string {
+  if (mins < 60) {
+    return t('iqDetection.settings.intervalMinutesOption', { minutes: mins })
+  }
+  return t('iqDetection.settings.intervalHoursOption', { hours: mins / 60 })
+}
+
 function serializeComparable(cfg: IQDetectionConfig): string {
   return JSON.stringify({
     enabled: cfg.enabled,
-    interval_hours: cfg.interval_hours,
+    interval_minutes: cfg.interval_minutes,
     group_ids: [...cfg.group_ids].sort((a, b) => a - b),
     model: cfg.model.trim(),
     reasoning_effort: cfg.reasoning_effort,
@@ -414,6 +425,7 @@ function serializeComparable(cfg: IQDetectionConfig): string {
 function applyServerConfig(cfg: IQDetectionConfig) {
   const cloned: IQDetectionConfig = {
     ...cfg,
+    interval_minutes: resolveConfigIntervalMinutes(cfg),
     group_ids: Array.isArray(cfg.group_ids) ? [...cfg.group_ids] : []
   }
   draft.value = cloned

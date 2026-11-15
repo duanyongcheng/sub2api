@@ -309,11 +309,31 @@ func TestIQDetection_ServiceConfigValidationAndGroupSampling(t *testing.T) {
 
 	svc := NewIQDetectionService(repo, groupRepo, accountRepo, prober)
 
+	// 0. 巡检间隔周期校验：支持 30 分钟、1 小时、6 小时、12 小时、24 小时，默认 720 分钟（12h）
+	defNorm, err := NormalizeAndValidateIQDetectionConfig(IQDetectionConfig{})
+	require.NoError(t, err)
+	require.Equal(t, 720, defNorm.IntervalMinutes)
+
+	for _, allowed := range []int{30, 60, 360, 720, 1440} {
+		norm, normErr := NormalizeAndValidateIQDetectionConfig(IQDetectionConfig{
+			IntervalMinutes: allowed,
+		})
+		require.NoError(t, normErr, "expected interval_minutes=%d to be valid", allowed)
+		require.Equal(t, allowed, norm.IntervalMinutes)
+	}
+
+	for _, invalid := range []int{-1, 15, 45, 120, 180} {
+		_, normErr := NormalizeAndValidateIQDetectionConfig(IQDetectionConfig{
+			IntervalMinutes: invalid,
+		})
+		require.ErrorIs(t, normErr, ErrIQDetectionInvalidConfig, "expected interval_minutes=%d to be rejected", invalid)
+	}
+
 	// 1. 拒绝非 openai 平台分组
-	_, err := svc.UpdateConfig(ctx, IQDetectionConfig{
+	_, err = svc.UpdateConfig(ctx, IQDetectionConfig{
 		Version:         1,
 		Enabled:         false,
-		IntervalHours:   12,
+		IntervalMinutes: 720,
 		GroupIDs:        []int64{20},
 		Model:           "gpt-5.4",
 		ReasoningEffort: "medium",
@@ -321,11 +341,11 @@ func TestIQDetection_ServiceConfigValidationAndGroupSampling(t *testing.T) {
 	}, 1, 99)
 	require.ErrorIs(t, err, ErrIQDetectionInvalidConfig)
 
-	// 2. 保存合法 openai 分组配置 + 乐观锁递增
+	// 2. 保存合法 openai 分组配置（30 分钟巡检周期）+ 乐观锁递增
 	saved, err := svc.UpdateConfig(ctx, IQDetectionConfig{
 		Version:         1,
 		Enabled:         true,
-		IntervalHours:   6,
+		IntervalMinutes: 30,
 		GroupIDs:        []int64{10, 10},
 		Model:           "gpt-5.4",
 		ReasoningEffort: "high",
@@ -333,6 +353,7 @@ func TestIQDetection_ServiceConfigValidationAndGroupSampling(t *testing.T) {
 	}, 1, 99)
 	require.NoError(t, err)
 	require.Equal(t, int64(2), saved.Version)
+	require.Equal(t, 30, saved.IntervalMinutes)
 	require.Equal(t, []int64{10}, saved.GroupIDs)
 
 	// 旧版本号再次提交应触发 409 冲突错误

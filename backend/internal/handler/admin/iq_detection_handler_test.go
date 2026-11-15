@@ -152,7 +152,7 @@ func TestIQDetectionHandler_ConfigOverviewRunsAndRunNow(t *testing.T) {
 	req = httptest.NewRequest(http.MethodPut, "/api/v1/admin/iq-detection/config", bytes.NewBufferString(`{
 		"version": 1,
 		"enabled": false,
-		"interval_hours": 12,
+		"interval_minutes": 720,
 		"group_ids": [22],
 		"model": "gpt-5.4",
 		"reasoning_effort": "medium",
@@ -162,12 +162,27 @@ func TestIQDetectionHandler_ConfigOverviewRunsAndRunNow(t *testing.T) {
 	router.ServeHTTP(rec, req)
 	require.Equal(t, http.StatusBadRequest, rec.Code)
 
-	// 4. PUT /config with valid openai group -> 200
+	// 3b. PUT /config with unsupported interval_minutes -> 400
 	rec = httptest.NewRecorder()
 	req = httptest.NewRequest(http.MethodPut, "/api/v1/admin/iq-detection/config", bytes.NewBufferString(`{
 		"version": 1,
 		"enabled": true,
-		"interval_hours": 12,
+		"interval_minutes": 45,
+		"group_ids": [11],
+		"model": "gpt-5.4",
+		"reasoning_effort": "medium",
+		"tests_per_group": 1
+	}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+
+	// 4. PUT /config with valid openai group and 30-minute interval -> 200
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPut, "/api/v1/admin/iq-detection/config", bytes.NewBufferString(`{
+		"version": 1,
+		"enabled": true,
+		"interval_minutes": 30,
 		"group_ids": [11],
 		"model": "gpt-5.4",
 		"reasoning_effort": "medium",
@@ -176,13 +191,46 @@ func TestIQDetectionHandler_ConfigOverviewRunsAndRunNow(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	router.ServeHTTP(rec, req)
 	require.Equal(t, http.StatusOK, rec.Code)
+	require.Contains(t, rec.Body.String(), `"interval_minutes":30`)
+
+	// 4b. PUT /config with 60-minute (1h) interval -> 200
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPut, "/api/v1/admin/iq-detection/config", bytes.NewBufferString(`{
+		"version": 2,
+		"enabled": true,
+		"interval_minutes": 60,
+		"group_ids": [11],
+		"model": "gpt-5.4",
+		"reasoning_effort": "medium",
+		"tests_per_group": 1
+	}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Contains(t, rec.Body.String(), `"interval_minutes":60`)
+
+	// 4c. PUT /config legacy interval_hours fallback -> 200
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPut, "/api/v1/admin/iq-detection/config", bytes.NewBufferString(`{
+		"version": 3,
+		"enabled": true,
+		"interval_hours": 6,
+		"group_ids": [11],
+		"model": "gpt-5.4",
+		"reasoning_effort": "medium",
+		"tests_per_group": 1
+	}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Contains(t, rec.Body.String(), `"interval_minutes":360`)
 
 	// 5. PUT /config with stale version -> 409
 	rec = httptest.NewRecorder()
 	req = httptest.NewRequest(http.MethodPut, "/api/v1/admin/iq-detection/config", bytes.NewBufferString(`{
 		"version": 1,
 		"enabled": false,
-		"interval_hours": 12,
+		"interval_minutes": 720,
 		"group_ids": [11],
 		"model": "gpt-5.4",
 		"reasoning_effort": "medium",

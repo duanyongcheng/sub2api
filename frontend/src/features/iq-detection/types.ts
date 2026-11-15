@@ -1,12 +1,12 @@
 export type IQDetectionVerdict = 'normal' | 'warning' | 'degraded' | 'error'
 export type IQDetectionEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max'
-export type IQDetectionIntervalHours = 6 | 12 | 24
+export type IQDetectionIntervalMinutes = 30 | 60 | 360 | 720 | 1440
 export type IQDetectionTriggerType = 'manual' | 'scheduled'
 
 export interface IQDetectionConfig {
   version: number
   enabled: boolean
-  interval_hours: IQDetectionIntervalHours
+  interval_minutes: IQDetectionIntervalMinutes
   group_ids: number[]
   model: string
   reasoning_effort: IQDetectionEffort

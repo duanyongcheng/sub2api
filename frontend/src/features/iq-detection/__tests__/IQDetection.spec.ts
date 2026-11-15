@@ -79,7 +79,7 @@ vi.mock('vue-i18n', async () => {
 const sampleConfig = (): IQDetectionConfig => ({
   version: 2,
   enabled: false,
-  interval_hours: 12,
+  interval_minutes: 720,
   group_ids: [10],
   model: 'gpt-5.4',
   reasoning_effort: 'medium',
@@ -293,6 +293,26 @@ describe('IQDetectionView', () => {
 
     expect(routerMocks.replace).toHaveBeenCalledWith({ query: { tab: 'settings' } })
   })
+
+  it('displays scheduled patrol badge for 30-minute and 1-hour intervals', async () => {
+    apiMocks.getIQDetectionOverview.mockResolvedValue({
+      ...sampleOverview(),
+      config: { ...sampleConfig(), enabled: true, interval_minutes: 30 }
+    })
+
+    const wrapper30 = mountView()
+    await flushPromises()
+    expect(wrapper30.text()).toContain('定时巡检已开启（每 30 分钟）')
+
+    apiMocks.getIQDetectionOverview.mockResolvedValue({
+      ...sampleOverview(),
+      config: { ...sampleConfig(), enabled: true, interval_minutes: 60 }
+    })
+
+    const wrapper60 = mountView()
+    await flushPromises()
+    expect(wrapper60.text()).toContain('定时巡检已开启（每 1 小时）')
+  })
 })
 
 describe('IQDetectionSettingsPanel', () => {
@@ -344,5 +364,36 @@ describe('IQDetectionSettingsPanel', () => {
     const submitted = apiMocks.updateIQDetectionConfig.mock.calls[0][0] as IQDetectionConfig
     expect(submitted.group_ids).toEqual([10, 15])
     expect(storeMocks.showSuccess).toHaveBeenCalled()
+  })
+
+  it('renders 30m and 1h patrol interval options and persists selected frequencies', async () => {
+    const wrapper = mount(IQDetectionSettingsPanel, {
+      props: {
+        initialConfig: { ...sampleConfig(), group_ids: [10], interval_minutes: 720 }
+      }
+    })
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="iq-interval-opt-30"]').text()).toBe('每 30 分钟')
+    expect(wrapper.get('[data-testid="iq-interval-opt-60"]').text()).toBe('每 1 小时')
+    expect(wrapper.get('[data-testid="iq-interval-opt-360"]').text()).toBe('每 6 小时')
+    expect(wrapper.get('[data-testid="iq-interval-opt-720"]').text()).toBe('每 12 小时')
+    expect(wrapper.get('[data-testid="iq-interval-opt-1440"]').text()).toBe('每 24 小时')
+
+    // Select 30 minutes and save
+    await wrapper.get('[data-testid="iq-interval-opt-30"]').trigger('click')
+    await wrapper.get('[data-testid="iq-save-config-btn"]').trigger('click')
+    await flushPromises()
+
+    expect(apiMocks.updateIQDetectionConfig).toHaveBeenCalledTimes(1)
+    expect((apiMocks.updateIQDetectionConfig.mock.calls[0][0] as IQDetectionConfig).interval_minutes).toBe(30)
+
+    // Select 1 hour (60 minutes) and save
+    await wrapper.get('[data-testid="iq-interval-opt-60"]').trigger('click')
+    await wrapper.get('[data-testid="iq-save-config-btn"]').trigger('click')
+    await flushPromises()
+
+    expect(apiMocks.updateIQDetectionConfig).toHaveBeenCalledTimes(2)
+    expect((apiMocks.updateIQDetectionConfig.mock.calls[1][0] as IQDetectionConfig).interval_minutes).toBe(60)
   })
 })

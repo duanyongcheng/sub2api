@@ -56,7 +56,8 @@ export default {
     schedulableCount: '{count} 个可测',
     truncationHit: '截断 {count} 次',
     noRecentRun: '暂无记录',
-    patrolEnabledBadge: '定时巡检已开启（每 {hours} 小时）',
+    patrolEnabledMinutesBadge: '定时巡检已开启（每 {minutes} 分钟）',
+    patrolEnabledHoursBadge: '定时巡检已开启（每 {hours} 小时）',
     patrolDisabledBadge: '仅手动触发（定时巡检关闭）'
   },
   history: {
@@ -105,9 +106,10 @@ export default {
     testsPerGroupHint: '每轮优先选取同优先级下不同的可调度账号；1 轮最省额度，3 轮能更稳定识别偶发截断。',
     testsPerGroupUnit: '{n} 轮 / 组',
     scheduleSectionTitle: '后台定时巡检（可选）',
-    scheduleSectionHint: '开启后系统将按设定小时周期在后台自动抽检已配置分组；默认关闭，随时可手动一键触发。',
+    scheduleSectionHint: '开启后系统将按设定周期在后台自动抽检已配置分组；默认关闭，随时可手动一键触发。',
     scheduleEnableLabel: '启用定时自动抽检',
     intervalLabel: '巡检间隔周期',
+    intervalMinutesOption: '每 {minutes} 分钟',
     intervalHoursOption: '每 {hours} 小时',
     lastScheduledAt: '最近一次自动巡检：{time}',
     neverScheduled: '尚未执行过自动巡检',

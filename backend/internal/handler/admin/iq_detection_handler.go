@@ -35,10 +35,29 @@ func (h *IQDetectionHandler) GetConfig(c *gin.Context) {
 
 // UpdateConfig PUT /api/v1/admin/iq-detection/config
 func (h *IQDetectionHandler) UpdateConfig(c *gin.Context) {
-	var input service.IQDetectionConfig
-	if err := c.ShouldBindJSON(&input); err != nil {
+	var req struct {
+		service.IQDetectionConfig
+		IntervalMinutesPtr  *int `json:"interval_minutes"`
+		LegacyIntervalHours *int `json:"interval_hours"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "invalid iq detection config payload")
 		return
+	}
+	input := req.IQDetectionConfig
+	switch {
+	case req.IntervalMinutesPtr != nil:
+		if *req.IntervalMinutesPtr <= 0 {
+			input.IntervalMinutes = -1
+		} else {
+			input.IntervalMinutes = *req.IntervalMinutesPtr
+		}
+	case req.LegacyIntervalHours != nil:
+		if *req.LegacyIntervalHours <= 0 {
+			input.IntervalMinutes = -1
+		} else {
+			input.IntervalMinutes = *req.LegacyIntervalHours * 60
+		}
 	}
 
 	var actorID int64

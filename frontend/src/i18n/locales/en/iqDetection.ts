@@ -56,7 +56,8 @@ export default {
     schedulableCount: '{count} eligible',
     truncationHit: '{count} truncated',
     noRecentRun: 'No runs yet',
-    patrolEnabledBadge: 'Scheduled patrol enabled (every {hours}h)',
+    patrolEnabledMinutesBadge: 'Scheduled patrol enabled (every {minutes}m)',
+    patrolEnabledHoursBadge: 'Scheduled patrol enabled (every {hours}h)',
     patrolDisabledBadge: 'Manual trigger only (scheduled patrol off)'
   },
   history: {
@@ -108,6 +109,7 @@ export default {
     scheduleSectionHint: 'When enabled, configured groups are automatically probed at the chosen interval. Disabled by default.',
     scheduleEnableLabel: 'Enable scheduled patrol',
     intervalLabel: 'Patrol Interval',
+    intervalMinutesOption: 'Every {minutes}m',
     intervalHoursOption: 'Every {hours}h',
     lastScheduledAt: 'Last scheduled patrol: {time}',
     neverScheduled: 'Never executed automatically',

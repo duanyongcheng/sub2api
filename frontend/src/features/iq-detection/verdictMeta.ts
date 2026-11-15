@@ -1,6 +1,37 @@
-import type { IQDetectionVerdict } from './types'
+import type { IQDetectionIntervalMinutes, IQDetectionVerdict } from './types'
 
 export type DisplayVerdict = IQDetectionVerdict | 'untested' | 'inFlight'
+
+export const IQ_DETECTION_INTERVAL_OPTIONS: readonly IQDetectionIntervalMinutes[] = [
+  30,
+  60,
+  360,
+  720,
+  1440
+]
+
+export function isValidIntervalMinutes(val: unknown): val is IQDetectionIntervalMinutes {
+  return (
+    typeof val === 'number' &&
+    (IQ_DETECTION_INTERVAL_OPTIONS as readonly number[]).includes(val)
+  )
+}
+
+export function resolveConfigIntervalMinutes(cfg: {
+  interval_minutes?: number
+  interval_hours?: number
+}): IQDetectionIntervalMinutes {
+  if (isValidIntervalMinutes(cfg.interval_minutes)) {
+    return cfg.interval_minutes
+  }
+  if (typeof cfg.interval_hours === 'number') {
+    const converted = cfg.interval_hours * 60
+    if (isValidIntervalMinutes(converted)) {
+      return converted
+    }
+  }
+  return 720
+}
 
 export function verdictBadgeClasses(verdict: DisplayVerdict): string {
   switch (verdict) {

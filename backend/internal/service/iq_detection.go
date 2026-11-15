@@ -18,15 +18,15 @@ import (
 )
 
 const (
-	IQDetectionDefaultModel         = openai.DefaultTestModel
-	IQDetectionDefaultEffort        = "medium"
-	IQDetectionDefaultIntervalHours = 12
-	IQDetectionDefaultTestsPerGroup = 1
-	IQDetectionMaxTestsPerGroup     = 5
-	IQDetectionMaxRetentionPerGroup = 50
-	IQDetectionMaxAnswerPreviewRune = 400
-	IQDetectionMaxConcurrentGroups  = 3
-	IQDetectionSingleProbeTimeout   = 2 * time.Minute
+	IQDetectionDefaultModel           = openai.DefaultTestModel
+	IQDetectionDefaultEffort          = "medium"
+	IQDetectionDefaultIntervalMinutes = 720
+	IQDetectionDefaultTestsPerGroup   = 1
+	IQDetectionMaxTestsPerGroup       = 5
+	IQDetectionMaxRetentionPerGroup   = 50
+	IQDetectionMaxAnswerPreviewRune   = 400
+	IQDetectionMaxConcurrentGroups    = 3
+	IQDetectionSingleProbeTimeout     = 2 * time.Minute
 
 	IQDetectionTriggerManual    = "manual"
 	IQDetectionTriggerScheduled = "scheduled"
@@ -59,7 +59,7 @@ var (
 type IQDetectionConfig struct {
 	Version         int64      `json:"version"`
 	Enabled         bool       `json:"enabled"`
-	IntervalHours   int        `json:"interval_hours"`
+	IntervalMinutes int        `json:"interval_minutes"`
 	GroupIDs        []int64    `json:"group_ids"`
 	Model           string     `json:"model"`
 	ReasoningEffort string     `json:"reasoning_effort"`
@@ -203,7 +203,7 @@ func DefaultIQDetectionConfig() IQDetectionConfig {
 	return IQDetectionConfig{
 		Version:         1,
 		Enabled:         false,
-		IntervalHours:   IQDetectionDefaultIntervalHours,
+		IntervalMinutes: IQDetectionDefaultIntervalMinutes,
 		GroupIDs:        []int64{},
 		Model:           IQDetectionDefaultModel,
 		ReasoningEffort: IQDetectionDefaultEffort,
@@ -216,13 +216,13 @@ func DefaultIQDetectionConfig() IQDetectionConfig {
 func NormalizeAndValidateIQDetectionConfig(input IQDetectionConfig) (IQDetectionConfig, error) {
 	cfg := input
 
-	if cfg.IntervalHours == 0 {
-		cfg.IntervalHours = IQDetectionDefaultIntervalHours
+	if cfg.IntervalMinutes == 0 {
+		cfg.IntervalMinutes = IQDetectionDefaultIntervalMinutes
 	}
-	switch cfg.IntervalHours {
-	case 6, 12, 24:
+	switch cfg.IntervalMinutes {
+	case 30, 60, 360, 720, 1440:
 	default:
-		return cfg, fmt.Errorf("%w: interval_hours must be one of 6, 12, 24", ErrIQDetectionInvalidConfig)
+		return cfg, fmt.Errorf("%w: interval_minutes must be one of 30, 60, 360, 720, 1440", ErrIQDetectionInvalidConfig)
 	}
 
 	cfg.Model = strings.TrimSpace(cfg.Model)
