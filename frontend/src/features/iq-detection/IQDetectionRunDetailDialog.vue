@@ -8,7 +8,7 @@
     <div v-if="run" class="space-y-5">
       <!-- Summary strip -->
       <div
-        class="grid grid-cols-2 gap-3 rounded-2xl bg-gray-50/80 p-4 ring-1 ring-gray-900/5 dark:bg-dark-900/60 dark:ring-dark-700 sm:grid-cols-4 lg:grid-cols-7"
+        class="grid grid-cols-2 gap-3 rounded-2xl bg-gray-50/80 p-4 ring-1 ring-gray-900/5 dark:bg-dark-900/60 dark:ring-dark-700 sm:grid-cols-3 lg:grid-cols-6"
       >
         <div>
           <div class="text-[11px] font-medium text-gray-500 dark:text-gray-400">
@@ -31,22 +31,6 @@
           </div>
           <div class="mt-1 font-mono text-sm font-bold tabular-nums text-gray-900 dark:text-white">
             {{ run.correct_count }}/{{ run.graded_count || run.tests_count }}
-          </div>
-        </div>
-
-        <div>
-          <div class="text-[11px] font-medium text-gray-500 dark:text-gray-400">
-            {{ t('iqDetection.detail.metaTruncated') }}
-          </div>
-          <div
-            class="mt-1 font-mono text-sm font-bold tabular-nums"
-            :class="
-              run.truncated_count > 0
-                ? 'text-amber-600 dark:text-amber-400'
-                : 'text-emerald-600 dark:text-emerald-400'
-            "
-          >
-            {{ run.truncated_count }}/{{ run.graded_count || run.tests_count }}
           </div>
         </div>
 
@@ -163,29 +147,8 @@
               <td class="whitespace-nowrap px-3 py-3 font-mono tabular-nums">
                 <div class="text-gray-700 dark:text-gray-200">
                   {{ sample.input_tokens }} / {{ sample.output_tokens }} /
-                  <span
-                    class="font-bold"
-                    :class="
-                      sample.truncated
-                        ? 'text-amber-600 dark:text-amber-400'
-                        : 'text-emerald-600 dark:text-emerald-400'
-                    "
-                  >
+                  <span class="font-bold text-blue-600 dark:text-blue-400">
                     {{ sample.reasoning_tokens }}
-                  </span>
-                </div>
-                <div v-if="sample.graded && sample.truncated" class="mt-1">
-                  <span
-                    class="inline-flex items-center gap-1 rounded bg-amber-100/90 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 dark:bg-amber-900/40 dark:text-amber-300"
-                  >
-                    <Icon name="exclamationTriangle" size="xs" />
-                    {{
-                      sample.truncation_signature === 'zero_reasoning'
-                        ? t('iqDetection.detail.truncatedZero')
-                        : t('iqDetection.detail.truncatedStep', {
-                            sig: sample.truncation_signature || sample.reasoning_tokens
-                          })
-                    }}
                   </span>
                 </div>
               </td>

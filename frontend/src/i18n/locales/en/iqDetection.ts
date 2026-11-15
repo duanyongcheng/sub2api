@@ -1,6 +1,6 @@
 export default {
   title: 'IQ Detection',
-  description: 'Group-level Codex intelligence diagnostics powered by the standard candy-drawer reasoning benchmark and reasoning_tokens truncation signatures (518n-2 / 0).',
+  description: 'Group-level OpenAI / Codex intelligence diagnostics powered by the standard candy-drawer reasoning benchmark (expected answer 21) and token telemetry.',
   tabs: {
     aria: 'IQ detection navigation tabs',
     overview: 'Overview',
@@ -18,13 +18,13 @@ export default {
   summary: {
     configured: 'Configured Groups',
     normal: 'Normal IQ',
-    warning: 'Suspected Cap',
+    warning: 'Partial Pass',
     degraded: 'Suspected Degraded',
     errorOrUntested: 'Error / Untested'
   },
   verdict: {
     normal: 'Normal IQ',
-    warning: 'Suspected Cap',
+    warning: 'Partial Pass',
     degraded: 'Degraded',
     error: 'Probe Error',
     untested: 'Untested',
@@ -54,7 +54,6 @@ export default {
     colLastTested: 'Last Probed',
     colActions: 'Actions',
     schedulableCount: '{count} eligible',
-    truncationHit: '{count} truncated',
     noRecentRun: 'No runs yet',
     patrolEnabledMinutesBadge: 'Scheduled patrol enabled (every {minutes}m)',
     patrolEnabledHoursBadge: 'Scheduled patrol enabled (every {hours}h)',
@@ -62,7 +61,7 @@ export default {
   },
   history: {
     title: 'Detection History',
-    subtitle: 'Recent group-level probe runs and per-sample reasoning telemetry to track truncation caps or silent model routing shifts over time.',
+    subtitle: 'Recent group-level probe runs and per-sample response telemetry to track reasoning accuracy, token usage, and model routing over time.',
     filterGroupAll: 'All Groups',
     filterVerdictAll: 'All Verdicts',
     emptyTitle: 'No detection history yet',
@@ -96,14 +95,14 @@ export default {
     staleGroupHint: 'Group #{id} (deleted or unavailable — uncheck recommended)',
     accountCountBadge: '{active}/{total} active accounts',
     probeSectionTitle: 'Probe Model & Reasoning Parameters',
-    probeSectionHint: 'Use a reasoning-capable Codex / GPT-5 family model with medium or high effort for reliable truncation detection.',
+    probeSectionHint: 'Use a reasoning-capable Codex / GPT-5 family model with medium or high effort for group-level accuracy sampling.',
     modelLabel: 'Probe Model',
     modelPlaceholder: 'e.g. gpt-5.4',
     modelPresetsLabel: 'Quick presets:',
     effortLabel: 'Reasoning Effort (reasoning_effort)',
-    effortHint: 'medium balances sensitivity and latency; high / xhigh surfaces 516 / 1034 server caps more aggressively.',
+    effortHint: 'Controls the reasoning effort forwarded upstream; medium balances accuracy and latency.',
     testsPerGroupLabel: 'Samples Per Group (tests_per_group)',
-    testsPerGroupHint: 'Consecutive samples rotate across distinct eligible accounts at the top priority tier; 1 saves quota, 3 stabilizes intermittent cap detection.',
+    testsPerGroupHint: 'Consecutive samples rotate across distinct eligible accounts at the top priority tier; 1 saves quota, multiple rounds surface intermittent bad accounts.',
     testsPerGroupUnit: '{n}x / group',
     scheduleSectionTitle: 'Scheduled Background Patrol (Optional)',
     scheduleSectionHint: 'When enabled, configured groups are automatically probed at the chosen interval. Disabled by default.',
@@ -113,11 +112,11 @@ export default {
     intervalHoursOption: 'Every {hours}h',
     lastScheduledAt: 'Last scheduled patrol: {time}',
     neverScheduled: 'Never executed automatically',
-    promptPreviewTitle: 'Built-in Benchmark Methodology (Candy Drawer + 518n-2 Signature)',
+    promptPreviewTitle: 'Built-in Benchmark Methodology (Candy Drawer Reasoning Problem)',
     promptPreviewToggleShow: 'Show benchmark prompt',
     promptPreviewToggleHide: 'Hide benchmark prompt',
     methodologyBullet1: 'Reasoning accuracy: multi-constraint pigeonhole problem whose unique standalone integer answer is 21.',
-    methodologyBullet2: 'Truncation signature: flags reasoning_tokens == 0 or exact 518n-2 server budget ceilings (516 / 1034 / 1552 / 2070 / 2588).',
+    methodologyBullet2: 'Reasoning telemetry: records Input / Output / Reasoning tokens, response model, latency, and TPS for reference (verdict is graded strictly by answer 21 accuracy).',
     methodologyBullet3: 'Authentic gateway parity: Codex OAuth probes send paired Originator / User-Agent headers and base instructions without billing logs or circuit-breaker side effects.'
   },
   detail: {
@@ -127,7 +126,6 @@ export default {
     metaResponseModel: 'Response Model',
     metaEffort: 'Reasoning Effort',
     metaAccuracy: 'Accuracy',
-    metaTruncated: 'Truncated Samples',
     metaCompletedAt: 'Completed At',
     colRun: 'Run',
     colAccount: 'Sampled Account',
@@ -140,8 +138,6 @@ export default {
     passBadge: 'Pass (21)',
     failBadge: 'Wrong',
     errorBadge: 'Error',
-    truncatedZero: 'Zero Reasoning (0)',
-    truncatedStep: 'Truncated {sig}',
     emptyAnswer: '(Empty text output)'
   },
   messages: {

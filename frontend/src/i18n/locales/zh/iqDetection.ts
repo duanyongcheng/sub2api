@@ -1,6 +1,6 @@
 export default {
   title: '智商检测',
-  description: '基于标准抽屉原理黑袋摸糖题与 Codex reasoning_tokens 截断指纹（518n-2 / 0），对选定 OpenAI / Codex 分组执行分组级抽检诊断。',
+  description: '基于标准抽屉原理黑袋摸糖推理题（标准答案 21），对选定 OpenAI / Codex 分组执行分组级准确率抽检与推理指标观测。',
   tabs: {
     aria: '智商检测导航切换',
     overview: '检测概览',
@@ -18,13 +18,13 @@ export default {
   summary: {
     configured: '已配置分组',
     normal: '智商正常',
-    warning: '疑似限智',
+    warning: '部分波动',
     degraded: '疑似降智',
     errorOrUntested: '异常 / 未测'
   },
   verdict: {
     normal: '智商正常',
-    warning: '疑似限智',
+    warning: '部分波动',
     degraded: '疑似降智',
     error: '请求异常',
     untested: '尚未检测',
@@ -54,7 +54,6 @@ export default {
     colLastTested: '最近检测时间',
     colActions: '操作',
     schedulableCount: '{count} 个可测',
-    truncationHit: '截断 {count} 次',
     noRecentRun: '暂无记录',
     patrolEnabledMinutesBadge: '定时巡检已开启（每 {minutes} 分钟）',
     patrolEnabledHoursBadge: '定时巡检已开启（每 {hours} 小时）',
@@ -62,7 +61,7 @@ export default {
   },
   history: {
     title: '历史抽检记录',
-    subtitle: '保留各分组最近的抽检批次与单样本推理明细，便于对比不同时段是否存在思考截断或静默路由降级。',
+    subtitle: '保留各分组最近的抽检批次与单样本回答明细，便于对比不同时段的推理准确率、Token 消耗与响应模型变化。',
     filterGroupAll: '全部分组',
     filterVerdictAll: '全部结论',
     emptyTitle: '暂无历史抽检记录',
@@ -96,14 +95,14 @@ export default {
     staleGroupHint: '分组 #{id}（已删除或不可用，建议取消勾选）',
     accountCountBadge: '{active}/{total} 活跃账号',
     probeSectionTitle: '探测模型与推理参数',
-    probeSectionHint: '建议使用支持深度思考链的 Codex / GPT-5 系列模型，搭配 medium 或 high 推理强度进行抽检。',
+    probeSectionHint: '建议使用支持推理的 Codex / GPT-5 系列模型，搭配 medium 或 high 推理强度进行抽检。',
     modelLabel: '探测模型名称',
     modelPlaceholder: '例如 gpt-5.4',
     modelPresetsLabel: '常用预设：',
     effortLabel: '推理强度（reasoning_effort）',
-    effortHint: 'medium 兼顾检测灵敏度与响应耗时；high / xhigh 更易暴露 516 / 1034 硬截断上限。',
+    effortHint: '控制请求透传给上游的推理深度档位；medium 兼顾准确率与响应耗时。',
     testsPerGroupLabel: '单组抽检轮数（tests_per_group）',
-    testsPerGroupHint: '每轮优先选取同优先级下不同的可调度账号；1 轮最省额度，3 轮能更稳定识别偶发截断。',
+    testsPerGroupHint: '每轮优先选取同优先级下不同的可调度账号；1 轮最省额度，多轮可覆盖组内更多账号以发现个别异常账号。',
     testsPerGroupUnit: '{n} 轮 / 组',
     scheduleSectionTitle: '后台定时巡检（可选）',
     scheduleSectionHint: '开启后系统将按设定周期在后台自动抽检已配置分组；默认关闭，随时可手动一键触发。',
@@ -113,11 +112,11 @@ export default {
     intervalHoursOption: '每 {hours} 小时',
     lastScheduledAt: '最近一次自动巡检：{time}',
     neverScheduled: '尚未执行过自动巡检',
-    promptPreviewTitle: '内置评测基准说明（黑袋摸糖题 + 518n-2 截断指纹）',
+    promptPreviewTitle: '内置评测基准说明（黑袋摸糖推理题）',
     promptPreviewToggleShow: '展开查看标准题目原文',
     promptPreviewToggleHide: '收起标准题目原文',
     methodologyBullet1: '逻辑准确性验证：内置抽屉原理多约束组合题，唯一正确数值答案为独立的 21。',
-    methodologyBullet2: '思考预算截断识别：自动检测 reasoning_tokens 是否归零或卡在 516 / 1034 / 1552 / 2070 / 2588（即 518n-2 固定截断阶梯）。',
+    methodologyBullet2: '推理遥测可观测性：完整记录每次抽检的 Input / Output / Reasoning Tokens、响应模型、耗时与吐字率供参考（结论仅按答案是否为 21 判定）。',
     methodologyBullet3: '真实网关身份对齐：Codex OAuth 账号自动携带配对的 Originator / User-Agent 与基础指令，单纯诊断不落计费日志、不触发熔断。'
   },
   detail: {
@@ -127,7 +126,6 @@ export default {
     metaResponseModel: '实际响应模型',
     metaEffort: '推理强度',
     metaAccuracy: '本轮准确率',
-    metaTruncated: '思考截断样本',
     metaCompletedAt: '完成时间',
     colRun: '轮次',
     colAccount: '抽中账号',
@@ -140,8 +138,6 @@ export default {
     passBadge: '答对 (21)',
     failBadge: '答错',
     errorBadge: '异常',
-    truncatedZero: '思考归零 (0)',
-    truncatedStep: '硬截断 {sig}',
     emptyAnswer: '（无文本输出）'
   },
   messages: {

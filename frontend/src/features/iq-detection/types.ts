@@ -25,8 +25,6 @@ export interface IQDetectionSample {
   protocol?: string
   ok: boolean
   graded: boolean
-  truncated: boolean
-  truncation_signature?: string
   input_tokens: number
   output_tokens: number
   reasoning_tokens: number
@@ -48,7 +46,6 @@ export interface IQDetectionRun {
   tests_count: number
   graded_count: number
   correct_count: number
-  truncated_count: number
   verdict: IQDetectionVerdict
   avg_input_tokens: number
   avg_output_tokens: number

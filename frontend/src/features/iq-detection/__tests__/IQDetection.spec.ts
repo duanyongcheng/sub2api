@@ -101,8 +101,7 @@ const sampleRun = (): IQDetectionRun => ({
   tests_count: 1,
   graded_count: 1,
   correct_count: 1,
-  truncated_count: 1,
-  verdict: 'warning',
+  verdict: 'normal',
   avg_input_tokens: 185,
   avg_output_tokens: 550,
   avg_reasoning_tokens: 516,
@@ -120,8 +119,6 @@ const sampleRun = (): IQDetectionRun => ({
       protocol: 'codex_oauth_responses',
       ok: true,
       graded: true,
-      truncated: true,
-      truncation_signature: '518n-2 (516)',
       input_tokens: 185,
       output_tokens: 550,
       reasoning_tokens: 516,
@@ -141,8 +138,8 @@ const sampleOverview = (): IQDetectionOverview => ({
   summary: {
     configured_count: 1,
     tested_count: 1,
-    normal_count: 0,
-    warning_count: 1,
+    normal_count: 1,
+    warning_count: 0,
     degraded_count: 0,
     error_count: 0,
     untested_count: 0
@@ -234,7 +231,7 @@ describe('IQDetectionView', () => {
     })
   }
 
-  it('loads overview and runs, displays truncation diagnostics, and triggers single/all group probes', async () => {
+  it('loads overview and runs, displays reasoning telemetry without truncation warning, and triggers single/all group probes', async () => {
     const wrapper = mountView()
     await flushPromises()
 
@@ -242,6 +239,8 @@ describe('IQDetectionView', () => {
     expect(apiMocks.listIQDetectionRuns).toHaveBeenCalledTimes(1)
     expect(wrapper.text()).toContain('Codex Pro Pool')
     expect(wrapper.text()).toContain('516')
+    expect(wrapper.text()).toContain('智商正常')
+    expect(wrapper.text()).not.toContain('518n-2')
 
     // Trigger single group probe
     await wrapper.get('[data-testid="iq-run-group-10"]').trigger('click')
@@ -249,10 +248,13 @@ describe('IQDetectionView', () => {
     expect(apiMocks.runIQDetectionNow).toHaveBeenCalledWith({ group_ids: [10] })
     expect(storeMocks.showSuccess).toHaveBeenCalled()
 
-    // Open detail modal and verify 518n-2 truncation signature is shown
+    // Open detail modal and verify reasoning_tokens telemetry is shown without truncation badge
     await wrapper.get('[data-testid="iq-group-detail-10"]').trigger('click')
     await flushPromises()
-    expect(wrapper.get('[data-testid="detail-dialog"]').text()).toContain('518n-2 (516)')
+    const detailText = wrapper.get('[data-testid="detail-dialog"]').text()
+    expect(detailText).toContain('185 / 550 / 516')
+    expect(detailText).toContain('答对 (21)')
+    expect(detailText).not.toContain('518n-2')
 
     // Trigger run-all
     await wrapper.get('[data-testid="iq-run-all-btn"]').trigger('click')

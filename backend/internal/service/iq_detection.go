@@ -72,23 +72,21 @@ type IQDetectionConfig struct {
 
 // IQDetectionSample 单次抽检请求样本明细。
 type IQDetectionSample struct {
-	RunIndex            int     `json:"run_index"`
-	AccountID           int64   `json:"account_id,omitempty"`
-	AccountName         string  `json:"account_name,omitempty"`
-	AccountType         string  `json:"account_type,omitempty"`
-	Protocol            string  `json:"protocol,omitempty"`
-	OK                  bool    `json:"ok"`
-	Graded              bool    `json:"graded"`
-	Truncated           bool    `json:"truncated"`
-	TruncationSignature string  `json:"truncation_signature,omitempty"`
-	InputTokens         int     `json:"input_tokens"`
-	OutputTokens        int     `json:"output_tokens"`
-	ReasoningTokens     int     `json:"reasoning_tokens"`
-	LatencyMs           int     `json:"latency_ms"`
-	TPS                 float64 `json:"tps"`
-	ResponseModel       string  `json:"response_model"`
-	AnswerText          string  `json:"answer_text"`
-	ErrorMessage        string  `json:"error_message,omitempty"`
+	RunIndex        int     `json:"run_index"`
+	AccountID       int64   `json:"account_id,omitempty"`
+	AccountName     string  `json:"account_name,omitempty"`
+	AccountType     string  `json:"account_type,omitempty"`
+	Protocol        string  `json:"protocol,omitempty"`
+	OK              bool    `json:"ok"`
+	Graded          bool    `json:"graded"`
+	InputTokens     int     `json:"input_tokens"`
+	OutputTokens    int     `json:"output_tokens"`
+	ReasoningTokens int     `json:"reasoning_tokens"`
+	LatencyMs       int     `json:"latency_ms"`
+	TPS             float64 `json:"tps"`
+	ResponseModel   string  `json:"response_model"`
+	AnswerText      string  `json:"answer_text"`
+	ErrorMessage    string  `json:"error_message,omitempty"`
 }
 
 // IQDetectionRun 单个分组一次抽检批次的聚合记录。
@@ -103,7 +101,6 @@ type IQDetectionRun struct {
 	TestsCount         int                 `json:"tests_count"`
 	GradedCount        int                 `json:"graded_count"`
 	CorrectCount       int                 `json:"correct_count"`
-	TruncatedCount     int                 `json:"truncated_count"`
 	Verdict            string              `json:"verdict"`
 	AvgInputTokens     int                 `json:"avg_input_tokens"`
 	AvgOutputTokens    int                 `json:"avg_output_tokens"`
@@ -315,28 +312,15 @@ func MatchStandaloneNumber(text, target string) bool {
 	return false
 }
 
-// DetectCodexReasoningTruncation 识别 Codex 2026 典型的服务端思考预算硬截断指纹：
-//   - reasoning_tokens <= 0：思考链完全缺失或被归零
-//   - reasoning_tokens 命中 518n - 2（n=1..5: 516, 1034, 1552, 2070, 2588）固定上限梯队
-func DetectCodexReasoningTruncation(reasoningTokens int) (bool, string) {
-	if reasoningTokens <= 0 {
-		return true, "zero_reasoning"
-	}
-	if reasoningTokens >= 516 && reasoningTokens <= 2588 && (reasoningTokens+2)%518 == 0 {
-		return true, fmt.Sprintf("518n-2 (%d)", reasoningTokens)
-	}
-	return false, ""
-}
-
-// EvaluateIQDetectionVerdict 综合本轮已评分样本的正确数与截断数给出分组级结论。
-func EvaluateIQDetectionVerdict(gradedCount, correctCount, truncatedCount int) string {
+// EvaluateIQDetectionVerdict 根据本轮已评分样本的正确数给出分组级结论（仅依据答案是否正确，不对 reasoning_tokens 做截断判罚）。
+func EvaluateIQDetectionVerdict(gradedCount, correctCount int) string {
 	if gradedCount <= 0 {
 		return IQVerdictError
 	}
-	if correctCount == gradedCount && truncatedCount == 0 {
+	if correctCount == gradedCount {
 		return IQVerdictNormal
 	}
-	if correctCount == 0 || correctCount*2 < gradedCount || (truncatedCount > 0 && correctCount*2 <= gradedCount) {
+	if correctCount == 0 || correctCount*2 < gradedCount {
 		return IQVerdictDegraded
 	}
 	return IQVerdictWarning
@@ -737,7 +721,6 @@ func (s *IQDetectionService) probeSingleGroup(
 	var (
 		gradedCount        int
 		correctCount       int
-		truncatedCount     int
 		totalInputTokens   int
 		totalOutputTokens  int
 		totalReasonTokens  int
@@ -784,15 +767,11 @@ func (s *IQDetectionService) probeSingleGroup(
 		sample.ResponseModel = probeRes.ResponseModel
 		sample.AnswerText = strings.TrimSpace(probeRes.AnswerText)
 		sample.OK = MatchStandaloneNumber(sample.AnswerText, IQDetectionCandyExpectedAnswer)
-		sample.Truncated, sample.TruncationSignature = DetectCodexReasoningTruncation(sample.ReasoningTokens)
 		sample.TPS = computeSampleTPS(sample.OutputTokens, sample.ReasoningTokens, sample.LatencyMs)
 
 		gradedCount++
 		if sample.OK {
 			correctCount++
-		}
-		if sample.Truncated {
-			truncatedCount++
 		}
 		totalInputTokens += sample.InputTokens
 		totalOutputTokens += sample.OutputTokens
@@ -813,8 +792,7 @@ func (s *IQDetectionService) probeSingleGroup(
 	run.Samples = samples
 	run.GradedCount = gradedCount
 	run.CorrectCount = correctCount
-	run.TruncatedCount = truncatedCount
-	run.Verdict = EvaluateIQDetectionVerdict(gradedCount, correctCount, truncatedCount)
+	run.Verdict = EvaluateIQDetectionVerdict(gradedCount, correctCount)
 	run.ResponseModel = firstResponseModel
 	run.AnswerPreview = firstAnswerPreview
 

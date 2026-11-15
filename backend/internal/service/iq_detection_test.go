@@ -164,38 +164,16 @@ func TestIQDetection_MatchStandaloneNumber(t *testing.T) {
 	require.True(t, MatchStandaloneNumber("总糖果 41 个，答案是 21！", "21"))
 }
 
-func TestIQDetection_DetectCodexReasoningTruncation(t *testing.T) {
-	for _, zeroOrNeg := range []int{0, -1} {
-		truncated, sig := DetectCodexReasoningTruncation(zeroOrNeg)
-		require.True(t, truncated)
-		require.Equal(t, "zero_reasoning", sig)
-	}
-
-	for _, step := range []int{516, 1034, 1552, 2070, 2588} {
-		truncated, sig := DetectCodexReasoningTruncation(step)
-		require.True(t, truncated, "expected %d to match 518n-2 truncation step", step)
-		require.Contains(t, sig, "518n-2")
-	}
-
-	for _, normal := range []int{128, 515, 517, 842, 1033, 1035, 3106} {
-		truncated, sig := DetectCodexReasoningTruncation(normal)
-		require.False(t, truncated, "expected %d not to be flagged as truncated", normal)
-		require.Empty(t, sig)
-	}
-}
-
 func TestIQDetection_EvaluateVerdict(t *testing.T) {
-	require.Equal(t, IQVerdictError, EvaluateIQDetectionVerdict(0, 0, 0))
-	require.Equal(t, IQVerdictNormal, EvaluateIQDetectionVerdict(1, 1, 0))
-	require.Equal(t, IQVerdictWarning, EvaluateIQDetectionVerdict(1, 1, 1))
-	require.Equal(t, IQVerdictDegraded, EvaluateIQDetectionVerdict(1, 0, 0))
-	require.Equal(t, IQVerdictDegraded, EvaluateIQDetectionVerdict(1, 0, 1))
+	require.Equal(t, IQVerdictError, EvaluateIQDetectionVerdict(0, 0))
+	require.Equal(t, IQVerdictNormal, EvaluateIQDetectionVerdict(1, 1))
+	require.Equal(t, IQVerdictDegraded, EvaluateIQDetectionVerdict(1, 0))
 
-	require.Equal(t, IQVerdictNormal, EvaluateIQDetectionVerdict(3, 3, 0))
-	require.Equal(t, IQVerdictWarning, EvaluateIQDetectionVerdict(3, 3, 1))
-	require.Equal(t, IQVerdictWarning, EvaluateIQDetectionVerdict(3, 2, 0))
-	require.Equal(t, IQVerdictDegraded, EvaluateIQDetectionVerdict(3, 1, 1))
-	require.Equal(t, IQVerdictDegraded, EvaluateIQDetectionVerdict(2, 1, 1))
+	require.Equal(t, IQVerdictNormal, EvaluateIQDetectionVerdict(3, 3))
+	require.Equal(t, IQVerdictWarning, EvaluateIQDetectionVerdict(3, 2))
+	require.Equal(t, IQVerdictWarning, EvaluateIQDetectionVerdict(2, 1))
+	require.Equal(t, IQVerdictDegraded, EvaluateIQDetectionVerdict(3, 1))
+	require.Equal(t, IQVerdictDegraded, EvaluateIQDetectionVerdict(3, 0))
 }
 
 func TestIQDetection_CodexOAuthPayloadAndStreamParsers(t *testing.T) {
@@ -436,6 +414,7 @@ func TestIQDetection_InFlightGroupDeduplication(t *testing.T) {
 	close(release)
 	firstRes := <-doneFirst
 	require.Equal(t, 1, firstRes.ExecutedGroups)
-	require.Equal(t, IQVerdictWarning, firstRes.Runs[0].Verdict)
-	require.Equal(t, 1, firstRes.Runs[0].TruncatedCount)
+	// 即使 reasoning_tokens 为 516（或 0），只要答案答对 21 即判定为 normal，仅保留 reasoning_tokens 遥测数值
+	require.Equal(t, IQVerdictNormal, firstRes.Runs[0].Verdict)
+	require.Equal(t, 516, firstRes.Runs[0].AvgReasoningTokens)
 }

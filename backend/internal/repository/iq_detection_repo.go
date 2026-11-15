@@ -214,7 +214,7 @@ func (r *iqDetectionRepository) CreateRun(ctx context.Context, run *service.IQDe
 		INSERT INTO iq_detection_runs (
 			group_id, group_name, platform, trigger_type,
 			requested_model, reasoning_effort,
-			tests_count, graded_count, correct_count, truncated_count, verdict,
+			tests_count, graded_count, correct_count, verdict,
 			avg_input_tokens, avg_output_tokens, avg_reasoning_tokens,
 			avg_latency_ms, avg_tps, response_model,
 			answer_preview, error_message, samples,
@@ -222,11 +222,11 @@ func (r *iqDetectionRepository) CreateRun(ctx context.Context, run *service.IQDe
 		) VALUES (
 			$1, $2, $3, $4,
 			$5, $6,
-			$7, $8, $9, $10, $11,
-			$12, $13, $14,
-			$15, $16, $17,
-			$18, $19, $20,
-			$21, $22
+			$7, $8, $9, $10,
+			$11, $12, $13,
+			$14, $15, $16,
+			$17, $18, $19,
+			$20, $21
 		)
 		RETURNING id, created_at`,
 		run.GroupID,
@@ -238,7 +238,6 @@ func (r *iqDetectionRepository) CreateRun(ctx context.Context, run *service.IQDe
 		run.TestsCount,
 		run.GradedCount,
 		run.CorrectCount,
-		run.TruncatedCount,
 		run.Verdict,
 		run.AvgInputTokens,
 		run.AvgOutputTokens,
@@ -271,7 +270,7 @@ func (r *iqDetectionRepository) GetLatestRunsByGroupIDs(
 		SELECT DISTINCT ON (group_id)
 			id, group_id, group_name, platform, trigger_type,
 			requested_model, reasoning_effort,
-			tests_count, graded_count, correct_count, truncated_count, verdict,
+			tests_count, graded_count, correct_count, verdict,
 			avg_input_tokens, avg_output_tokens, avg_reasoning_tokens,
 			avg_latency_ms, avg_tps, response_model,
 			answer_preview, error_message, COALESCE(samples, '[]'::jsonb),
@@ -333,7 +332,7 @@ func (r *iqDetectionRepository) ListRuns(
 		SELECT
 			id, group_id, group_name, platform, trigger_type,
 			requested_model, reasoning_effort,
-			tests_count, graded_count, correct_count, truncated_count, verdict,
+			tests_count, graded_count, correct_count, verdict,
 			avg_input_tokens, avg_output_tokens, avg_reasoning_tokens,
 			avg_latency_ms, avg_tps, response_model,
 			answer_preview, error_message, COALESCE(samples, '[]'::jsonb),
@@ -405,7 +404,6 @@ func scanIQDetectionRunRow(rows *sql.Rows) (service.IQDetectionRun, error) {
 		&run.TestsCount,
 		&run.GradedCount,
 		&run.CorrectCount,
-		&run.TruncatedCount,
 		&run.Verdict,
 		&run.AvgInputTokens,
 		&run.AvgOutputTokens,

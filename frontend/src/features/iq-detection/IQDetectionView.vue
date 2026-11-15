@@ -324,16 +324,6 @@
                           group.latest_run.graded_count || group.latest_run.tests_count
                         }}
                       </span>
-                      <span
-                        v-if="group.latest_run.truncated_count > 0"
-                        class="ml-1.5 inline-flex items-center rounded bg-amber-50 px-1.5 py-0.5 font-sans text-[11px] font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
-                      >
-                        {{
-                          t('iqDetection.overview.truncationHit', {
-                            count: group.latest_run.truncated_count
-                          })
-                        }}
-                      </span>
                     </template>
                     <span v-else class="text-gray-400">—</span>
                   </td>
@@ -553,16 +543,6 @@
                   <td class="whitespace-nowrap px-4 py-3 font-mono tabular-nums">
                     <span class="font-semibold text-gray-900 dark:text-white">
                       {{ run.correct_count }}/{{ run.graded_count || run.tests_count }}
-                    </span>
-                    <span
-                      v-if="run.truncated_count > 0"
-                      class="ml-1 rounded bg-amber-50 px-1.5 py-0.5 font-sans text-[10px] font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
-                    >
-                      {{
-                        t('iqDetection.overview.truncationHit', {
-                          count: run.truncated_count
-                        })
-                      }}
                     </span>
                   </td>
 
