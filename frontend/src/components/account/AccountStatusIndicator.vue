@@ -1,33 +1,45 @@
 <template>
-  <div class="flex items-center gap-2" :class="{ 'account-status-contrast': accessibleContrast }">
-    <!-- Rate Limit Display (429) - Two-line layout -->
-    <div v-if="isRateLimited" class="flex flex-col items-center gap-1">
-      <span class="badge text-xs badge-warning">{{ t('admin.accounts.status.rateLimited') }}</span>
-      <span class="text-[11px] text-gray-400 dark:text-gray-500">{{ rateLimitResumeText }}</span>
+  <div class="flex min-w-0 max-w-full flex-col items-start gap-2" :class="{ 'account-status-contrast': accessibleContrast }">
+    <div
+      v-if="isRateLimited"
+      class="flex max-w-full flex-col items-start gap-1"
+      :title="t('admin.accounts.status.rateLimitedUntil', { time: formatDateTime(account.rate_limit_reset_at) })"
+    >
+      <span class="badge badge-warning inline-block max-w-full whitespace-normal break-words rounded-lg px-1.5 text-xs">
+        {{ t('admin.accounts.status.rateLimited') }}
+        <span class="text-[10px] font-normal tabular-nums">429</span>
+      </span>
+      <span class="max-w-full whitespace-normal text-[11px] leading-4 text-ink-2 tabular-nums">{{ rateLimitResumeText }}</span>
     </div>
 
-    <!-- Overload Display (529) - Two-line layout -->
-    <div v-else-if="isOverloaded" class="flex flex-col items-center gap-1">
-      <span class="badge text-xs badge-danger">{{ t('admin.accounts.status.overloaded') }}</span>
-      <span class="text-[11px] text-gray-400 dark:text-gray-500">{{ overloadCountdown }}</span>
+    <div
+      v-if="isOverloaded"
+      class="flex max-w-full flex-col items-start gap-1"
+      :title="t('admin.accounts.status.overloadedUntil', { time: formatDateTime(account.overload_until) })"
+    >
+      <span class="badge badge-danger inline-block max-w-full whitespace-normal break-words rounded-lg px-1.5 text-xs">
+        {{ t('admin.accounts.status.overloaded') }}
+        <span class="text-[10px] font-normal tabular-nums">529</span>
+      </span>
+      <span class="max-w-full whitespace-normal text-[11px] leading-4 text-ink-2 tabular-nums">{{ overloadCountdown }}</span>
     </div>
 
     <!-- Main Status Badge (shown when not rate limited/overloaded) -->
-    <template v-else>
-      <div v-if="isTempUnschedulable" class="flex flex-col items-center gap-1">
+    <template v-if="!isRateLimited && !isOverloaded">
+      <div v-if="isTempUnschedulable" class="flex min-w-0 max-w-full flex-col items-start gap-1">
         <button
           type="button"
-          :class="['badge text-xs', statusClass, 'cursor-pointer']"
+          :class="['badge inline-block max-w-full whitespace-normal break-words rounded-lg px-1.5 text-left text-xs [overflow-wrap:anywhere]', statusClass, 'cursor-pointer']"
           :title="t('admin.accounts.status.viewTempUnschedDetails')"
           @click="handleTempUnschedClick"
         >
           {{ statusText }}
         </button>
-        <span class="max-w-[180px] text-center text-[11px] leading-4 text-gray-500 dark:text-gray-400">
-          {{ tempUnschedRecoveryText }}
+        <span :title="tempUnschedRecoveryText" class="max-w-full whitespace-normal text-left text-[11px] leading-4 text-ink-2 tabular-nums">
+          {{ t('admin.accounts.status.rateLimitedAutoResume', { time: formatCountdown(account.temp_unschedulable_until) }) }}
         </span>
       </div>
-      <span v-else :class="['badge text-xs', statusClass]">
+      <span v-else :class="['badge max-w-full whitespace-normal break-words text-xs', statusClass]">
         {{ statusText }}
       </span>
     </template>
@@ -57,25 +69,6 @@
         <!-- 上方小三角 -->
         <div
           class="absolute bottom-full left-3 border-[6px] border-transparent border-b-gray-800 dark:border-b-gray-900"
-        ></div>
-      </div>
-    </div>
-
-    <!-- Rate Limit Indicator (429) -->
-    <div v-if="isRateLimited" class="group relative">
-      <span
-        class="inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
-      >
-        <Icon name="exclamationTriangle" size="xs" :stroke-width="2" />
-        429
-      </span>
-      <!-- Tooltip -->
-      <div
-        class="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 w-56 -translate-x-1/2 whitespace-normal rounded bg-gray-900 px-3 py-2 text-center text-xs leading-relaxed text-white opacity-0 transition-opacity group-hover:opacity-100 dark:bg-gray-700"
-      >
-        {{ t('admin.accounts.status.rateLimitedUntil', { time: formatDateTime(account.rate_limit_reset_at) }) }}
-        <div
-          class="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-gray-900 dark:border-t-gray-700"
         ></div>
       </div>
     </div>
@@ -136,25 +129,6 @@
         </div>
       </div>
     </div>
-
-    <!-- Overload Indicator (529) -->
-    <div v-if="isOverloaded" class="group relative">
-      <span
-        class="inline-flex items-center gap-1 rounded bg-red-100 px-1.5 py-0.5 text-xs font-medium text-red-700 dark:bg-red-900/30 dark:text-red-400"
-      >
-        <Icon name="exclamationTriangle" size="xs" :stroke-width="2" />
-        529
-      </span>
-      <!-- Tooltip -->
-      <div
-        class="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 w-56 -translate-x-1/2 whitespace-normal rounded bg-gray-900 px-3 py-2 text-center text-xs leading-relaxed text-white opacity-0 transition-opacity group-hover:opacity-100 dark:bg-gray-700"
-      >
-        {{ t('admin.accounts.status.overloadedUntil', { time: formatTime(account.overload_until) }) }}
-        <div
-          class="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-gray-900 dark:border-t-gray-700"
-        ></div>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -163,7 +137,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'
 import type { Account } from '@/types'
-import { formatCountdown, formatDateTime, formatDateTimeToMinute, formatCountdownWithSuffix, formatTime } from '@/utils/format'
+import { formatCountdown, formatDateTime, formatDateTimeToMinute, formatCountdownWithSuffix } from '@/utils/format'
 
 const { t } = useI18n()
 
@@ -364,7 +338,7 @@ const handleTempUnschedClick = () => {
 </script>
 
 <style scoped>
-/* Opt in only on the accounts workspace and its teleported detail drawer. */
+/* Opt in only on the accounts workspace and its teleported detail modal. */
 .account-status-contrast .badge-success { @apply text-emerald-700 dark:text-emerald-300; }
 .account-status-contrast .badge-warning { @apply text-amber-700 dark:text-amber-300; }
 .account-status-contrast .badge-danger { @apply text-red-700 dark:text-red-300; }

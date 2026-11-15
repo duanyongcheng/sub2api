@@ -721,6 +721,8 @@
   .modal-footer {
     @apply flex flex-shrink-0 items-center justify-end gap-2;
     @apply border-t border-edge bg-surface-2 px-4 py-3 sm:px-5;
+    border-bottom-left-radius: inherit;
+    border-bottom-right-radius: inherit;
   }
 
   /* 抽屉形态：从右侧滑入，替代大部分只读详情模态框 */

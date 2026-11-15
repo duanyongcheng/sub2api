@@ -219,7 +219,7 @@ Standard cards combine the card radius, semantic surface, a fine edge and the co
 
 ### Tables and detail presentation
 
-Reuse `DataTable` for table/card responsiveness and existing account cells for provider-aware quota, capacity and status. The account page's compact concurrency presentation and stronger status/today contrast are opt-in. The detail drawer keeps the full capacity presentation and accepts already loaded today figures; it is not a new automatic usage-fetch surface. Restore-defaults and saved server-sort handling are account behavior, not global styling tokens.
+Reuse `DataTable` for table/card responsiveness and existing account cells for provider-aware quota, capacity and status. The account page's compact concurrency presentation and stronger status/today contrast are opt-in. Account details open in a centered `AccountDetailModal`, with two columns on desktop and one scrollable column on mobile. It keeps the full capacity presentation and accepts already loaded today figures; it is not a new automatic usage-fetch surface. Throttled status combines its label and HTTP code into one compact marker, followed by wrapping, left-aligned recovery text; the exact reset timestamp remains available in the native title. Restore-defaults and saved server-sort handling are account behavior, not global styling tokens.
 
 **The Value Integrity Rule.** Keep numeric values with their labels and units. Loading, unavailable, stale and confirmed zero remain visually distinguishable, and complete provider explanations stay contained without covering neighboring data.
 
