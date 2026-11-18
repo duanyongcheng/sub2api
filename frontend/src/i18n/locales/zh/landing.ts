@@ -15,12 +15,65 @@ export default {
     getStarted: '立即开始',
     goToDashboard: '进入控制台',
     // 新增：面向用户的价值主张
-    heroSubtitle: '一个密钥，畅用多个 AI 模型',
-    heroDescription: '无需管理多个订阅账号，一站式接入 Claude、GPT、Gemini 等主流 AI 服务',
+    heroSubtitle: '一个密钥，畅用主流 AI 模型',
+    heroDescription: '无需分别订阅多个平台，一站式接入 Claude、GPT、Gemini、DeepSeek 等主流大模型服务；多号池智能调度告别单账号限流，按实际用量透明计费。',
     tags: {
       subscriptionToApi: '订阅转 API',
       stickySession: '会话保持',
       realtimeBilling: '按量计费'
+    },
+    pass: {
+      title: '一站式 AI 通行证',
+      routeLabel: '统一网关协议适配',
+      nodes: {
+        anthropic: {
+          name: 'Claude',
+          protocol: 'Anthropic Messages 接口',
+          summary: '原生兼容 Claude Code 与 Messages 协议，支持会话保持，长文本与编码响应更稳定。'
+        },
+        openai: {
+          name: 'GPT',
+          protocol: 'OpenAI Chat & Responses 接口',
+          summary: '单一密钥直连 GPT 与推理系列模型，可直接填入各类支持自定义接口地址的客户端。'
+        },
+        gemini: {
+          name: 'Gemini',
+          protocol: 'Google Gemini 原生与兼容接口',
+          summary: '顺畅调用 Gemini 多模态与长上下文能力，省去多平台账号与账单分散管理的烦恼。'
+        },
+        antigravity: {
+          name: 'Antigravity',
+          protocol: 'Antigravity 云端模型通道',
+          summary: '统一接入 Antigravity 云端模型服务，与主流大模型共享同一套余额与配额管控。'
+        }
+      }
+    },
+    pillars: {
+      unifiedTitle: '一键接入 · 统一管理',
+      unifiedDesc: '获取一把标准 API 密钥即可调用平台已接入的主流模型，无缝适配常用 AI 对话客户端与开发工具。',
+      stableTitle: '稳定可靠 · 多号池自动切换',
+      stableDesc: '底层智能调度多组上游账号池，兼顾会话保持与自动容灾切换，避免单账号触发限流中断工作。',
+      billingTitle: '按量付费 · 额度透明可控',
+      billingDesc: '按实际调用量实时计量扣费，支持设置密钥配额上限并查阅每次消耗明细，告别固定月费闲置浪费。'
+    },
+    ecosystem: {
+      title: '已支持的 AI 模型与平台',
+      subtitle: '汇聚主流大模型与编程生态，同一套密钥与计费体系即开即用',
+      items: {
+        anthropic: 'Opus · Sonnet · Haiku',
+        openai: 'GPT · 推理系列模型',
+        gemini: 'Gemini Pro · Flash 多模态',
+        antigravity: '云端智能与代理模型',
+        deepseek: 'DeepSeek Chat · Reasoner',
+        grok: 'xAI Grok 系列模型',
+        kimi: 'Kimi 长文本与编程模型',
+        zhipu: 'GLM 对话与编码模型'
+      },
+      compatibilityNote: '同时支持 MiniMax、Cline、OpenCode 等生态接入，兼容标准 OpenAI / Anthropic / Gemini 客户端。'
+    },
+    closing: {
+      title: '准备好开启省心的 AI 接入体验了吗？',
+      description: '登录控制台即可创建专属 API 密钥、查看可用模型分组与实时用量明细。'
     },
     // 用户痛点区块
     painPoints: {

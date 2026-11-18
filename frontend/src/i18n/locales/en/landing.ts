@@ -15,12 +15,65 @@ export default {
     getStarted: 'Get Started',
     goToDashboard: 'Go to Dashboard',
     // User-focused value proposition
-    heroSubtitle: 'One Key, All AI Models',
-    heroDescription: 'No need to manage multiple subscriptions. Access Claude, GPT, Gemini and more with a single API key',
+    heroSubtitle: 'One Key for Flagship AI Models',
+    heroDescription: 'Unified gateway access to Claude, GPT, Gemini, DeepSeek, and more. Replace scattered monthly subscriptions with multi-account failover and transparent pay-as-you-go billing.',
     tags: {
       subscriptionToApi: 'Subscription to API',
       stickySession: 'Session Persistence',
       realtimeBilling: 'Pay As You Go'
+    },
+    pass: {
+      title: 'Unified AI Pass',
+      routeLabel: 'Unified Gateway Routing',
+      nodes: {
+        anthropic: {
+          name: 'Claude',
+          protocol: 'Anthropic Messages API',
+          summary: 'Native Claude Code and Messages compatibility with sticky sessions for dependable coding and long-context chats.'
+        },
+        openai: {
+          name: 'GPT',
+          protocol: 'OpenAI Chat & Responses API',
+          summary: 'Connect directly to GPT and reasoning models—drop your key into any client supporting custom OpenAI endpoints.'
+        },
+        gemini: {
+          name: 'Gemini',
+          protocol: 'Native & Compatible Gemini API',
+          summary: 'Access Gemini multimodal and long-context capabilities without maintaining separate accounts or billing.'
+        },
+        antigravity: {
+          name: 'Antigravity',
+          protocol: 'Antigravity Cloud Channel',
+          summary: 'Route requests to Antigravity cloud models under the exact same balance pool and quota controls.'
+        }
+      }
+    },
+    pillars: {
+      unifiedTitle: 'One Key · Unified Management',
+      unifiedDesc: 'Generate one standard API key to reach every connected model family across your chat apps, IDEs, and SDKs.',
+      stableTitle: 'Resilient · Multi-Account Failover',
+      stableDesc: 'Smart upstream account pools balance load with sticky sessions and automatic failover to avoid single-account rate limits.',
+      billingTitle: 'Pay As You Go · Transparent Quotas',
+      billingDesc: 'Real-time usage metering with per-key quota limits and itemized logs—only pay for actual consumption.'
+    },
+    ecosystem: {
+      title: 'Supported AI Models & Platforms',
+      subtitle: 'Flagship model providers and coding ecosystems unified under one key and billing ledger',
+      items: {
+        anthropic: 'Opus · Sonnet · Haiku',
+        openai: 'GPT · Reasoning Series',
+        gemini: 'Gemini Pro · Flash Multimodal',
+        antigravity: 'Cloud & Agentic Models',
+        deepseek: 'DeepSeek Chat · Reasoner',
+        grok: 'xAI Grok Model Family',
+        kimi: 'Long-Context & Coding',
+        zhipu: 'GLM Chat & Coding'
+      },
+      compatibilityNote: 'Also supports MiniMax, Cline, OpenCode, and works directly with standard OpenAI, Anthropic, and Gemini clients.'
+    },
+    closing: {
+      title: 'Ready for streamlined AI access?',
+      description: 'Sign in to create your unified API key, inspect available model groups, and track real-time usage.'
     },
     // Pain points section
     painPoints: {
