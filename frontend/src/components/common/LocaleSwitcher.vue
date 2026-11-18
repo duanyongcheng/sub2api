@@ -1,40 +1,57 @@
 <template>
   <div class="relative" ref="dropdownRef">
     <button
+      type="button"
       @click="toggleDropdown"
       :disabled="switching"
-      class="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
+      :class="[
+        'flex h-8 items-center gap-1.5 rounded-lg px-2 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 sm:h-9 sm:px-2.5 sm:text-[13px]',
+        props.variant === 'on-brand'
+          ? 'text-[#e6fbf7] hover:bg-white/12 hover:text-white focus-visible:ring-white/70'
+          : 'text-ink-2 hover:bg-surface-3 hover:text-ink focus-visible:ring-primary-500/40'
+      ]"
       :title="currentLocale?.name"
+      :aria-label="currentLocale?.name"
     >
-      <span class="text-base">{{ currentLocale?.flag }}</span>
-      <span class="hidden sm:inline">{{ currentLocale?.code.toUpperCase() }}</span>
+      <Icon
+        name="globe"
+        size="sm"
+        :class="props.variant === 'on-brand' ? 'text-[#e6fbf7]' : 'text-ink-2'"
+      />
+      <span>{{ currentLocale?.code.toUpperCase() }}</span>
       <Icon
         name="chevronDown"
         size="xs"
-        class="text-gray-400 transition-transform duration-200"
-        :class="{ 'rotate-180': isOpen }"
+        class="transition-transform duration-200"
+        :class="[
+          props.variant === 'on-brand' ? 'text-teal-100/80' : 'text-ink-2',
+          { 'rotate-180': isOpen }
+        ]"
       />
     </button>
 
     <transition name="dropdown">
       <div
         v-if="isOpen"
-        class="absolute right-0 z-50 mt-1 w-32 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg dark:border-dark-700 dark:bg-dark-800"
+        class="absolute right-0 z-50 mt-1.5 w-36 overflow-hidden rounded-field border border-edge bg-surface py-1 shadow-md"
       >
         <button
           v-for="locale in availableLocales"
           :key="locale.code"
+          type="button"
           :disabled="switching"
           @click="selectLocale(locale.code)"
-          class="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-dark-700"
+          class="flex w-full items-center gap-2 px-3 py-2 text-sm text-ink transition-colors hover:bg-surface-2"
           :class="{
-            'bg-primary-50 text-primary-600 dark:bg-primary-900/20 dark:text-primary-400':
+            'bg-primary-50 font-medium text-primary-700':
               locale.code === currentLocaleCode
           }"
         >
-          <span class="text-base">{{ locale.flag }}</span>
+          <span class="w-5 text-left text-[11px] font-semibold uppercase tracking-wide text-ink-2">
+            {{ locale.code }}
+          </span>
           <span>{{ locale.name }}</span>
-          <Icon v-if="locale.code === currentLocaleCode" name="check" size="sm" class="ml-auto text-primary-500" />
+          <Icon v-if="locale.code === currentLocaleCode" name="check" size="sm" class="ml-auto text-primary-600" />
         </button>
       </div>
     </transition>
@@ -46,6 +63,15 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'
 import { setLocale, availableLocales } from '@/i18n'
+
+const props = withDefaults(
+  defineProps<{
+    variant?: 'default' | 'on-brand'
+  }>(),
+  {
+    variant: 'default'
+  }
+)
 
 const { locale } = useI18n()
 
@@ -101,5 +127,12 @@ onBeforeUnmount(() => {
 .dropdown-leave-to {
   opacity: 0;
   transform: scale(0.95) translateY(-4px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dropdown-enter-active,
+  .dropdown-leave-active {
+    transition: none;
+  }
 }
 </style>

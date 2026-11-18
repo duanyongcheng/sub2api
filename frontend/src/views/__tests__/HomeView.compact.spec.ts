@@ -108,7 +108,55 @@ describe('HomeView compact mode', () => {
     const wrapper = mountHome(settings)
 
     expect(wrapper.find('[data-testid="compact-home"]').exists()).toBe(false)
-    expect(wrapper.find('.terminal-container').exists()).toBe(true)
+    expect(wrapper.find('.home-masthead').exists()).toBe(true)
+    expect(wrapper.find('.home-pass-panel').exists()).toBe(true)
+  })
+
+  it('switches the active Unified AI Pass provider via click and arrow keys without backend calls', async () => {
+    const wrapper = mountHome({})
+
+    const gptTab = wrapper.get('#pass-tab-openai')
+    const claudeTab = wrapper.get('#pass-tab-anthropic')
+
+    expect(gptTab.attributes('aria-selected')).toBe('true')
+    expect(wrapper.get('[role="tabpanel"]').text()).toContain('home.pass.nodes.openai.protocol')
+
+    await claudeTab.trigger('click')
+    expect(claudeTab.attributes('aria-selected')).toBe('true')
+    expect(wrapper.get('[role="tabpanel"]').text()).toContain('home.pass.nodes.anthropic.protocol')
+
+    await claudeTab.trigger('keydown', { key: 'ArrowLeft' })
+    const antigravityTab = wrapper.get('#pass-tab-antigravity')
+    expect(antigravityTab.attributes('aria-selected')).toBe('true')
+    expect(wrapper.get('[role="tabpanel"]').text()).toContain(
+      'home.pass.nodes.antigravity.protocol'
+    )
+    expect(appStore.fetchPublicSettings).not.toHaveBeenCalled()
+  })
+
+  it('hides the generic English seed subtitle while showing custom admin subtitles on default home', () => {
+    const defaultSeedWrapper = mountHome({ site_subtitle: 'AI API Gateway Platform' })
+    expect(defaultSeedWrapper.find('.home-masthead').text()).not.toContain(
+      'AI API Gateway Platform'
+    )
+    expect(defaultSeedWrapper.find('.home-masthead').text()).toContain('home.heroDescription')
+
+    const customSubtitleWrapper = mountHome({ site_subtitle: 'Custom Enterprise Gateway' })
+    expect(customSubtitleWrapper.find('.home-masthead').text()).toContain(
+      'Custom Enterprise Gateway'
+    )
+  })
+
+  it('uses localized heroSubtitle in compact mode when site_subtitle is the default English seed', () => {
+    const compactWrapper = mountHome({
+      compact_home_enabled: true,
+      site_subtitle: 'AI API Gateway Platform'
+    })
+
+    expect(compactWrapper.get('[data-testid="compact-home"]').text()).toContain('home.heroSubtitle')
+    expect(compactWrapper.get('[data-testid="compact-home"]').text()).not.toContain(
+      'AI API Gateway Platform'
+    )
   })
 
   it('links unauthenticated visitors to login', () => {
