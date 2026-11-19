@@ -3,7 +3,7 @@
   "upstream_tag": "v0.2.23",
   "upstream_commit": "5af9afb588c4b014b3df9db7d4073af1f8ae01b6",
   "fork_repository": "duanyongcheng/sub2api",
-  "fork_version": "1.2.4",
+  "fork_version": "1.3.0",
   "integrated_into": "main",
   "integrated_commit": "2556cd57c4d72b96b20b89a7055aef2d08158274"
 }
