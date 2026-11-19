@@ -189,4 +189,21 @@ describe('DateRangePicker', () => {
       startDate: '2026-10-20', endDate: formatLocalDate(now), preset: null,
     }])
   })
+
+  it('shows compact date span instead of repeating preset label in range displayMode', () => {
+    const wrapper = mount(DateRangePicker, {
+      props: {
+        startDate: '2026-11-03',
+        endDate: '2026-11-09',
+        compact: true,
+        displayMode: 'range',
+      },
+      global: { stubs: { Icon: true } },
+    })
+
+    const trigger = wrapper.get('.date-picker-trigger')
+    expect(trigger.classes()).toContain('date-picker-trigger-compact')
+    expect(trigger.text()).toContain('11-03 ~ 11-09')
+    expect(trigger.text()).not.toContain('Last 7 Days')
+  })
 })
