@@ -71,6 +71,7 @@ func ProvideAuthService(
 	defaultSubAssigner DefaultSubscriptionAssigner,
 	affiliateService *AffiliateService,
 	userPlatformQuotaRepo UserPlatformQuotaRepository,
+	mcpOAuthService *MCPOAuthService,
 ) *AuthService {
 	svc := NewAuthService(
 		entClient,
@@ -89,6 +90,9 @@ func ProvideAuthService(
 	)
 	svc.SetTencentCaptchaService(tencentCaptchaService)
 	svc.SetAliyunCaptchaService(aliyunCaptchaService)
+	if mcpOAuthService != nil {
+		svc.SetMCPGrantRevoker(mcpOAuthService)
+	}
 	return svc
 }
 
@@ -861,6 +865,7 @@ var ProviderSet = wire.NewSet(
 	ProvideAuthService,
 	NewPasskeyService,
 	NewUserService,
+	NewMCPOAuthService,
 	ProvideAPIKeyService,
 	ProvideAPIKeyAuthCacheInvalidator,
 	ProvideAuthCacheInvalidationWorker,
@@ -991,6 +996,8 @@ var ProviderSet = wire.NewSet(
 	NewIQDetectionService,
 	ProvideIQDetectionRunner,
 	ProvideUserPlatformQuotaUsageFlusher,
+	NewUsageBillingLaneCombiner,
+	ProvideUsageBillingRepository,
 )
 
 // ProvideIQDetectionProber 组装智商检测出站执行器并绑定为 IQDetectionProber 接口。
@@ -1022,6 +1029,11 @@ func ProvideIQDetectionRunner(svc *IQDetectionService) *IQDetectionRunner {
 	}
 	runner.Start()
 	return runner
+}
+
+// ProvideUsageBillingRepository 以按用户合并结算的通道作为各服务使用的计费仓储。
+func ProvideUsageBillingRepository(lanes *UsageBillingLaneCombiner) UsageBillingRepository {
+	return lanes
 }
 
 // ProvideUserPlatformQuotaUsageFlusher 创建并启动 UserPlatformQuotaUsageFlusher。

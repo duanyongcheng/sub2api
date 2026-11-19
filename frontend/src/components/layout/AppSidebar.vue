@@ -195,6 +195,7 @@ import { useRoute, useRouter, type RouteLocationRaw } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAdminSettingsStore, useAppStore, useAuthStore, useOnboardingStore, useSubscriptionStore } from '@/stores'
 import VersionBadge from '@/components/common/VersionBadge.vue'
+import Icon from '@/components/icons/Icon.vue'
 import { sanitizeSvg } from '@/utils/sanitize'
 import { sanitizeUrl } from '@/utils/url'
 import { FeatureFlags, makeSidebarFlag } from '@/utils/featureFlags'
@@ -415,6 +416,10 @@ const ChevronDownIcon = iconPath('M19.5 8.25l-7.5 7.5-7.5-7.5')
 const ChevronDoubleLeftIcon = iconPath('M18.75 4.5l-7.5 7.5 7.5 7.5m-6-15L5.25 12l7.5 7.5')
 const ChevronDoubleRightIcon = iconPath('M5.25 4.5l7.5 7.5-7.5 7.5m6-15l7.5 7.5-7.5 7.5')
 
+const MCPIcon = {
+  render: () => h(Icon, { name: 'mcp' })
+}
+
 // ---- Labels ---------------------------------------------------------------
 // Purchase label follows the site billing mode (充值 / 订阅 / 充值·订阅).
 const purchaseNavLabel = computed(() => {
@@ -437,6 +442,7 @@ const flagPayment = makeSidebarFlag(FeatureFlags.payment)
 const flagAffiliate = makeSidebarFlag(FeatureFlags.affiliate)
 const flagRiskControl = makeSidebarFlag(FeatureFlags.riskControl)
 const flagPluginManagement = makeSidebarFlag(FeatureFlags.pluginManagement)
+const flagMCP = makeSidebarFlag(FeatureFlags.mcp)
 const flagOpsMonitoring = () => adminSettingsStore.opsMonitoringEnabled
 const flagAdminPayment = () => adminSettingsStore.paymentEnabled
 const flagBatchImageAccess = () => canUseBatchImage.value
@@ -501,6 +507,7 @@ function buildSelfGroups(withDashboard: boolean): NavGroup[] {
 
   const account: NavItem[] = [
     { path: '/profile', label: t('nav.profile'), icon: UserIcon },
+    { path: '/settings/mcp', label: t('mcp.title'), icon: MCPIcon, featureFlag: flagMCP },
     ...customMenuItemsForUser.value.map(
       (item): NavItem => ({
         path: `/custom/${item.id}`,
@@ -635,7 +642,11 @@ const adminNavGroups = computed((): NavGroup[] => {
   const settings: NavItem[] = authStore.isSimpleMode
     ? [
         { path: '/keys', label: t('nav.apiKeys'), icon: KeyIcon },
-        { path: '/admin/settings', label: t('nav.settings'), icon: CogIcon }
+        { path: '/settings/mcp', label: t('mcp.title'), icon: MCPIcon, featureFlag: flagMCP },
+        { path: '/admin/settings', label: t('nav.settings'), icon: CogIcon },
+        ...customMenuItemsForAdmin.value.map(
+          (cm): NavItem => ({ path: `/custom/${cm.id}`, label: cm.label, icon: null, iconSvg: cm.icon_svg })
+        )
       ]
     : [
         { path: '/admin/settings', label: t('nav.settings'), icon: CogIcon },
