@@ -525,7 +525,7 @@ func parseResponsesIQStream(body io.Reader, fallbackModel string) (*IQDetectionP
 		answer = fallbackText
 	}
 	if !seenCompleted && strings.TrimSpace(answer) == "" {
-		return nil, errors.New("Responses stream ended before completion")
+		return nil, errors.New("responses stream ended before completion")
 	}
 	if responseModel == "" {
 		responseModel = fallbackModel

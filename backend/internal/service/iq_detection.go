@@ -163,10 +163,10 @@ type IQDetectionRunNowInput struct {
 
 // IQDetectionRunBatchResult 触发分组抽检后的批量结果。
 type IQDetectionRunBatchResult struct {
-	RequestedGroups        int              `json:"requested_groups"`
-	ExecutedGroups         int              `json:"executed_groups"`
-	SkippedInFlightGroups  []int64          `json:"skipped_in_flight_groups"`
-	Runs                   []IQDetectionRun `json:"runs"`
+	RequestedGroups       int              `json:"requested_groups"`
+	ExecutedGroups        int              `json:"executed_groups"`
+	SkippedInFlightGroups []int64          `json:"skipped_in_flight_groups"`
+	Runs                  []IQDetectionRun `json:"runs"`
 }
 
 // IQDetectionRepository 智商检测持久化接口（由 repository 层实现，不引入 ent/redis）。
