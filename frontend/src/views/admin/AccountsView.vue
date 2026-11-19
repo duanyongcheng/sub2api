@@ -46,7 +46,7 @@
             @update:searchQuery="debouncedReload"
           />
           <div class="accounts-table-actions flex items-center gap-2">
-            <button type="button" :disabled="loading" class="btn btn-secondary px-2" :title="t('common.refresh')" :aria-label="t('common.refresh')" @click="handleManualRefresh">
+            <button type="button" data-test="manual-refresh" :disabled="loading" class="btn btn-secondary px-2" :title="t('common.refresh')" :aria-label="t('common.refresh')" @click="handleManualRefresh">
               <Icon name="refresh" size="sm" :class="loading ? 'animate-spin motion-reduce:animate-none' : ''" />
             </button>
               <AccountColumnSettings :columns="toggleableColumns" :hidden-columns="hiddenColumns" @toggle="toggleColumn" @reset="resetColumns" />
@@ -211,12 +211,17 @@
           @select-all-results="handleSelectAllResults"
           @toggle-schedulable="handleBulkToggleSchedulable"
         />
-        <div ref="accountTableRef" class="account-table-region flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div
+          ref="accountTableRef"
+          class="account-table-region flex min-h-0 flex-1 flex-col overflow-hidden"
+          :aria-busy="loading"
+          :inert="loading && accounts.length > 0"
+        >
         <DataTable
           ref="dataTableRef"
           :columns="cols"
           :data="accounts"
-          :loading="loading"
+          :loading="loading && accounts.length === 0"
           fixed-layout
           row-key="id"
           :server-side-sort="true"

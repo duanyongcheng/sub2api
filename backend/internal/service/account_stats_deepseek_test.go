@@ -41,7 +41,7 @@ func TestResolveAccountStatsCost_DeepSeekNominalCard(t *testing.T) {
 			t.Run(model.name+"/"+usage.name, func(t *testing.T) {
 				// The official account default needs neither a channel nor a catalog.
 				cost := resolveAccountStatsCost(context.Background(), nil, nil,
-					1, 10, model.name, usage.tokens, 1, 999, "", offPeak, true)
+					1, 10, model.name, usage.tokens, 1, 999, "", offPeak, true, 1)
 				require.NotNil(t, cost)
 				require.InDelta(t, usage.want, *cost, 1e-12)
 			})
@@ -79,7 +79,7 @@ func TestResolveAccountStatsCost_DeepSeekNominalPeakBoundaries(t *testing.T) {
 			t.Run(model.name+"/"+slot.name, func(t *testing.T) {
 				cost := resolveAccountStatsCost(context.Background(), cs, nil,
 					1, 10, model.name, UsageTokens{InputTokens: 1_000_000, OutputTokens: 1_000_000, CacheReadTokens: 1_000_000},
-					1, 999, "", slot.at, true)
+					1, 999, "", slot.at, true, 1)
 				want := model.offPeak
 				if slot.peak {
 					want = model.peak
@@ -117,7 +117,7 @@ func TestResolveAccountStatsCost_DeepSeekIgnoresCatalogTierMetadata(t *testing.T
 					UsageTokens{
 						InputTokens: 1_000_000, OutputTokens: 1_000_000, CacheReadTokens: 1_000_000,
 						ImageInputTokens: 100, ImageOutputTokens: 100, CacheCreationTokens: 100,
-					}, 999, time.Date(2026, time.August, 24, 12, 0, 0, 0, time.UTC), true)
+					}, 999, time.Date(2026, time.August, 24, 12, 0, 0, 0, time.UTC), true, 1)
 				require.NotNil(t, usageLog.AccountStatsCost)
 				require.InDelta(t, model.want, *usageLog.AccountStatsCost, 1e-12)
 				require.Equal(t, before, *catalog, "the account default must not mutate shared customer pricing")
@@ -144,7 +144,7 @@ func TestResolveAccountStatsCost_DeepSeekMissingChannelBoundaries(t *testing.T) 
 		for _, model := range []string{"deepseek-flash", "deepseek-v4-pro-0813", "claude-sonnet-4", "gpt-5.6-sol", "deepseekcoder", ""} {
 			t.Run(setup.name+"/"+model, func(t *testing.T) {
 				cost := resolveAccountStatsCost(context.Background(), setup.cs, newTestBillingService(),
-					1, setup.groupID, model, UsageTokens{InputTokens: 1_000_000}, 1, 999, "", offPeak, true)
+					1, setup.groupID, model, UsageTokens{InputTokens: 1_000_000}, 1, 999, "", offPeak, true, 1)
 				switch model {
 				case "deepseek-flash":
 					require.NotNil(t, cost)
@@ -167,14 +167,14 @@ func TestResolveAccountStatsCost_DeepSeekChannelLookupErrorPreservesFallback(t *
 		},
 	})
 	cost := resolveAccountStatsCost(context.Background(), cs, newTestBillingService(),
-		1, 10, "deepseek-flash", UsageTokens{InputTokens: 1_000_000}, 1, 999, "", time.Time{}, true)
+		1, 10, "deepseek-flash", UsageTokens{InputTokens: 1_000_000}, 1, 999, "", time.Time{}, true, 1)
 	require.Nil(t, cost, "lookup errors may hide explicit account rules and must retain fallback semantics")
 }
 
 func TestResolveAccountStatsCost_DeepSeekNonpositiveUsage(t *testing.T) {
 	for _, tokens := range []UsageTokens{{}, {InputTokens: -1}, {CacheCreationTokens: 100}, {ImageOutputTokens: 100}} {
 		cost := resolveAccountStatsCost(context.Background(), nil, nil,
-			1, 10, "deepseek-flash", tokens, 1, 999, "", time.Time{}, true)
+			1, 10, "deepseek-flash", tokens, 1, 999, "", time.Time{}, true, 1)
 		require.Nil(t, cost)
 	}
 }
@@ -198,7 +198,7 @@ func TestApplyAccountStatsCost_DeepSeekEffectiveUpstreamModel(t *testing.T) {
 			applyAccountStatsCost(context.Background(), usageLog, cs, bs,
 				1, 10, tt.upstream, tt.requested,
 				UsageTokens{InputTokens: 1_000_000, OutputTokens: 1_000_000, CacheReadTokens: 1_000_000},
-				999, time.Date(2026, time.August, 24, 12, 0, 0, 0, time.UTC), true)
+				999, time.Date(2026, time.August, 24, 12, 0, 0, 0, time.UTC), true, 1)
 			require.NotNil(t, usageLog.AccountStatsCost)
 			require.InDelta(t, tt.want, *usageLog.AccountStatsCost, 1e-12)
 		})
