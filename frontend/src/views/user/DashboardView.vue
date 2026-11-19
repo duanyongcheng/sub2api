@@ -56,7 +56,7 @@
 
           <router-link
             v-if="channelMonitorEnabled"
-            to="/channel-status"
+            to="/monitor"
             class="btn btn-secondary btn-sm"
           >
             {{ t('dashboard.workbench.quickActionChannels') }}

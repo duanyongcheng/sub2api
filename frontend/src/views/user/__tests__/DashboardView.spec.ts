@@ -294,6 +294,10 @@ describe('user DashboardView', () => {
     expect(text).toContain('$94.46')
     expect(text).toContain('Claude Pro')
     expect(text).toContain('5')
+    const channelsLink = wrapper
+      .findAll('a')
+      .find((a) => a.text().includes('dashboard.workbench.quickActionChannels'))
+    expect(channelsLink?.attributes('data-to')).toBe('"/monitor"')
     // OpenAI has 0 requests today but configured daily quota -> must still appear
     expect(text).toContain('OpenAI')
     expect(text).toContain('Anthropic')
