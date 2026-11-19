@@ -61,6 +61,8 @@ jobs:
         working-directory: frontend
         run: pnpm install --frozen-lockfile
       - name: Frontend typecheck and critical vitest
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
         run: make test-frontend
 
   golangci-lint:
