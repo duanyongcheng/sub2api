@@ -4,24 +4,25 @@
       <LoadingSpinner size="lg" />
     </div>
 
-    <template v-else>
-      <PageHeader
-        :title="t('admin.dashboard.overview.title')"
-        :description="t('admin.dashboard.overview.subtitle')"
-      >
-        <template #actions>
-          <div class="seg" role="group" :aria-label="t('admin.dashboard.timeRange')">
-            <button
-              v-for="preset in presets"
-              :key="preset.days"
-              type="button"
-              :class="{ on: selectedPreset === preset.days }"
-              :aria-pressed="selectedPreset === preset.days"
-              @click="applyPreset(preset.days)"
-            >
-              {{ preset.label }}
-            </button>
-          </div>
+    <div v-else class="flex flex-col gap-3.5">
+      <!-- Slim runtime status & utility actions row (AppHeader owns page title) -->
+      <div class="flex flex-wrap items-center justify-between gap-2.5">
+        <div class="flex flex-wrap items-center gap-2 text-[12px] text-ink-2">
+          <span
+            class="inline-flex items-center gap-1.5 rounded-full border border-edge bg-surface px-2.5 py-0.5 font-medium tabular-nums text-ink-2"
+          >
+            <span
+              class="h-1.5 w-1.5 rounded-full"
+              :class="stats?.stats_stale ? 'bg-amber-500' : 'bg-emerald-500'"
+              aria-hidden="true"
+            />
+            <span v-if="uptimeLabel">{{ t('admin.dashboard.overview.uptimeLabel', { value: uptimeLabel }) }}</span>
+            <span v-if="uptimeLabel && lastUpdatedLabel" aria-hidden="true" class="text-edge-strong">·</span>
+            <span>{{ lastUpdatedLabel }}</span>
+          </span>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2">
           <ReportExportMenu
             :label="t('admin.dashboard.overview.export.action')"
             :title="t('admin.dashboard.overview.export.hint')"
@@ -29,142 +30,293 @@
             data-testid="dashboard-export"
             @export="exportReport"
           />
-          <button type="button" class="btn btn-secondary" :disabled="loading" @click="refresh">
-            <Icon name="refresh" size="sm" :class="loading ? 'animate-spin' : ''" />
+          <button
+            type="button"
+            class="btn btn-secondary btn-sm"
+            :disabled="loading || chartsLoading"
+            @click="refresh"
+          >
+            <Icon name="refresh" size="sm" :class="loading || chartsLoading ? 'animate-spin' : ''" />
             {{ t('common.refresh') }}
           </button>
-        </template>
-      </PageHeader>
-
-      <div class="mt-4 flex flex-col gap-4">
-        <!-- What needs a decision today goes above the numbers -->
-        <ActionStrip
-          v-if="stripItems.length > 0"
-          :title="t('admin.dashboard.overview.actionTitle')"
-          :count="stripItems.length"
-          :items="stripItems"
-          :meta="lastUpdatedLabel"
-          :max-items="3"
-        />
-
-        <!-- KPI band -->
-        <section class="grid grid-cols-1 gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
-          <KpiCard
-            :label="t('admin.dashboard.overview.netRevenue')"
-            :value="`$${formatMoney(actualRevenue)}`"
-            icon="dollar"
-            :sparkline="spark.actual"
-            spark-color="#0d9488"
-          >
-            <span class="trend" :class="revenueChange >= 0 ? 'trend-up' : 'trend-down'">
-              <Icon :name="revenueChange >= 0 ? 'arrowUp' : 'arrowDown'" size="xs" :stroke-width="2.4" />
-              {{ Math.abs(revenueChange).toFixed(1) }}%
-            </span>
-            <span class="truncate">{{ t('admin.dashboard.overview.vsPrev') }}</span>
-          </KpiCard>
-
-          <KpiCard
-            :label="t('admin.dashboard.overview.upstreamCost')"
-            :value="`$${formatMoney(accountCost)}`"
-            :tone="costChange > revenueChange ? 'warn' : 'default'"
-            icon="server"
-            :sparkline="spark.cost"
-            spark-color="#d97706"
-          >
-            <span class="trend" :class="costChange >= 0 ? 'trend-up' : 'trend-down'">
-              <Icon :name="costChange >= 0 ? 'arrowUp' : 'arrowDown'" size="xs" :stroke-width="2.4" />
-              {{ Math.abs(costChange).toFixed(1) }}%
-            </span>
-            <span class="truncate">{{ t('admin.dashboard.overview.vsPrev') }}</span>
-          </KpiCard>
-
-          <KpiCard
-            :label="t('admin.dashboard.overview.grossMargin')"
-            :value="marginPercent === null ? '—' : marginPercent.toFixed(1)"
-            unit="%"
-            :tone="marginPercent !== null && marginPercent < 0 ? 'bad' : marginPercent !== null && marginPercent < 20 ? 'warn' : 'default'"
-            icon="trendingUp"
-            :sparkline="spark.margin"
-            spark-color="#94a3b8"
-          >
-            <span class="truncate">
-              {{ t('admin.dashboard.overview.revenue') }} ${{ formatMoney(actualRevenue) }} −
-              {{ t('admin.dashboard.overview.cost') }} ${{ formatMoney(accountCost) }}
-            </span>
-          </KpiCard>
-
-          <KpiCard
-            :label="t('admin.dashboard.overview.requestsAndSuccess')"
-            :value="formatCompact(rangeRequests)"
-            :unit="`/ ${formatCompact(stats?.total_requests ?? 0)}`"
-            icon="chart"
-            :sparkline="spark.requests"
-            spark-color="#94a3b8"
-          >
-            <span class="truncate">{{ t('admin.dashboard.overview.activeUsers', { value: formatNumber(stats?.active_users ?? 0) }) }}</span>
-          </KpiCard>
-        </section>
-
-        <!-- Main two-column layout -->
-        <section class="grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,1.72fr)_minmax(0,1fr)]">
-          <div class="flex min-w-0 flex-col gap-4">
-            <RevenueVsCost :trend="trendData" :groups="groupStats" :loading="chartsLoading" />
-          </div>
-
-          <div class="flex min-w-0 flex-col gap-4">
-            <TodoList :tasks="todoTasks" />
-            <PlatformShare :models="modelStats" />
-            <section class="card">
-              <div class="card-hd">
-                <h3 class="text-sm font-semibold text-ink">{{ t('admin.dashboard.overview.newUsers') }}</h3>
-                <span class="pill" :class="newUserDelta >= 0 ? 'pill-ok' : 'pill-neutral'">
-                  {{ newUserDelta >= 0 ? '+' : '' }}{{ newUserDelta.toFixed(1) }}%
-                </span>
-              </div>
-              <div class="card-bd">
-                <div class="flex items-baseline gap-2">
-                  <span class="text-[26px] font-bold tabular-nums tracking-[-0.03em] text-ink">{{ stats?.today_new_users ?? 0 }}</span>
-                  <span class="text-meta text-ink-3">{{ t('admin.dashboard.overview.newUsersHint', { value: stats?.total_users ?? 0 }) }}</span>
-                </div>
-                <div class="mt-2.5 grid grid-cols-2 gap-2 text-meta text-ink-3">
-                  <span>{{ t('admin.dashboard.overview.totalLines', { value: formatNumber(stats?.total_users ?? 0) }) }}</span>
-                  <span class="text-right">{{ t('admin.dashboard.overview.requests', { value: formatCompact(stats?.total_requests ?? 0) }) }}</span>
-                </div>
-              </div>
-            </section>
-
-            <section class="card bg-surface-2">
-              <div class="p-4">
-                <div class="flex items-center gap-2 text-[12.6px] font-semibold text-ink">
-                  <Icon name="bolt" size="sm" class="text-primary-600" />
-                  {{ t('admin.dashboard.overview.quickEntry') }}
-                </div>
-                <div class="mt-2.5 flex flex-wrap gap-2">
-                  <router-link to="/admin/accounts" class="btn btn-secondary btn-sm">{{ t('admin.dashboard.overview.quickNewAccount') }}</router-link>
-                  <router-link to="/admin/groups" class="btn btn-secondary btn-sm">{{ t('admin.dashboard.overview.quickNewGroup') }}</router-link>
-                  <router-link to="/admin/redeem" class="btn btn-secondary btn-sm">{{ t('admin.dashboard.overview.quickRedeem') }}</router-link>
-                  <router-link to="/admin/announcements" class="btn btn-secondary btn-sm">{{ t('admin.dashboard.overview.quickAnnouncement') }}</router-link>
-                  <router-link to="/admin/usage" class="btn btn-secondary btn-sm">{{ t('admin.dashboard.overview.quickUsage') }}</router-link>
-                </div>
-              </div>
-            </section>
-          </div>
-        </section>
-
-        <!-- Heaviest users -->
-        <TopUsersTrend
-          :title="t('admin.dashboard.recentUsage')"
-          :trend="userTrend"
-          :ranking="rankingItems"
-          :metric="userTrendMetric"
-          :loading="userTrendLoading"
-          :labels="{ spending: t('admin.dashboard.actualSpending'), tokens: t('admin.dashboard.tokens') }"
-          :empty-text="t('admin.dashboard.noDataAvailable')"
-          @update:metric="setUserTrendMetric"
-          @ranking-click="goToUserUsage"
-        />
+        </div>
       </div>
-    </template>
+
+      <!-- Band 1: Live operational pulse & account pool availability + attached triage -->
+      <AdminLivePulseStrip
+        :stats="stats"
+        :groups="groupStats"
+        :is-simple="isSimpleMode"
+        @refresh="refresh"
+      />
+
+      <!-- Band 2: Selected-window toolbar + 2:1 traffic trend & provider rail -->
+      <div class="flex flex-col gap-2.5">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div class="flex flex-wrap items-center gap-2">
+            <h2 class="text-[13px] font-bold text-ink">
+              {{ t('admin.dashboard.overview.periodTrafficTitle') }}
+            </h2>
+            <span class="rounded-md bg-surface-3 px-2 py-0.5 text-[11.5px] font-medium tabular-nums text-ink-2">
+              {{ startDate }} ~ {{ endDate }}
+            </span>
+            <span class="text-[12px] tabular-nums text-ink-2">
+              {{ t('admin.dashboard.overview.periodRequestsTotal', { value: formatCompact(rangeRequests) }) }}
+            </span>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2">
+            <div class="seg" role="group" :aria-label="t('admin.dashboard.timeRange')">
+              <button
+                v-for="preset in presets"
+                :key="preset.days"
+                type="button"
+                :class="{ on: selectedPreset === preset.days }"
+                :aria-pressed="selectedPreset === preset.days"
+                @click="applyPreset(preset.days)"
+              >
+                {{ preset.label }}
+              </button>
+            </div>
+
+            <DateRangePicker
+              v-model:start-date="startDate"
+              v-model:end-date="endDate"
+              compact
+              display-mode="range"
+              @change="onRangeChange"
+            />
+
+            <div class="seg" role="group" :aria-label="t('admin.dashboard.overview.periodTrafficTitle')">
+              <button
+                v-for="option in trendModeOptions"
+                :key="option.value"
+                type="button"
+                :class="{ on: trendMode === option.value }"
+                :aria-pressed="trendMode === option.value"
+                @click="trendMode = option.value"
+              >
+                {{ option.label }}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <section class="grid grid-cols-1 gap-3.5 xl:grid-cols-[minmax(0,1.95fr)_minmax(0,1fr)]">
+          <AdminTrafficTrend
+            :trend="trendData"
+            :mode="trendMode"
+            :granularity="granularity"
+            :loading="chartsLoading"
+          />
+          <PlatformShare :models="modelStats" :is-simple="isSimpleMode" />
+        </section>
+      </div>
+
+      <!-- Band 3: Subordinated economics summary header + unified group margin & top-12 users ledger -->
+      <section class="overflow-hidden rounded-card border border-edge bg-surface shadow-xs">
+        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-edge bg-surface-2 px-4 py-2.5">
+          <h2 class="text-[13px] font-bold text-ink">
+            {{
+              isSimpleMode
+                ? t('admin.dashboard.overview.economicsSimpleTitle')
+                : t('admin.dashboard.overview.economicsBandTitle')
+            }}
+          </h2>
+
+          <div
+            v-if="!isSimpleMode"
+            class="flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px] tabular-nums text-ink-2"
+          >
+            <span>
+              {{ t('admin.dashboard.overview.economicsRevenue') }}
+              <strong class="ml-1 font-bold text-ink">${{ formatMoney(actualRevenue) }}</strong>
+            </span>
+            <span>
+              {{ t('admin.dashboard.overview.economicsCost') }}
+              <strong class="ml-1 font-bold text-ink">
+                {{ hasKnownAccountCost ? `$${formatMoney(accountCost)}` : '—' }}
+              </strong>
+            </span>
+            <span>
+              {{ t('admin.dashboard.overview.economicsMargin') }}
+              <strong class="ml-1 font-bold" :class="marginToneClass">
+                {{ marginPercent === null ? '—' : `${marginPercent.toFixed(1)}%` }}
+              </strong>
+            </span>
+            <span>
+              {{ t('admin.dashboard.overview.economicsNegativeCount') }}
+              <strong
+                class="ml-1 font-bold"
+                :class="negativeGroupCount > 0 ? 'text-red-700 dark:text-red-300' : 'text-ink'"
+              >
+                {{ negativeGroupCount }}
+              </strong>
+            </span>
+          </div>
+        </div>
+
+        <div
+          class="grid grid-cols-1 divide-y divide-edge"
+          :class="!isSimpleMode ? 'xl:grid-cols-[minmax(0,1.12fr)_minmax(0,1fr)] xl:divide-x xl:divide-y-0' : ''"
+        >
+          <!-- Left: Group margin & pricing risk ledger -->
+          <div v-if="!isSimpleMode" class="flex min-w-0 flex-col">
+            <div class="flex flex-wrap items-center justify-between gap-2 border-b border-edge px-4 py-2.5">
+              <div class="min-w-0">
+                <h3 class="text-[13px] font-semibold text-ink">
+                  {{ t('admin.dashboard.overview.groupTable') }}
+                </h3>
+                <p class="text-[11px] text-ink-2">{{ t('admin.dashboard.overview.groupMarginHint') }}</p>
+              </div>
+              <div class="seg" role="group">
+                <button
+                  type="button"
+                  :class="{ on: groupSort === 'risk' }"
+                  :aria-pressed="groupSort === 'risk'"
+                  @click="groupSort = 'risk'"
+                >
+                  {{ t('admin.dashboard.overview.sortRiskFirst') }}
+                </button>
+                <button
+                  type="button"
+                  :class="{ on: groupSort === 'revenue' }"
+                  :aria-pressed="groupSort === 'revenue'"
+                  @click="groupSort = 'revenue'"
+                >
+                  {{ t('admin.dashboard.overview.sortRevenueFirst') }}
+                </button>
+              </div>
+            </div>
+
+            <!-- Mobile stacked ledger (keeps risk badges & margin visible at 390px without clipping) -->
+            <div class="divide-y divide-edge/70 md:hidden">
+              <div v-if="groupRows.length === 0" class="px-4 py-8 text-center text-body text-ink-2">
+                {{ t('admin.dashboard.noDataAvailable') }}
+              </div>
+              <div
+                v-for="row in groupRows"
+                :key="row.id"
+                class="cursor-pointer px-3.5 py-2.5 transition-colors hover:bg-surface-2"
+                @click="goToGroups()"
+              >
+                <div class="flex items-center justify-between gap-2">
+                  <div class="flex min-w-0 items-center gap-1.5">
+                    <span class="truncate text-[12.5px] font-semibold text-ink" :title="row.name">
+                      {{ row.name }}
+                    </span>
+                    <span
+                      v-if="row.risk"
+                      class="inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[10.5px] font-semibold"
+                      :class="
+                        row.margin !== null && row.margin < 0
+                          ? 'bg-red-500/15 text-red-700 dark:text-red-300'
+                          : 'bg-amber-500/15 text-amber-800 dark:text-amber-300'
+                      "
+                    >
+                      {{ row.risk }}
+                    </span>
+                  </div>
+                  <span class="shrink-0 text-[12.5px] font-bold tabular-nums" :class="row.marginClass">
+                    {{ row.margin === null ? '—' : `${row.margin.toFixed(1)}%` }}
+                  </span>
+                </div>
+                <div class="mt-1.5 grid grid-cols-3 gap-2 text-[11px] tabular-nums text-ink-2">
+                  <div>
+                    <span>{{ t('admin.dashboard.overview.revenue') }}</span>
+                    <span class="ml-1 font-semibold text-ink">{{ formatGroupMoney(row.revenue) }}</span>
+                  </div>
+                  <div>
+                    <span>{{ t('admin.dashboard.overview.upstreamCost') }}</span>
+                    <span class="ml-1">{{ row.cost === null ? '—' : formatGroupMoney(row.cost) }}</span>
+                  </div>
+                  <div class="text-right">
+                    <span>{{ t('admin.dashboard.requests') }}</span>
+                    <span class="ml-1">{{ formatCompact(row.requests) }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Desktop / tablet full table -->
+            <div class="hidden overflow-x-auto md:block">
+              <table class="w-full text-data">
+                <thead>
+                  <tr class="border-b border-edge bg-surface-2 text-[11px] font-semibold text-ink-2">
+                    <th class="px-4 py-2 text-left font-semibold">{{ t('admin.dashboard.overview.group') }}</th>
+                    <th class="px-3 py-2 text-right font-semibold">{{ t('admin.dashboard.overview.revenue') }}</th>
+                    <th class="px-3 py-2 text-right font-semibold">{{ t('admin.dashboard.overview.upstreamCost') }}</th>
+                    <th class="px-3 py-2 text-right font-semibold">{{ t('admin.dashboard.overview.grossMargin') }}</th>
+                    <th class="px-3 py-2 text-right font-semibold">{{ t('admin.dashboard.requests') }}</th>
+                    <th class="px-4 py-2 text-right font-semibold">{{ t('admin.dashboard.overview.marginRisk') }}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-if="groupRows.length === 0">
+                    <td colspan="6" class="px-4 py-8 text-center text-body text-ink-2">
+                      {{ t('admin.dashboard.noDataAvailable') }}
+                    </td>
+                  </tr>
+                  <tr
+                    v-for="row in groupRows"
+                    :key="row.id"
+                    class="cursor-pointer border-b border-edge/70 transition-colors last:border-b-0 hover:bg-surface-2"
+                    @click="goToGroups()"
+                  >
+                    <td class="whitespace-nowrap px-4 py-2">
+                      <span class="block max-w-[180px] truncate font-semibold text-ink" :title="row.name">
+                        {{ row.name }}
+                      </span>
+                    </td>
+                    <td class="whitespace-nowrap px-3 py-2 text-right font-semibold tabular-nums text-ink">
+                      {{ formatGroupMoney(row.revenue) }}
+                    </td>
+                    <td class="whitespace-nowrap px-3 py-2 text-right tabular-nums text-ink-2">
+                      {{ row.cost === null ? '—' : formatGroupMoney(row.cost) }}
+                    </td>
+                    <td class="whitespace-nowrap px-3 py-2 text-right font-bold tabular-nums" :class="row.marginClass">
+                      {{ row.margin === null ? '—' : `${row.margin.toFixed(1)}%` }}
+                    </td>
+                    <td class="whitespace-nowrap px-3 py-2 text-right tabular-nums text-ink-2">
+                      {{ formatCompact(row.requests) }}
+                    </td>
+                    <td class="whitespace-nowrap px-4 py-2 text-right">
+                      <span
+                        v-if="row.risk"
+                        class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold"
+                        :class="
+                          row.margin !== null && row.margin < 0
+                            ? 'bg-red-500/15 text-red-700 dark:text-red-300'
+                            : 'bg-amber-500/15 text-amber-800 dark:text-amber-300'
+                        "
+                      >
+                        {{ row.risk }}
+                      </span>
+                      <span v-else class="text-[11.5px] text-ink-2">{{ t('admin.dashboard.overview.riskNone') }}</span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Right: Top-12 users multi-line trend & clickable ranking -->
+          <TopUsersTrend
+            embedded
+            :title="t('admin.dashboard.overview.topUsersHeader', { limit: 12 })"
+            :hint="t('admin.dashboard.overview.topUsersClickHint')"
+            :trend="userTrend"
+            :ranking="rankingItems"
+            :metric="userTrendMetric"
+            :loading="userTrendLoading"
+            :labels="{ spending: t('admin.dashboard.actualSpending'), tokens: t('admin.dashboard.tokens') }"
+            :empty-text="t('admin.dashboard.noDataAvailable')"
+            @update:metric="setUserTrendMetric"
+            @ranking-click="goToUserUsage"
+          />
+        </div>
+      </section>
+    </div>
   </AppLayout>
 </template>
 
@@ -173,6 +325,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/app'
+import { useAuthStore } from '@/stores/auth'
 import { adminAPI } from '@/api/admin'
 import type {
   DashboardStats,
@@ -184,32 +337,22 @@ import type {
 } from '@/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
-import PageHeader from '@/components/common/PageHeader.vue'
-import KpiCard from '@/components/common/KpiCard.vue'
-import ActionStrip from '@/components/common/ActionStrip.vue'
 import Icon from '@/components/icons/Icon.vue'
-import RevenueVsCost from '@/components/admin/dashboard/RevenueVsCost.vue'
-import TodoList from '@/components/admin/dashboard/TodoList.vue'
+import DateRangePicker from '@/components/common/DateRangePicker.vue'
+import ReportExportMenu from '@/components/common/ReportExportMenu.vue'
+import AdminLivePulseStrip from '@/components/admin/dashboard/AdminLivePulseStrip.vue'
+import AdminTrafficTrend, { type AdminTrendMode } from '@/components/admin/dashboard/AdminTrafficTrend.vue'
 import PlatformShare from '@/components/admin/dashboard/PlatformShare.vue'
 import TopUsersTrend from '@/components/admin/dashboard/TopUsersTrend.vue'
-import ReportExportMenu from '@/components/common/ReportExportMenu.vue'
 import { reportFileStem, downloadReport, type ExportFormat } from '@/utils/reportExport'
 import { buildDashboardWorkbook, type DashboardReportLabels } from '@/features/admin-dashboard/dashboardReport'
-import type { TodoTask } from '@/components/admin/dashboard/TodoList.types'
-import type { ActionStripItem } from '@/components/common/ActionStrip.vue'
 
-/**
- * Admin DashboardView — the operations overview.
- *
- * Reorganised around "abnormal first": the action strip and to-do rail sit
- * above / beside the numbers, because an admin opens this page to answer
- * "what needs a decision" rather than "what happened". The revenue-vs-cost
- * chart carries the margin table underneath it so pricing problems are visible
- * in the same glance as the revenue.
- */
 const { t } = useI18n()
 const router = useRouter()
 const appStore = useAppStore()
+const authStore = useAuthStore()
+
+const isSimpleMode = computed(() => authStore.isSimpleMode)
 
 const stats = ref<DashboardStats | null>(null)
 const loading = ref(false)
@@ -219,10 +362,12 @@ const userTrendLoading = ref(false)
 const trendData = ref<TrendDataPoint[]>([])
 const modelStats = ref<ModelStat[]>([])
 const groupStats = ref<GroupStat[]>([])
-// `null` = not loaded yet; `[]` = loaded with no rows.
 const userTrend = ref<UserUsageTrendPoint[] | null>(null)
 const rankingItems = ref<UserSpendingRankingItem[]>([])
 const userTrendMetric = ref<'tokens' | 'actual_cost'>('actual_cost')
+const trendMode = ref<AdminTrendMode>('requests')
+const groupSort = ref<'risk' | 'revenue'>('risk')
+const lastLoadedAt = ref<string>('')
 
 let chartLoadSeq = 0
 let usersTrendLoadSeq = 0
@@ -240,9 +385,37 @@ const presets = computed(() => [
   { days: 30, label: t('admin.dashboard.overview.presetLast30') }
 ])
 
-const lastUpdatedLabel = computed(() =>
-  t('admin.dashboard.overview.gmt', { time: new Date().toLocaleTimeString(undefined, { hour12: false }) })
-)
+const trendModeOptions = computed(() => {
+  const options: Array<{ value: AdminTrendMode; label: string }> = [
+    { value: 'requests', label: t('admin.dashboard.overview.trendModeRequests') },
+    { value: 'tokens', label: t('admin.dashboard.overview.trendModeTokens') }
+  ]
+  if (!isSimpleMode.value) {
+    options.push({ value: 'revenue', label: t('admin.dashboard.overview.trendModeRevenue') })
+  }
+  return options
+})
+
+const uptimeLabel = computed(() => {
+  const seconds = Number(stats.value?.uptime ?? 0)
+  if (!Number.isFinite(seconds) || seconds <= 0) return ''
+  const days = Math.floor(seconds / 86400)
+  const hours = Math.floor((seconds % 86400) / 3600)
+  const minutes = Math.floor((seconds % 3600) / 60)
+  if (days > 0) return `${days}d ${String(hours).padStart(2, '0')}h`
+  if (hours > 0) return `${hours}h ${String(minutes).padStart(2, '0')}m`
+  return `${Math.max(1, minutes)}m`
+})
+
+const lastUpdatedLabel = computed(() => {
+  const source = stats.value?.stats_updated_at || lastLoadedAt.value
+  if (!source) return t('admin.dashboard.overview.gmt', { time: '—' })
+  const d = new Date(source)
+  const formatted = Number.isNaN(d.getTime())
+    ? source
+    : d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
+  return t('admin.dashboard.overview.gmt', { time: formatted })
+})
 
 // ---- Totals for the selected range ----
 const rangeTotals = computed(() => {
@@ -260,92 +433,99 @@ const rangeTotals = computed(() => {
 const actualRevenue = computed(() => rangeTotals.value.actual)
 const rangeRequests = computed(() => rangeTotals.value.requests)
 
-// Account cost is only available per group (or on the stats payload for today).
+const isTodayRange = computed(() => {
+  const todayStr = formatLocalDate(new Date())
+  return startDate.value === todayStr && endDate.value === todayStr
+})
+
+const hasGroupAccountCost = computed(() =>
+  groupStats.value.some((group) => group.account_cost !== undefined && group.account_cost !== null)
+)
+
+const hasKnownAccountCost = computed(
+  () =>
+    hasGroupAccountCost.value ||
+    (isTodayRange.value &&
+      stats.value?.today_account_cost !== undefined &&
+      stats.value?.today_account_cost !== null)
+)
+
 const accountCost = computed(() => {
-  const fromGroups = groupStats.value.reduce((sum, group) => sum + Number(group.account_cost || 0), 0)
-  if (fromGroups > 0) return fromGroups
-  return Number(stats.value?.today_account_cost || 0)
+  if (hasGroupAccountCost.value) {
+    return groupStats.value.reduce((sum, group) => sum + Number(group.account_cost || 0), 0)
+  }
+  if (isTodayRange.value) {
+    return Number(stats.value?.today_account_cost || 0)
+  }
+  return 0
 })
 
 const marginPercent = computed<number | null>(() => {
   const revenue = actualRevenue.value
-  if (revenue <= 0) return null
+  if (revenue <= 0 || !hasKnownAccountCost.value) return null
   return ((revenue - accountCost.value) / revenue) * 100
 })
 
-// ---- Sparklines (second half of the range vs first half) ----
-const spark = computed(() => {
-  const points = trendData.value
-  return {
-    actual: points.map((p) => Number(p.actual_cost || 0)),
-    cost: groupStats.value.length ? points.map((p) => Number(p.actual_cost || 0) * (accountCost.value / Math.max(1, actualRevenue.value))) : [],
-    margin: points.map((p) => Number(p.actual_cost || 0) - Number(p.cost || 0)),
-    requests: points.map((p) => Number(p.requests || 0))
-  }
+const marginToneClass = computed(() => {
+  if (marginPercent.value === null) return 'text-ink-2'
+  if (marginPercent.value < 0) return 'text-red-700 dark:text-red-300'
+  if (marginPercent.value < 20) return 'text-amber-700 dark:text-amber-300'
+  return 'text-emerald-700 dark:text-emerald-300'
 })
 
-const halfChange = (values: number[]): number => {
-  if (values.length < 2) return 0
-  const mid = Math.floor(values.length / 2)
-  const first = values.slice(0, mid).reduce((a, b) => a + b, 0)
-  const second = values.slice(mid).reduce((a, b) => a + b, 0)
-  if (first <= 0) return second > 0 ? 100 : 0
-  return ((second - first) / first) * 100
-}
-
-const revenueChange = computed(() => halfChange(spark.value.actual))
-const costChange = computed(() => halfChange(spark.value.cost))
-const newUserDelta = computed(() => {
-  const today = Number(stats.value?.today_new_users || 0)
-  const total = Number(stats.value?.total_users || 0)
-  if (total <= 0) return 0
-  return (today / total) * 100
-})
-
-// ---- To-do rail ----
-const todoTasks = computed<TodoTask[]>(() => {
-  const tasks: TodoTask[] = []
-  const errorAccounts = Number(stats.value?.error_accounts || 0)
-  const rateLimited = Number(stats.value?.ratelimit_accounts || 0)
-  const overloaded = Number(stats.value?.overload_accounts || 0)
-  const unhealthyAccounts = errorAccounts + rateLimited + overloaded
-
-  if (unhealthyAccounts > 0) {
-    tasks.push({
-      key: 'accounts',
-      title: t('admin.dashboard.overview.accountsRunningLow'),
-      hint: t('admin.dashboard.overview.accountHint', { error: errorAccounts, limit: rateLimited, overload: overloaded }),
-      count: unhealthyAccounts,
-      to: '/admin/accounts',
-      icon: 'server',
-      tone: errorAccounts > 0 ? 'bad' : 'warn'
-    })
-  }
-
-  const negativeMarginGroups = groupStats.value.filter((g) => {
-    const revenue = Number(g.actual_cost || 0)
-    const cost = Number(g.account_cost || 0)
-    return revenue > 0 && revenue - cost < 0
-  })
-  if (negativeMarginGroups.length > 0) {
-    tasks.push({
-      key: 'margin',
-      title: t('admin.dashboard.overview.riskNegativeMargin'),
-      hint: negativeMarginGroups.map((g) => g.group_name).slice(0, 2).join(' · '),
-      count: negativeMarginGroups.length,
-      to: '/admin/groups',
-      icon: 'trendingUp',
-      tone: 'bad'
-    })
-  }
-
-  return tasks
-})
-
-// ---- Action strip ----
-const stripItems = computed<ActionStripItem[]>(() =>
-  todoTasks.value.map((task) => ({ label: `${task.title} · ${task.count}`, to: task.to, hint: task.hint }))
+const negativeGroupCount = computed(() =>
+  groupStats.value.filter((g) => {
+    const rev = Number(g.actual_cost || 0)
+    const cost = g.account_cost !== undefined && g.account_cost !== null ? Number(g.account_cost) : null
+    return rev > 0 && cost !== null && rev - cost < 0
+  }).length
 )
+
+const groupRows = computed(() => {
+  const mapped = [...groupStats.value].map((group) => {
+    const revenue = Number(group.actual_cost || 0)
+    const hasCost = group.account_cost !== undefined && group.account_cost !== null
+    const cost = hasCost ? Number(group.account_cost) : null
+    const margin = revenue > 0 && cost !== null ? ((revenue - cost) / revenue) * 100 : null
+    let risk = ''
+    let riskRank = 2
+    if (margin !== null && margin < 0) {
+      risk = t('admin.dashboard.overview.riskNegativeMargin')
+      riskRank = 0
+    } else if (revenue > 0 && margin !== null && margin < 10) {
+      risk = t('admin.dashboard.overview.riskLowMultiplier')
+      riskRank = 1
+    }
+    const marginClass =
+      margin === null
+        ? 'text-ink-2'
+        : margin < 0
+          ? 'text-red-700 dark:text-red-300'
+          : margin < 20
+            ? 'text-amber-700 dark:text-amber-300'
+            : 'text-emerald-700 dark:text-emerald-300'
+
+    return {
+      id: group.group_id,
+      name: group.group_name,
+      revenue,
+      cost,
+      margin,
+      marginClass,
+      requests: Number(group.requests || 0),
+      risk,
+      riskRank
+    }
+  })
+
+  if (groupSort.value === 'risk') {
+    mapped.sort((a, b) => a.riskRank - b.riskRank || b.revenue - a.revenue)
+  } else {
+    mapped.sort((a, b) => b.revenue - a.revenue)
+  }
+
+  return mapped.slice(0, 8)
+})
 
 // ---- Data loading ----
 function formatLocalDate(date: Date): string {
@@ -358,6 +538,17 @@ function applyPreset(days: number) {
   startDate.value = formatLocalDate(new Date(now.getTime() - (days - 1) * 86_400_000))
   endDate.value = formatLocalDate(now)
   granularity.value = days === 1 ? 'hour' : 'day'
+  void loadSnapshot(false)
+  void loadUsersTrend()
+  void loadRanking()
+}
+
+function onRangeChange(payload: { startDate: string; endDate: string; preset: string | null }) {
+  selectedPreset.value = null
+  startDate.value = payload.startDate
+  endDate.value = payload.endDate
+  const span = (new Date(payload.endDate).getTime() - new Date(payload.startDate).getTime()) / 86_400_000
+  granularity.value = span <= 1 ? 'hour' : 'day'
   void loadSnapshot(false)
   void loadUsersTrend()
   void loadRanking()
@@ -383,6 +574,7 @@ async function loadSnapshot(includeStats: boolean) {
     trendData.value = response.trend || []
     modelStats.value = response.models || []
     groupStats.value = response.groups || []
+    lastLoadedAt.value = new Date().toISOString()
   } catch (error) {
     if (seq !== chartLoadSeq) return
     appStore.showError(t('admin.dashboard.failedToLoad'))
@@ -396,8 +588,6 @@ async function loadSnapshot(includeStats: boolean) {
 }
 
 async function loadUsersTrend(metric: 'tokens' | 'actual_cost' = userTrendMetric.value) {
-  // Bump the sequence *before* awaiting: this counter alone decides whether a
-  // late response is still wanted.
   const seq = ++usersTrendLoadSeq
   userTrendLoading.value = true
   try {
@@ -408,10 +598,7 @@ async function loadUsersTrend(metric: 'tokens' | 'actual_cost' = userTrendMetric
       limit: 12,
       metric
     })
-    // The metric may have changed while this request was in flight; dropping
-    // stale responses keeps the chart in sync with the selected tab.
     if (seq !== usersTrendLoadSeq) return
-    userTrendLoading.value = false
     userTrend.value = response.trend || []
   } catch (error) {
     if (seq !== usersTrendLoadSeq) return
@@ -441,13 +628,12 @@ async function loadRanking() {
 
 function setUserTrendMetric(metric: 'tokens' | 'actual_cost') {
   if (userTrendMetric.value === metric) return
-  // Commit the metric only once the new request has been issued: the loader
-  // bumps the sequence counter synchronously, so the older response is already
-  // stale by the time this function returns.
-  // Clear the previous series *after* the new request has been issued, so the
-  // metric and the sequence counter move in the same tick and the in-flight
-  // response for the old metric is discarded on arrival.
+  userTrendMetric.value = metric
   void loadUsersTrend(metric)
+}
+
+function goToGroups() {
+  void router.push('/admin/groups')
 }
 
 function goToUserUsage(item: UserSpendingRankingItem) {
@@ -461,10 +647,6 @@ function goToUserUsage(item: UserSpendingRankingItem) {
   })
 }
 
-/**
- * 导出报表（原型 03）：导出当前时间范围的四种视图，口径写进表头。
- * 未知值写「数据不足」而不是 0，避免离线看表时把缺失当成真实数字。
- */
 const exporting = ref(false)
 async function exportReport(format: ExportFormat) {
   if (exporting.value) return
@@ -476,26 +658,46 @@ async function exportReport(format: ExportFormat) {
   try {
     const p = (key: string) => t(`admin.dashboard.overview.export.${key}`)
     const labels: DashboardReportLabels = {
-      summarySheet: p('summarySheet'), trendSheet: p('trendSheet'),
-      groupsSheet: p('groupsSheet'), modelsSheet: p('modelsSheet'),
+      summarySheet: p('summarySheet'),
+      trendSheet: p('trendSheet'),
+      groupsSheet: p('groupsSheet'),
+      modelsSheet: p('modelsSheet'),
       header: {
-        item: p('header.item'), value: p('header.value'), basis: p('header.basis'),
-        period: p('header.period'), requests: p('header.requests'),
-        inputTokens: p('header.inputTokens'), outputTokens: p('header.outputTokens'),
-        cacheRead: p('header.cacheRead'), cacheCreation: p('header.cacheCreation'), totalTokens: p('header.totalTokens'),
-        standardCost: p('header.standardCost'), actualCost: p('header.actualCost'),
-        group: p('header.group'), groupId: p('header.groupId'), model: p('header.model'),
-        accountCost: p('header.accountCost'), margin: p('header.margin'), marginRate: p('row.marginRate'),
+        item: p('header.item'),
+        value: p('header.value'),
+        basis: p('header.basis'),
+        period: p('header.period'),
+        requests: p('header.requests'),
+        inputTokens: p('header.inputTokens'),
+        outputTokens: p('header.outputTokens'),
+        cacheRead: p('header.cacheRead'),
+        cacheCreation: p('header.cacheCreation'),
+        totalTokens: p('header.totalTokens'),
+        standardCost: p('header.standardCost'),
+        actualCost: p('header.actualCost'),
+        group: p('header.group'),
+        groupId: p('header.groupId'),
+        model: p('header.model'),
+        accountCost: p('header.accountCost'),
+        margin: p('header.margin'),
+        marginRate: p('row.marginRate')
       },
       row: {
-        period: p('row.period'), requests: p('row.requests'),
-        standardRevenue: p('row.standardRevenue'), actualRevenue: p('row.actualRevenue'),
-        upstreamCost: p('row.upstreamCost'), grossMargin: p('row.grossMargin'), marginRate: p('row.marginRate'),
+        period: p('row.period'),
+        requests: p('row.requests'),
+        standardRevenue: p('row.standardRevenue'),
+        actualRevenue: p('row.actualRevenue'),
+        upstreamCost: p('row.upstreamCost'),
+        grossMargin: p('row.grossMargin'),
+        marginRate: p('row.marginRate')
       },
       basis: {
-        actualRevenue: p('basis.actualRevenue'), standardRevenue: p('basis.standardRevenue'),
-        upstreamCost: p('basis.upstreamCost'), grossMargin: p('basis.grossMargin'), marginRate: p('basis.marginRate'),
-      },
+        actualRevenue: p('basis.actualRevenue'),
+        standardRevenue: p('basis.standardRevenue'),
+        upstreamCost: p('basis.upstreamCost'),
+        grossMargin: p('basis.grossMargin'),
+        marginRate: p('basis.marginRate')
+      }
     }
     const sheets = buildDashboardWorkbook({
       startDate: startDate.value,
@@ -506,12 +708,12 @@ async function exportReport(format: ExportFormat) {
         standard: rangeTotals.value.standard,
         actual: actualRevenue.value,
         accountCost: accountCost.value,
-        margin: marginPercent.value,
+        margin: marginPercent.value
       },
       trend: trendData.value,
       groups: groupStats.value,
       models: modelStats.value,
-      labels,
+      labels
     })
     await downloadReport({ sheets, format, fileName: reportFileStem('dashboard', startDate.value, endDate.value) })
     appStore.showSuccess(t('reportExport.success'))
@@ -532,8 +734,16 @@ function refresh() {
 function formatMoney(value: number): string {
   const n = Number(value || 0)
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`
-  if (n >= 10_000) return `${(n / 1000).toFixed(1)}k`
-  return n.toFixed(2)
+  if (n >= 100_000) return `${(n / 1000).toFixed(1)}k`
+  return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+function formatGroupMoney(value: number): string {
+  const n = Number(value || 0)
+  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(2)}M`
+  if (n >= 100_000) return `$${(n / 1000).toFixed(1)}k`
+  if (n >= 1) return `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  return `$${n.toFixed(3)}`
 }
 
 function formatCompact(value: number): string {
@@ -542,10 +752,6 @@ function formatCompact(value: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`
   if (n >= 1000) return `${(n / 1000).toFixed(1)}k`
   return n.toLocaleString()
-}
-
-function formatNumber(value: number): string {
-  return Number(value || 0).toLocaleString()
 }
 
 onMounted(() => {

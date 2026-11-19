@@ -3,7 +3,11 @@
     <button
       type="button"
       @click="toggle"
-      :class="['date-picker-trigger', isOpen && 'date-picker-trigger-open']"
+      :class="[
+        'date-picker-trigger',
+        compact && 'date-picker-trigger-compact',
+        isOpen && 'date-picker-trigger-open'
+      ]"
     >
       <span class="date-picker-icon">
         <Icon name="calendar" size="sm" />
@@ -49,7 +53,7 @@
             />
           </div>
           <div class="date-picker-separator">
-            <Icon name="arrowRight" size="sm" class="text-gray-400" />
+            <Icon name="arrowRight" size="sm" class="text-ink-3" />
           </div>
           <div class="date-picker-field">
             <label class="date-picker-label">{{ t('dates.endDate') }}</label>
@@ -90,6 +94,8 @@ interface DatePreset {
 interface Props {
   startDate: string
   endDate: string
+  compact?: boolean
+  displayMode?: 'preset' | 'range'
 }
 
 interface Emits {
@@ -98,7 +104,10 @@ interface Emits {
   (e: 'change', range: { startDate: string; endDate: string; preset: string | null }): void
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  compact: false,
+  displayMode: 'preset'
+})
 const emit = defineEmits<Emits>()
 
 const { t, locale } = useI18n()
@@ -217,7 +226,24 @@ const presets: DatePreset[] = [
   }
 ]
 
+const formatShortRangeDate = (dateStr: string): string => {
+  const normalized = toDateInput(dateStr)
+  return normalized.length >= 10 ? normalized.slice(5, 10) : normalized
+}
+
 const displayValue = computed(() => {
+  if (props.displayMode === 'range') {
+    if (isLast24HoursRange(localStartDate.value, localEndDate.value)) {
+      return t('dates.last24Hours')
+    }
+    if (localStartDate.value && localEndDate.value) {
+      const start = formatShortRangeDate(localStartDate.value)
+      const end = formatShortRangeDate(localEndDate.value)
+      return start === end ? start : `${start} ~ ${end}`
+    }
+    return t('dates.selectDateRange')
+  }
+
   if (activePreset.value) {
     const preset = presets.find((p) => p.value === activePreset.value)
     if (preset) return t(preset.labelKey)
@@ -339,13 +365,17 @@ onUnmounted(() => {
 .date-picker-trigger {
   @apply flex items-center gap-2;
   @apply rounded-lg px-3 py-2 text-sm;
-  @apply bg-white dark:bg-dark-800;
-  @apply border border-gray-200 dark:border-dark-600;
-  @apply text-gray-700 dark:text-gray-300;
-  @apply transition-all duration-200;
+  @apply bg-surface;
+  @apply border border-edge-strong;
+  @apply text-ink-2;
+  @apply transition-colors duration-150;
   @apply focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/30;
-  @apply hover:border-gray-300 dark:hover:border-dark-500;
+  @apply hover:bg-surface-2 hover:text-ink;
   @apply cursor-pointer;
+}
+
+.date-picker-trigger-compact {
+  @apply h-8 gap-1.5 px-2.5 py-0 text-xs tabular-nums;
 }
 
 .date-picker-trigger-open {
@@ -353,7 +383,7 @@ onUnmounted(() => {
 }
 
 .date-picker-icon {
-  @apply text-gray-400 dark:text-dark-400;
+  @apply text-ink-3;
 }
 
 .date-picker-value {
@@ -361,14 +391,14 @@ onUnmounted(() => {
 }
 
 .date-picker-chevron {
-  @apply text-gray-400 dark:text-dark-400;
+  @apply text-ink-3;
 }
 
 .date-picker-dropdown {
   @apply absolute left-0 z-[100] mt-2;
-  @apply bg-white dark:bg-dark-800;
+  @apply bg-surface;
   @apply rounded-xl;
-  @apply border border-gray-200 dark:border-dark-700;
+  @apply border border-edge;
   @apply shadow-lg shadow-black/10 dark:shadow-black/30;
   @apply overflow-hidden;
   @apply min-w-[320px];
@@ -380,18 +410,18 @@ onUnmounted(() => {
 
 .date-picker-preset {
   @apply rounded-md px-3 py-1.5 text-xs font-medium;
-  @apply text-gray-600 dark:text-gray-400;
-  @apply hover:bg-gray-100 dark:hover:bg-dark-700;
+  @apply text-ink-2;
+  @apply hover:bg-surface-2 hover:text-ink;
   @apply transition-colors duration-150;
 }
 
 .date-picker-preset-active {
-  @apply bg-primary-100 dark:bg-primary-900/30;
+  @apply bg-primary-500/15;
   @apply text-primary-700 dark:text-primary-300;
 }
 
 .date-picker-divider {
-  @apply border-t border-gray-100 dark:border-dark-700;
+  @apply border-t border-edge;
 }
 
 .date-picker-custom {
@@ -403,14 +433,14 @@ onUnmounted(() => {
 }
 
 .date-picker-label {
-  @apply mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400;
+  @apply mb-1 block text-xs font-medium text-ink-2;
 }
 
 .date-picker-input {
   @apply w-full rounded-md px-2 py-1.5 text-sm;
-  @apply bg-gray-50 dark:bg-dark-700;
-  @apply border border-gray-200 dark:border-dark-600;
-  @apply text-gray-900 dark:text-gray-100;
+  @apply bg-surface-2;
+  @apply border border-edge-strong;
+  @apply text-ink;
   @apply focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/30;
 }
 

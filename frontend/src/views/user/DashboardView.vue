@@ -4,12 +4,10 @@
       <LoadingSpinner size="lg" />
     </div>
 
-    <template v-else>
-      <PageHeader
-        :title="t('dashboard.title')"
-        :description="t('dashboard.welcomeMessage')"
-      >
-        <template #actions>
+    <div v-else class="flex flex-col gap-3.5">
+      <!-- Slim top control & quick-action bar (AppHeader carries page title) -->
+      <div class="flex flex-wrap items-center justify-between gap-2.5">
+        <div class="flex flex-wrap items-center gap-2">
           <div class="seg" role="group" :aria-label="t('dashboard.timeRange')">
             <button
               v-for="preset in presets"
@@ -22,172 +20,171 @@
               {{ preset.label }}
             </button>
           </div>
-          <button type="button" class="btn btn-secondary" :disabled="loading" @click="refreshAll">
-            <Icon name="refresh" size="sm" :class="loading ? 'animate-spin' : ''" />
+
+          <DateRangePicker
+            v-model:start-date="startDate"
+            v-model:end-date="endDate"
+            compact
+            display-mode="range"
+            @change="onRangeChange"
+          />
+
+          <button
+            type="button"
+            class="btn btn-secondary btn-sm"
+            :disabled="loading || loadingCharts"
+            @click="refreshAll"
+          >
+            <Icon name="refresh" size="sm" :class="loading || loadingCharts ? 'animate-spin' : ''" />
             {{ t('common.refresh') }}
           </button>
-        </template>
-      </PageHeader>
+        </div>
 
-      <div class="mt-4 flex flex-col gap-4">
-        <WorkbenchHero
-          :stats="stats"
-          :balance="balance"
-          :is-simple="authStore.isSimpleMode"
-          :subscription="primarySubscription"
-          :hourly-trend="hourlyTrend"
-          :window-days="statsWindowDays"
-          :yesterday-requests="yesterdayRequests"
-        />
-
-        <!-- KPI band -->
-        <section class="grid grid-cols-1 gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
-          <KpiCard
-            :label="t('dashboard.todayRequests')"
-            :value="formatNumber(stats?.today_requests ?? 0)"
-            :unit="t('dashboard.workbench.requestsUnit')"
-            icon="chart"
-            :sparkline="dailySpark.requests"
-            spark-color="#94a3b8"
+        <div class="flex flex-wrap items-center gap-2">
+          <span
+            v-if="stats"
+            class="hidden text-[12px] tabular-nums text-ink-2 2xl:inline"
           >
-            <span
-              v-if="requestDelta !== null"
-              class="trend"
-              :class="requestDelta >= 0 ? 'trend-up' : 'trend-down'"
-            >
-              <Icon :name="requestDelta >= 0 ? 'arrowUp' : 'arrowDown'" size="xs" :stroke-width="2.4" />
-              {{ Math.abs(requestDelta).toFixed(1) }}%
-            </span>
-            <span class="truncate">
-              {{ t('dashboard.workbench.vsYesterday') }} ·
-              {{ t('dashboard.workbench.cumulative') }} {{ formatCompact(stats?.total_requests ?? 0) }}
-            </span>
-          </KpiCard>
+            {{
+              t('dashboard.workbench.todayPulseInline', {
+                requests: formatNumber(stats.today_requests),
+                tokens: formatCompact(stats.today_tokens),
+                latency: formatSeconds(stats.average_duration_ms)
+              })
+            }}
+          </span>
 
-          <KpiCard
-            :label="t('dashboard.workbench.costLabel')"
-            :value="`$${formatCost(stats?.today_actual_cost ?? 0)}`"
-            :unit="`/ $${formatCost(stats?.today_cost ?? 0)}`"
-            icon="dollar"
-            :sparkline="dailySpark.cost"
-            spark-color="#94a3b8"
+          <router-link
+            v-if="channelMonitorEnabled"
+            to="/channel-status"
+            class="btn btn-secondary btn-sm"
           >
-            <span v-if="savingPercent !== null" class="pill pill-brand">
-              {{ t('dashboard.workbench.savedLabel', { percent: savingPercent }) }}
-            </span>
-            <span v-else class="truncate">{{ t('dashboard.workbench.noSaving') }}</span>
-          </KpiCard>
+            {{ t('dashboard.workbench.quickActionChannels') }}
+          </router-link>
 
-          <KpiCard
-            :label="t('dashboard.todayTokens')"
-            :value="formatCompact(stats?.today_tokens ?? 0)"
-            icon="cube"
-            :sparkline="dailySpark.tokens"
-            spark-color="#94a3b8"
+          <router-link
+            v-if="!authStore.isSimpleMode"
+            to="/redeem"
+            class="btn btn-secondary btn-sm"
           >
-            <span class="truncate">
-              {{ t('dashboard.input') }} {{ formatCompact(stats?.today_input_tokens ?? 0) }} ·
-              {{ t('dashboard.output') }} {{ formatCompact(stats?.today_output_tokens ?? 0) }} ·
-              {{ t('dashboard.workbench.cacheHit', { tokens: formatCompact(cacheTokens) }) }}
-            </span>
-          </KpiCard>
+            {{ t('dashboard.redeemCode') }}
+          </router-link>
 
-          <KpiCard
-            :label="t('dashboard.avgResponse')"
-            :value="formatSeconds(stats?.average_duration_ms ?? 0)"
-            icon="clock"
-            :sparkline="dailySpark.duration"
-            spark-color="#94a3b8"
+          <router-link
+            v-if="canUseBatchImage"
+            to="/batch-image"
+            class="btn btn-secondary btn-sm"
           >
-            <span class="truncate">
-              {{ t('dashboard.workbench.cacheHit', { tokens: formatCompact(cacheTokens) }) }} ·
-              {{ stats?.rpm ?? 0 }} RPM
-            </span>
-          </KpiCard>
-        </section>
+            {{ t('dashboard.batchImageAgent') }}
+          </router-link>
 
-        <!-- Main grid -->
-        <section class="grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,1.62fr)_minmax(0,1fr)]">
-          <div class="flex min-w-0 flex-col gap-4">
-            <WorkbenchTrend
-              :metric="metric"
-              :granularity="granularity"
-              :trend="trendData"
-              :loading="loadingCharts"
-              :start-date="startDate"
-              :end-date="endDate"
-              :window-label="windowLabel"
-              @update:metric="onMetricChange"
-              @update:granularity="onGranularityChange"
-              @range-change="onRangeChange"
-              @refresh="loadCharts"
-            />
-            <WorkbenchRecentRequests :logs="recentLogs" :loading="loadingRecent" />
-          </div>
-
-          <div class="flex min-w-0 flex-col gap-4">
-            <WorkbenchPlatforms
-              :by-platform="stats?.by_platform ?? []"
-              :quotas="platformQuotas"
-            />
-            <WorkbenchTopModels :stats="modelStats" />
-            <WorkbenchQuickActions />
-          </div>
-        </section>
+          <router-link to="/keys" class="btn btn-primary btn-sm">
+            <Icon name="plus" size="sm" />
+            {{ t('dashboard.createApiKey') }}
+          </router-link>
+        </div>
       </div>
-    </template>
+
+      <!-- Block 1: Readiness & headroom ledger + conditional error alert strip -->
+      <WorkbenchReadinessLedger
+        :stats="stats"
+        :balance="balance"
+        :frozen-balance="frozenBalance"
+        :user-concurrency="userConcurrency"
+        :is-simple="authStore.isSimpleMode"
+        :subscription-enabled="subscriptionFeatureEnabled"
+        :active-subscriptions="subscriptionStore.activeSubscriptions"
+        :recent-errors="recentErrors"
+        :errors-total="recentErrorsTotal"
+        @inspect-errors="jumpToErrors"
+      />
+
+      <!-- Block 2: Full-width usage trend + integrated 2-column platform quotas & top models shelf -->
+      <WorkbenchTrend
+        :metric="metric"
+        :granularity="granularity"
+        :trend="trendData"
+        :loading="loadingCharts"
+        :window-label="windowLabel"
+        :by-platform="stats?.by_platform ?? []"
+        :quotas="platformQuotas"
+        :model-stats="modelStats"
+        :is-simple="authStore.isSimpleMode"
+        @update:metric="onMetricChange"
+        @update:granularity="onGranularityChange"
+      />
+
+      <!-- Block 3: Full-width recent requests & error requests inspector -->
+      <div ref="recentSectionRef" class="scroll-mt-20">
+        <WorkbenchRecentRequests
+          v-model:active-tab="recentTab"
+          :logs="recentLogs"
+          :loading="loadingRecent"
+          :error-logs="recentErrors"
+          :errors-total="recentErrorsTotal"
+          :loading-errors="loadingErrors"
+          :is-simple="authStore.isSimpleMode"
+        />
+      </div>
+    </div>
   </AppLayout>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
-import PageHeader from '@/components/common/PageHeader.vue'
-import KpiCard from '@/components/common/KpiCard.vue'
+import DateRangePicker from '@/components/common/DateRangePicker.vue'
 import Icon from '@/components/icons/Icon.vue'
-import WorkbenchHero from '@/components/user/workbench/WorkbenchHero.vue'
-import WorkbenchTrend from '@/components/user/workbench/WorkbenchTrend.vue'
-import WorkbenchPlatforms from '@/components/user/workbench/WorkbenchPlatforms.vue'
-import WorkbenchTopModels from '@/components/user/workbench/WorkbenchTopModels.vue'
+import WorkbenchReadinessLedger from '@/components/user/workbench/WorkbenchReadinessLedger.vue'
+import WorkbenchTrend, {
+  type WorkbenchMetric,
+  type WorkbenchGranularity
+} from '@/components/user/workbench/WorkbenchTrend.vue'
 import WorkbenchRecentRequests from '@/components/user/workbench/WorkbenchRecentRequests.vue'
-import WorkbenchQuickActions from '@/components/user/workbench/WorkbenchQuickActions.vue'
 import { useAuthStore, useSubscriptionStore } from '@/stores'
 import { usageAPI, type UserDashboardStats as UserStatsType } from '@/api/usage'
 import { getMyPlatformQuotas } from '@/api/user'
-import type { UsageLog, TrendDataPoint, ModelStat, PlatformQuotaItem } from '@/types'
+import { useBatchImageAccess } from '@/composables/useBatchImageAccess'
+import { FeatureFlags, isChannelMonitorRouteEnabled, isFeatureFlagEnabled } from '@/utils/featureFlags'
 import { formatDateLocalInput } from '@/utils/format'
 import { isLast24HoursRange } from '@/utils/dateRange'
-import type { WorkbenchMetric, WorkbenchGranularity } from '@/components/user/workbench/WorkbenchTrend.vue'
+import type { ModelStat, PlatformQuotaItem, TrendDataPoint, UsageLog, UserErrorRequest } from '@/types'
 
-/**
- * DashboardView — the workbench (`/dashboard`).
- *
- * Data flow is unchanged (four parallel APIs + platform quotas). What changed
- * is the order in which the answers are presented:
- *   1. Hero: am I within quota, do I have balance, am I throttled?
- *   2. KPI band: today's volume / cost / tokens / latency with sparklines.
- *   3. Trend + recent requests (left), platform / model / actions (right).
- */
 const { t } = useI18n()
 const authStore = useAuthStore()
 const subscriptionStore = useSubscriptionStore()
+const { canUseBatchImage, refreshBatchImageAccess } = useBatchImageAccess()
+
 const user = computed(() => authStore.user)
+const balance = computed(() => Number(user.value?.balance || 0))
+const frozenBalance = computed(() => Number(user.value?.frozen_balance || 0))
+const userConcurrency = computed(() => Number(user.value?.concurrency || 0))
+const subscriptionFeatureEnabled = computed(() => isFeatureFlagEnabled(FeatureFlags.subscription))
+const channelMonitorEnabled = computed(() => isChannelMonitorRouteEnabled())
 
 const stats = ref<UserStatsType | null>(null)
 const loading = ref(false)
 const loadingCharts = ref(false)
 const loadingRecent = ref(false)
+const loadingErrors = ref(false)
 
 const trendData = ref<TrendDataPoint[]>([])
-const hourlyTrend = ref<TrendDataPoint[]>([])
 const modelStats = ref<ModelStat[]>([])
 const recentLogs = ref<UsageLog[]>([])
+const recentErrors = ref<UserErrorRequest[]>([])
+const recentErrorsTotal = ref(0)
 const platformQuotas = ref<PlatformQuotaItem[] | null>(null)
 
 const metric = ref<WorkbenchMetric>('requests')
 const granularity = ref<WorkbenchGranularity>('day')
+const recentTab = ref<'recent' | 'errors'>('recent')
+const recentSectionRef = ref<HTMLElement | null>(null)
+
+let chartsSeq = 0
+let recentSeq = 0
+let errorsSeq = 0
 
 const today = new Date()
 const startDate = ref(formatDateLocalInput(new Date(today.getTime() - 6 * 86_400_000)))
@@ -200,54 +197,10 @@ const presets = computed(() => [
   { days: 30, label: t('dashboard.workbench.presetLast30') }
 ])
 
-const statsWindowDays = computed(() => selectedPreset.value ?? 7)
-
 const windowLabel = computed(() => {
   if (isLast24HoursRange(startDate.value, endDate.value)) return t('dates.last24Hours')
   const preset = presets.value.find((p) => p.days === selectedPreset.value)
   return preset ? preset.label : `${startDate.value} ~ ${endDate.value}`
-})
-
-const balance = computed(() => Number(user.value?.balance || 0))
-
-const primarySubscription = computed(() => subscriptionStore.activeSubscriptions[0] ?? null)
-
-// Yesterday's request count drives the day-over-day delta in the hero and KPI.
-const yesterdayRequests = computed<number | null>(() => {
-  const points = trendData.value
-  if (points.length < 2) return null
-  const previous = points[points.length - 2]
-  return Number(previous.requests || 0)
-})
-
-const requestDelta = computed<number | null>(() => {
-  const todayRequests = stats.value?.today_requests ?? 0
-  const yesterday = yesterdayRequests.value
-  if (yesterday === null || yesterday <= 0) return null
-  return ((todayRequests - yesterday) / yesterday) * 100
-})
-
-const savingPercent = computed<number | null>(() => {
-  const standard = Number(stats.value?.today_cost || 0)
-  const actual = Number(stats.value?.today_actual_cost || 0)
-  if (standard <= 0 || actual >= standard) return null
-  return Math.round((1 - actual / standard) * 100)
-})
-
-const cacheTokens = computed(
-  () => (stats.value?.today_cache_creation_tokens ?? 0) + (stats.value?.today_cache_read_tokens ?? 0)
-)
-
-// Sparklines are derived from the already-loaded daily trend, so the KPI band
-// costs no extra request.
-const dailySpark = computed(() => {
-  const points = trendData.value
-  return {
-    requests: points.map((p) => Number(p.requests || 0)),
-    tokens: points.map((p) => Number(p.total_tokens || 0)),
-    cost: points.map((p) => Number(p.actual_cost || 0)),
-    duration: points.map((p) => (p.requests > 0 ? p.total_tokens / p.requests : 0))
-  }
 })
 
 function applyPreset(days: number) {
@@ -257,13 +210,13 @@ function applyPreset(days: number) {
   endDate.value = formatDateLocalInput(now)
   granularity.value = days === 1 ? 'hour' : 'day'
   void loadCharts()
+  void loadRecent()
+  void loadRecentErrors()
 }
 
 function onMetricChange(next: WorkbenchMetric) {
   if (metric.value === next) return
   metric.value = next
-  // Requests / tokens / cost all come from the same trend payload, so switching
-  // the metric is a pure re-render with no extra request.
 }
 
 function onGranularityChange(next: WorkbenchGranularity) {
@@ -279,6 +232,22 @@ function onRangeChange(payload: { startDate: string; endDate: string; preset: st
   const span = (new Date(payload.endDate).getTime() - new Date(payload.startDate).getTime()) / 86_400_000
   granularity.value = span <= 1 ? 'hour' : 'day'
   void loadCharts()
+  void loadRecent()
+  void loadRecentErrors()
+}
+
+function jumpToErrors() {
+  recentTab.value = 'errors'
+  void nextTick(() => {
+    const prefersReduced =
+      typeof window !== 'undefined' &&
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    recentSectionRef.value?.scrollIntoView?.({
+      behavior: prefersReduced ? 'auto' : 'smooth',
+      block: 'nearest'
+    })
+  })
 }
 
 async function loadStats() {
@@ -294,6 +263,7 @@ async function loadStats() {
 }
 
 async function loadCharts() {
+  const seq = ++chartsSeq
   loadingCharts.value = true
   try {
     const [trendResponse, modelResponse] = await Promise.all([
@@ -304,44 +274,66 @@ async function loadCharts() {
       }),
       usageAPI.getDashboardModels({ start_date: startDate.value, end_date: endDate.value })
     ])
+    if (seq !== chartsSeq) return
     trendData.value = trendResponse.trend || []
     modelStats.value = modelResponse.models || []
   } catch (error) {
+    if (seq !== chartsSeq) return
     console.error('Failed to load dashboard charts:', error)
   } finally {
-    loadingCharts.value = false
-  }
-
-  // The hero throughput strip always looks at the last 60 minutes regardless
-  // of the selected range; failure here must not blank the whole page.
-  try {
-    const now = new Date()
-    const hourResponse = await usageAPI.getDashboardTrend({
-      start_date: formatDateLocalInput(new Date(now.getTime() - 86_400_000)),
-      end_date: formatDateLocalInput(now),
-      granularity: 'hour'
-    })
-    hourlyTrend.value = hourResponse.trend || []
-  } catch (error) {
-    console.warn('Failed to load hourly throughput:', error)
-    hourlyTrend.value = []
+    if (seq === chartsSeq) loadingCharts.value = false
   }
 }
 
 async function loadRecent() {
+  const seq = ++recentSeq
   loadingRecent.value = true
   try {
-    const response = await usageAPI.getByDateRange(startDate.value, endDate.value)
-    recentLogs.value = response.items.slice(0, 6)
+    const response = await usageAPI.query({
+      start_date: startDate.value,
+      end_date: endDate.value,
+      page: 1,
+      page_size: 8
+    })
+    if (seq !== recentSeq) return
+    recentLogs.value = response.items || []
   } catch (error) {
+    if (seq !== recentSeq) return
     console.error('Failed to load recent usage:', error)
     recentLogs.value = []
   } finally {
-    loadingRecent.value = false
+    if (seq === recentSeq) loadingRecent.value = false
+  }
+}
+
+async function loadRecentErrors() {
+  const seq = ++errorsSeq
+  loadingErrors.value = true
+  try {
+    const response = await usageAPI.listMyErrorRequests({
+      start_date: startDate.value,
+      end_date: endDate.value,
+      page: 1,
+      page_size: 8
+    })
+    if (seq !== errorsSeq) return
+    recentErrors.value = response.items || []
+    recentErrorsTotal.value = Number(response.total ?? recentErrors.value.length)
+  } catch (error) {
+    if (seq !== errorsSeq) return
+    console.warn('Failed to load recent error requests:', error)
+    recentErrors.value = []
+    recentErrorsTotal.value = 0
+  } finally {
+    if (seq === errorsSeq) loadingErrors.value = false
   }
 }
 
 async function loadPlatformQuotas() {
+  if (authStore.isSimpleMode) {
+    platformQuotas.value = []
+    return
+  }
   try {
     const data = await getMyPlatformQuotas()
     platformQuotas.value = data.platform_quotas ?? []
@@ -355,8 +347,11 @@ function refreshAll() {
   void loadStats()
   void loadCharts()
   void loadRecent()
+  void loadRecentErrors()
   void loadPlatformQuotas()
-  void subscriptionStore.fetchActiveSubscriptions(true).catch(() => undefined)
+  if (subscriptionFeatureEnabled.value && !authStore.isSimpleMode) {
+    void subscriptionStore.fetchActiveSubscriptions(true).catch(() => undefined)
+  }
 }
 
 function formatNumber(value: number): string {
@@ -367,24 +362,18 @@ function formatCompact(value: number): string {
   const n = Number(value || 0)
   if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(2)}B`
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`
-  if (n >= 10_000) return `${(n / 1000).toFixed(1)}k`
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`
   return n.toLocaleString()
-}
-
-function formatCost(value: number): string {
-  const n = Number(value || 0)
-  if (n >= 1) return n.toFixed(2)
-  if (n >= 0.01) return n.toFixed(3)
-  return n.toFixed(4)
 }
 
 function formatSeconds(ms: number): string {
   const n = Number(ms || 0)
   if (!Number.isFinite(n) || n <= 0) return '—'
-  return `${(n / 1000).toFixed(2)}s`
+  return n >= 1000 ? `${(n / 1000).toFixed(2)}s` : `${Math.round(n)}ms`
 }
 
 onMounted(() => {
+  void refreshBatchImageAccess()
   refreshAll()
 })
 </script>

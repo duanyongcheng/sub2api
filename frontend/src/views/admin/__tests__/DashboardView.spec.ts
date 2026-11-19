@@ -141,7 +141,9 @@ describe('admin DashboardView', () => {
           DateRangePicker: true,
           Select: true,
           ModelDistributionChart: true,
-          TokenUsageTrend: true
+          TokenUsageTrend: true,
+          PlatformIcon: true,
+          RouterLink: { props: ['to'], template: '<a><slot /></a>' }
         }
       }
     })
@@ -164,7 +166,64 @@ describe('admin DashboardView', () => {
 
     expect(getUserUsageTrend).toHaveBeenCalledTimes(2)
     expect(getUserUsageTrend).toHaveBeenLastCalledWith(expect.objectContaining({ metric: 'tokens', limit: 12 }))
-    expect(getUserUsageTrend).toHaveBeenCalledTimes(2)
+    expect(tokensButton.attributes('aria-pressed')).toBe('true')
+  })
+
+  it('surfaces live account pool availability and operational anomalies in the top band', async () => {
+    getSnapshotV2.mockResolvedValue({
+      stats: {
+        ...createDashboardStats(),
+        total_accounts: 100,
+        normal_accounts: 84,
+        error_accounts: 6,
+        ratelimit_accounts: 7,
+        overload_accounts: 3,
+        rpm: 418,
+        tpm: 2_840_000,
+        average_duration_ms: 1480,
+        hourly_active_users: 184,
+        active_users: 1284,
+        today_new_users: 38,
+        active_api_keys: 912,
+        total_api_keys: 1460
+      },
+      trend: [],
+      models: [],
+      groups: [
+        {
+          group_id: 9,
+          group_name: 'Grok Trial',
+          requests: 1400,
+          total_tokens: 90000,
+          cost: 350,
+          actual_cost: 312.4,
+          account_cost: 320
+        }
+      ]
+    })
+
+    const wrapper = mount(DashboardView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<div><slot /></div>' },
+          LoadingSpinner: true,
+          Icon: true,
+          DateRangePicker: true,
+          PlatformIcon: true,
+          RouterLink: { props: ['to'], template: '<a><slot /></a>' },
+          Line: true,
+          Chart: true
+        }
+      }
+    })
+    await flushPromises()
+
+    const text = wrapper.text()
+    expect(text).toContain('84 / 100')
+    expect(text).toContain('84.0%')
+    expect(text).toContain('418')
+    expect(text).toContain('admin.dashboard.overview.triagePending')
+    expect(text).toContain('Grok Trial')
   })
 
   it('uses the last 7 days at day granularity as the default range', async () => {
@@ -178,6 +237,8 @@ describe('admin DashboardView', () => {
           Select: true,
           ModelDistributionChart: true,
           TokenUsageTrend: true,
+          PlatformIcon: true,
+          RouterLink: { props: ['to'], template: '<a><slot /></a>' },
           Line: true
         }
       }
@@ -197,6 +258,59 @@ describe('admin DashboardView', () => {
       include_group_stats: true
     }))
   })
+
+  it('does not fall back to 1-day today_account_cost when multi-day group account_cost is absent', async () => {
+    getSnapshotV2.mockResolvedValue({
+      stats: {
+        ...createDashboardStats(),
+        today_account_cost: 842.1
+      },
+      trend: [
+        {
+          date: '2026-11-13',
+          requests: 100,
+          input_tokens: 10,
+          output_tokens: 20,
+          cache_creation_tokens: 0,
+          cache_read_tokens: 0,
+          total_tokens: 30,
+          cost: 1200,
+          actual_cost: 1000
+        }
+      ],
+      models: [],
+      groups: [
+        {
+          group_id: 1,
+          group_name: 'No Cost Pool',
+          requests: 100,
+          total_tokens: 30,
+          cost: 1200,
+          actual_cost: 1000
+        }
+      ]
+    })
+
+    const wrapper = mount(DashboardView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<div><slot /></div>' },
+          LoadingSpinner: true,
+          Icon: true,
+          DateRangePicker: true,
+          PlatformIcon: true,
+          RouterLink: { props: ['to'], template: '<a><slot /></a>' },
+          Line: true,
+          Chart: true
+        }
+      }
+    })
+    await flushPromises()
+
+    const text = wrapper.text()
+    expect(text).toContain('$1,000.00')
+    expect(text).not.toContain('$842.10')
+  })
 })
 
 describe('admin DashboardView report export', () => {
@@ -206,6 +320,9 @@ describe('admin DashboardView report export', () => {
         AppLayout: { template: '<div><slot /></div>' },
         LoadingSpinner: true,
         Icon: true,
+        DateRangePicker: true,
+        PlatformIcon: true,
+        RouterLink: { props: ['to'], template: '<a><slot /></a>' },
         Line: true
       }
     }
