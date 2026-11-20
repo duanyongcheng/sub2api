@@ -18,15 +18,17 @@ import (
 )
 
 const (
-	IQDetectionDefaultModel           = openai.DefaultTestModel
-	IQDetectionDefaultEffort          = "medium"
-	IQDetectionDefaultIntervalMinutes = 720
-	IQDetectionDefaultTestsPerGroup   = 1
-	IQDetectionMaxTestsPerGroup       = 5
-	IQDetectionMaxRetentionPerGroup   = 50
-	IQDetectionMaxAnswerPreviewRune   = 400
-	IQDetectionMaxConcurrentGroups    = 3
-	IQDetectionSingleProbeTimeout     = 2 * time.Minute
+	IQDetectionDefaultModel              = openai.DefaultTestModel
+	IQDetectionDefaultEffort             = "medium"
+	IQDetectionDefaultIntervalMinutes    = 720
+	IQDetectionDefaultTestsPerGroup      = 1
+	IQDetectionMaxTestsPerGroup          = 5
+	IQDetectionMaxRetentionPerGroup      = 50
+	IQDetectionMaxAnswerPreviewRune      = 400
+	IQDetectionMaxConcurrentGroups       = 3
+	IQDetectionSingleProbeTimeout        = 3 * time.Minute
+	IQDetectionPelicanSingleProbeTimeout = 8 * time.Minute
+	IQDetectionBatchExecutionTimeout     = 30 * time.Minute
 
 	IQDetectionTriggerManual    = "manual"
 	IQDetectionTriggerScheduled = "scheduled"
@@ -57,36 +59,42 @@ var (
 
 // IQDetectionConfig 管理端智商检测单例配置。
 type IQDetectionConfig struct {
-	Version         int64      `json:"version"`
-	Enabled         bool       `json:"enabled"`
-	IntervalMinutes int        `json:"interval_minutes"`
-	GroupIDs        []int64    `json:"group_ids"`
-	Model           string     `json:"model"`
-	ReasoningEffort string     `json:"reasoning_effort"`
-	TestsPerGroup   int        `json:"tests_per_group"`
-	LastScheduledAt *time.Time `json:"last_scheduled_at"`
-	UpdatedAt       time.Time  `json:"updated_at"`
-	UpdatedBy       *int64     `json:"updated_by"`
-	BuiltinPrompt   string     `json:"builtin_prompt"`
+	Version         int64             `json:"version"`
+	Enabled         bool              `json:"enabled"`
+	IntervalMinutes int               `json:"interval_minutes"`
+	BenchmarkType   string            `json:"benchmark_type"`
+	BenchmarkTypes  []string          `json:"benchmark_types"`
+	GroupIDs        []int64           `json:"group_ids"`
+	Model           string            `json:"model"`
+	ReasoningEffort string            `json:"reasoning_effort"`
+	TestsPerGroup   int               `json:"tests_per_group"`
+	LastScheduledAt *time.Time        `json:"last_scheduled_at"`
+	UpdatedAt       time.Time         `json:"updated_at"`
+	UpdatedBy       *int64            `json:"updated_by"`
+	BuiltinPrompt   string            `json:"builtin_prompt"`
+	BuiltinPrompts  map[string]string `json:"builtin_prompts,omitempty"`
 }
 
 // IQDetectionSample 单次抽检请求样本明细。
 type IQDetectionSample struct {
-	RunIndex        int     `json:"run_index"`
-	AccountID       int64   `json:"account_id,omitempty"`
-	AccountName     string  `json:"account_name,omitempty"`
-	AccountType     string  `json:"account_type,omitempty"`
-	Protocol        string  `json:"protocol,omitempty"`
-	OK              bool    `json:"ok"`
-	Graded          bool    `json:"graded"`
-	InputTokens     int     `json:"input_tokens"`
-	OutputTokens    int     `json:"output_tokens"`
-	ReasoningTokens int     `json:"reasoning_tokens"`
-	LatencyMs       int     `json:"latency_ms"`
-	TPS             float64 `json:"tps"`
-	ResponseModel   string  `json:"response_model"`
-	AnswerText      string  `json:"answer_text"`
-	ErrorMessage    string  `json:"error_message,omitempty"`
+	RunIndex        int                     `json:"run_index"`
+	AccountID       int64                   `json:"account_id,omitempty"`
+	AccountName     string                  `json:"account_name,omitempty"`
+	AccountType     string                  `json:"account_type,omitempty"`
+	Protocol        string                  `json:"protocol,omitempty"`
+	OK              bool                    `json:"ok"`
+	Graded          bool                    `json:"graded"`
+	Score           int                     `json:"score,omitempty"`
+	InputTokens     int                     `json:"input_tokens"`
+	OutputTokens    int                     `json:"output_tokens"`
+	ReasoningTokens int                     `json:"reasoning_tokens"`
+	LatencyMs       int                     `json:"latency_ms"`
+	TPS             float64                 `json:"tps"`
+	ResponseModel   string                  `json:"response_model"`
+	AnswerText      string                  `json:"answer_text"`
+	ArtifactHTML    string                  `json:"artifact_html,omitempty"`
+	PelicanEval     *IQDetectionPelicanEval `json:"pelican_eval,omitempty"`
+	ErrorMessage    string                  `json:"error_message,omitempty"`
 }
 
 // IQDetectionRun 单个分组一次抽检批次的聚合记录。
@@ -96,11 +104,13 @@ type IQDetectionRun struct {
 	GroupName          string              `json:"group_name"`
 	Platform           string              `json:"platform"`
 	TriggerType        string              `json:"trigger_type"`
+	BenchmarkType      string              `json:"benchmark_type"`
 	RequestedModel     string              `json:"requested_model"`
 	ReasoningEffort    string              `json:"reasoning_effort"`
 	TestsCount         int                 `json:"tests_count"`
 	GradedCount        int                 `json:"graded_count"`
 	CorrectCount       int                 `json:"correct_count"`
+	AvgScore           float64             `json:"avg_score"`
 	Verdict            string              `json:"verdict"`
 	AvgInputTokens     int                 `json:"avg_input_tokens"`
 	AvgOutputTokens    int                 `json:"avg_output_tokens"`
@@ -118,13 +128,14 @@ type IQDetectionRun struct {
 
 // IQDetectionGroupStatus 已配置分组的实时抽检状态视图。
 type IQDetectionGroupStatus struct {
-	GroupID                 int64           `json:"group_id"`
-	GroupName               string          `json:"group_name"`
-	Platform                string          `json:"platform"`
-	GroupStatus             string          `json:"group_status"`
-	SchedulableAccountCount int             `json:"schedulable_account_count"`
-	InFlight                bool            `json:"in_flight"`
-	LatestRun               *IQDetectionRun `json:"latest_run"`
+	GroupID                 int64                      `json:"group_id"`
+	GroupName               string                     `json:"group_name"`
+	Platform                string                     `json:"platform"`
+	GroupStatus             string                     `json:"group_status"`
+	SchedulableAccountCount int                        `json:"schedulable_account_count"`
+	InFlight                bool                       `json:"in_flight"`
+	LatestRun               *IQDetectionRun            `json:"latest_run"`
+	LatestRunsByBenchmark   map[string]*IQDetectionRun `json:"latest_runs_by_benchmark,omitempty"`
 }
 
 // IQDetectionOverviewSummary 管理端概览指标卡片汇总。
@@ -147,18 +158,21 @@ type IQDetectionOverview struct {
 
 // IQDetectionRunFilter 抽检历史分页过滤参数。
 type IQDetectionRunFilter struct {
-	GroupID  int64
-	Verdict  string
-	Page     int
-	PageSize int
+	GroupID       int64
+	Verdict       string
+	BenchmarkType string
+	Page          int
+	PageSize      int
 }
 
 // IQDetectionRunNowInput 手动立即触发抽检入参（空字段回退当前已保存配置）。
 type IQDetectionRunNowInput struct {
-	GroupIDs        []int64 `json:"group_ids"`
-	Model           string  `json:"model"`
-	ReasoningEffort string  `json:"reasoning_effort"`
-	TestsPerGroup   int     `json:"tests_per_group"`
+	GroupIDs        []int64  `json:"group_ids"`
+	BenchmarkType   string   `json:"benchmark_type"`
+	BenchmarkTypes  []string `json:"benchmark_types"`
+	Model           string   `json:"model"`
+	ReasoningEffort string   `json:"reasoning_effort"`
+	TestsPerGroup   int      `json:"tests_per_group"`
 }
 
 // IQDetectionRunBatchResult 触发分组抽检后的批量结果。
@@ -176,6 +190,7 @@ type IQDetectionRepository interface {
 	ClaimScheduledWindow(ctx context.Context, now time.Time) (*IQDetectionConfig, bool, error)
 	CreateRun(ctx context.Context, run *IQDetectionRun) error
 	GetLatestRunsByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64]*IQDetectionRun, error)
+	GetLatestRunsByGroupAndBenchmark(ctx context.Context, groupIDs []int64) (map[int64]map[string]*IQDetectionRun, error)
 	ListRuns(ctx context.Context, filter IQDetectionRunFilter) ([]IQDetectionRun, int64, error)
 	PruneGroupRuns(ctx context.Context, groupID int64, keepLatest int) error
 }
@@ -201,11 +216,14 @@ func DefaultIQDetectionConfig() IQDetectionConfig {
 		Version:         1,
 		Enabled:         false,
 		IntervalMinutes: IQDetectionDefaultIntervalMinutes,
+		BenchmarkType:   IQBenchmarkCandyLogic,
+		BenchmarkTypes:  []string{IQBenchmarkCandyLogic},
 		GroupIDs:        []int64{},
 		Model:           IQDetectionDefaultModel,
 		ReasoningEffort: IQDetectionDefaultEffort,
 		TestsPerGroup:   IQDetectionDefaultTestsPerGroup,
 		BuiltinPrompt:   IQDetectionCandyPrompt,
+		BuiltinPrompts:  BuiltinIQDetectionPrompts(),
 	}
 }
 
@@ -221,6 +239,13 @@ func NormalizeAndValidateIQDetectionConfig(input IQDetectionConfig) (IQDetection
 	default:
 		return cfg, fmt.Errorf("%w: interval_minutes must be one of 30, 60, 360, 720, 1440", ErrIQDetectionInvalidConfig)
 	}
+
+	benchTypes, err := NormalizeAndValidateIQBenchmarkTypes(cfg.BenchmarkTypes, cfg.BenchmarkType)
+	if err != nil {
+		return cfg, err
+	}
+	cfg.BenchmarkTypes = benchTypes
+	cfg.BenchmarkType = benchTypes[0]
 
 	cfg.Model = strings.TrimSpace(cfg.Model)
 	if cfg.Model == "" {
@@ -246,7 +271,8 @@ func NormalizeAndValidateIQDetectionConfig(input IQDetectionConfig) (IQDetection
 	}
 
 	cfg.GroupIDs = deduplicatePositiveInt64s(cfg.GroupIDs)
-	cfg.BuiltinPrompt = IQDetectionCandyPrompt
+	cfg.BuiltinPrompt = IQDetectionPromptForBenchmark(cfg.BenchmarkType)
+	cfg.BuiltinPrompts = BuiltinIQDetectionPrompts()
 	return cfg, nil
 }
 
@@ -350,6 +376,11 @@ func truncateRunes(s string, maxRunes int) string {
 	return string(runes[:maxRunes]) + "…"
 }
 
+type iqInFlightKey struct {
+	groupID       int64
+	benchmarkType string
+}
+
 // IQDetectionService 管理端智商检测核心服务。
 type IQDetectionService struct {
 	repo        IQDetectionRepository
@@ -358,7 +389,7 @@ type IQDetectionService struct {
 	prober      IQDetectionProber
 
 	inFlightMu sync.Mutex
-	inFlight   map[int64]struct{}
+	inFlight   map[iqInFlightKey]struct{}
 }
 
 // NewIQDetectionService 创建 IQDetectionService。
@@ -373,7 +404,7 @@ func NewIQDetectionService(
 		groupRepo:   groupRepo,
 		accountRepo: accountRepo,
 		prober:      prober,
-		inFlight:    make(map[int64]struct{}),
+		inFlight:    make(map[iqInFlightKey]struct{}),
 	}
 }
 
@@ -386,7 +417,10 @@ func (s *IQDetectionService) GetConfig(ctx context.Context) (*IQDetectionConfig,
 	if cfg.GroupIDs == nil {
 		cfg.GroupIDs = []int64{}
 	}
-	cfg.BuiltinPrompt = IQDetectionCandyPrompt
+	cfg.BenchmarkTypes = EffectiveIQBenchmarkTypes(cfg)
+	cfg.BenchmarkType = cfg.BenchmarkTypes[0]
+	cfg.BuiltinPrompt = IQDetectionPromptForBenchmark(cfg.BenchmarkType)
+	cfg.BuiltinPrompts = BuiltinIQDetectionPrompts()
 	return cfg, nil
 }
 
@@ -427,35 +461,85 @@ func (s *IQDetectionService) UpdateConfig(
 	if updated.GroupIDs == nil {
 		updated.GroupIDs = []int64{}
 	}
-	updated.BuiltinPrompt = IQDetectionCandyPrompt
+	updated.BenchmarkTypes = EffectiveIQBenchmarkTypes(updated)
+	updated.BenchmarkType = updated.BenchmarkTypes[0]
+	updated.BuiltinPrompt = IQDetectionPromptForBenchmark(updated.BenchmarkType)
+	updated.BuiltinPrompts = BuiltinIQDetectionPrompts()
 	return updated, nil
 }
 
-// GetOverview 返回管理端概览页所需的完整状态卡片与分组快照。
+func verdictSeverityRank(verdict string) int {
+	switch verdict {
+	case IQVerdictError:
+		return 4
+	case IQVerdictDegraded:
+		return 3
+	case IQVerdictWarning:
+		return 2
+	case IQVerdictNormal:
+		return 1
+	default:
+		return 4
+	}
+}
+
+// GetOverview 返回管理端概览页所需的完整状态卡片与分组快照（包含每个分组各题型的最新记录）。
 func (s *IQDetectionService) GetOverview(ctx context.Context) (*IQDetectionOverview, error) {
 	cfg, err := s.GetConfig(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	latestRuns, err := s.repo.GetLatestRunsByGroupIDs(ctx, cfg.GroupIDs)
+	latestByBench, err := s.repo.GetLatestRunsByGroupAndBenchmark(ctx, cfg.GroupIDs)
 	if err != nil {
 		return nil, err
 	}
 
+	enabledBenchmarks := EffectiveIQBenchmarkTypes(cfg)
 	groups := make([]IQDetectionGroupStatus, 0, len(cfg.GroupIDs))
 	summary := IQDetectionOverviewSummary{
 		ConfiguredCount: len(cfg.GroupIDs),
 	}
 
 	for _, gid := range cfg.GroupIDs {
+		benchMap := latestByBench[gid]
+		if benchMap == nil {
+			benchMap = map[string]*IQDetectionRun{}
+		}
+		for k, r := range benchMap {
+			if r != nil {
+				r.BenchmarkType = NormalizeIQBenchmarkType(r.BenchmarkType)
+				benchMap[k] = r
+			}
+		}
+
+		// 选取已启用题型中最近完成的一条作为 LatestRun（若启用题型均未跑过则回退该组整体最近一条）
+		var primaryRun *IQDetectionRun
+		for _, bt := range enabledBenchmarks {
+			if candidate := benchMap[bt]; candidate != nil {
+				if primaryRun == nil || candidate.CompletedAt.After(primaryRun.CompletedAt) || (candidate.CompletedAt.Equal(primaryRun.CompletedAt) && candidate.ID > primaryRun.ID) {
+					primaryRun = candidate
+				}
+			}
+		}
+		if primaryRun == nil {
+			for _, candidate := range benchMap {
+				if candidate != nil {
+					if primaryRun == nil || candidate.CompletedAt.After(primaryRun.CompletedAt) || (candidate.CompletedAt.Equal(primaryRun.CompletedAt) && candidate.ID > primaryRun.ID) {
+						primaryRun = candidate
+					}
+				}
+			}
+		}
+
 		item := IQDetectionGroupStatus{
-			GroupID:     gid,
-			GroupName:   fmt.Sprintf("#%d", gid),
-			Platform:    PlatformOpenAI,
-			GroupStatus: "missing",
-			InFlight:    s.isGroupInFlight(gid),
-			LatestRun:   latestRuns[gid],
+			GroupID:               gid,
+			GroupName:             fmt.Sprintf("#%d", gid),
+			Platform:              PlatformOpenAI,
+			GroupStatus:           "missing",
+			InFlight:              s.isGroupInFlight(gid),
+			LatestRun:             primaryRun,
+			LatestRunsByBenchmark: benchMap,
 		}
 
 		if s.groupRepo != nil {
@@ -470,11 +554,24 @@ func (s *IQDetectionService) GetOverview(ctx context.Context) (*IQDetectionOverv
 			}
 		}
 
-		if item.LatestRun == nil {
+		// 按当前启用的题型汇总该组健康状态（双题型同开时取最差结论）
+		var worstVerdict string
+		for _, bt := range enabledBenchmarks {
+			if r := benchMap[bt]; r != nil {
+				if worstVerdict == "" || verdictSeverityRank(r.Verdict) > verdictSeverityRank(worstVerdict) {
+					worstVerdict = r.Verdict
+				}
+			}
+		}
+		if worstVerdict == "" && primaryRun != nil {
+			worstVerdict = primaryRun.Verdict
+		}
+
+		if worstVerdict == "" {
 			summary.UntestedCount++
 		} else {
 			summary.TestedCount++
-			switch item.LatestRun.Verdict {
+			switch worstVerdict {
 			case IQVerdictNormal:
 				summary.NormalCount++
 			case IQVerdictWarning:
@@ -513,6 +610,10 @@ func (s *IQDetectionService) ListRuns(ctx context.Context, filter IQDetectionRun
 	default:
 		return nil, 0, fmt.Errorf("%w: invalid verdict filter %q", ErrIQDetectionInvalidConfig, filter.Verdict)
 	}
+	filter.BenchmarkType = strings.ToLower(strings.TrimSpace(filter.BenchmarkType))
+	if filter.BenchmarkType != "" && !IsValidIQBenchmarkType(filter.BenchmarkType) {
+		return nil, 0, fmt.Errorf("%w: invalid benchmark_type filter %q", ErrIQDetectionInvalidConfig, filter.BenchmarkType)
+	}
 
 	items, total, err := s.repo.ListRuns(ctx, filter)
 	if err != nil {
@@ -520,6 +621,9 @@ func (s *IQDetectionService) ListRuns(ctx context.Context, filter IQDetectionRun
 	}
 	if items == nil {
 		items = []IQDetectionRun{}
+	}
+	for i := range items {
+		items[i].BenchmarkType = NormalizeIQBenchmarkType(items[i].BenchmarkType)
 	}
 	return items, total, nil
 }
@@ -537,6 +641,24 @@ func (s *IQDetectionService) RunNow(ctx context.Context, input IQDetectionRunNow
 	}
 	if len(targetGroupIDs) == 0 {
 		return nil, ErrIQDetectionNoGroups
+	}
+
+	var benchmarkTypes []string
+	switch {
+	case len(input.BenchmarkTypes) > 0:
+		validated, valErr := NormalizeAndValidateIQBenchmarkTypes(input.BenchmarkTypes, "")
+		if valErr != nil {
+			return nil, valErr
+		}
+		benchmarkTypes = validated
+	case strings.TrimSpace(input.BenchmarkType) != "":
+		single := strings.ToLower(strings.TrimSpace(input.BenchmarkType))
+		if !IsValidIQBenchmarkType(single) {
+			return nil, fmt.Errorf("%w: benchmark_type must be one of candy_logic, pelican_svg", ErrIQDetectionInvalidConfig)
+		}
+		benchmarkTypes = []string{single}
+	default:
+		benchmarkTypes = EffectiveIQBenchmarkTypes(cfg)
 	}
 
 	model := strings.TrimSpace(input.Model)
@@ -566,10 +688,14 @@ func (s *IQDetectionService) RunNow(ctx context.Context, input IQDetectionRunNow
 		return nil, fmt.Errorf("%w: tests_per_group must be between 1 and %d", ErrIQDetectionInvalidConfig, IQDetectionMaxTestsPerGroup)
 	}
 
-	return s.executeGroupBatch(ctx, targetGroupIDs, model, effort, testsPerGroup, IQDetectionTriggerManual)
+	// 与前端 HTTP 连接断开解耦，防止长耗时的鹈鹕 SVG 抽检因浏览器刷新或代理超时被中途取消
+	batchCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), IQDetectionBatchExecutionTimeout)
+	defer cancel()
+
+	return s.executeGroupBatch(batchCtx, targetGroupIDs, benchmarkTypes, model, effort, testsPerGroup, IQDetectionTriggerManual)
 }
 
-// RunScheduledPatrol 由后台定时巡检调用：原子抢占巡检窗口后并发执行配置内所有分组。
+// RunScheduledPatrol 由后台定时巡检调用：原子抢占巡检窗口后并发执行配置内所有分组及所有已启用题型。
 func (s *IQDetectionService) RunScheduledPatrol(ctx context.Context, now time.Time) (*IQDetectionRunBatchResult, bool, error) {
 	cfg, claimed, err := s.repo.ClaimScheduledWindow(ctx, now)
 	if err != nil || !claimed || cfg == nil {
@@ -582,30 +708,46 @@ func (s *IQDetectionService) RunScheduledPatrol(ctx context.Context, now time.Ti
 			Runs:                  []IQDetectionRun{},
 		}, true, nil
 	}
-	res, runErr := s.executeGroupBatch(ctx, targetGroupIDs, cfg.Model, cfg.ReasoningEffort, cfg.TestsPerGroup, IQDetectionTriggerScheduled)
+	benchmarkTypes := EffectiveIQBenchmarkTypes(cfg)
+	res, runErr := s.executeGroupBatch(ctx, targetGroupIDs, benchmarkTypes, cfg.Model, cfg.ReasoningEffort, cfg.TestsPerGroup, IQDetectionTriggerScheduled)
 	return res, true, runErr
 }
 
 func (s *IQDetectionService) executeGroupBatch(
 	ctx context.Context,
 	groupIDs []int64,
+	benchmarkTypes []string,
 	model string,
 	effort string,
 	testsPerGroup int,
 	triggerType string,
 ) (*IQDetectionRunBatchResult, error) {
-	claimedIDs := make([]int64, 0, len(groupIDs))
+	if len(benchmarkTypes) == 0 {
+		benchmarkTypes = []string{IQBenchmarkCandyLogic}
+	}
+
+	claimedTasks := make([]iqInFlightKey, 0, len(groupIDs)*len(benchmarkTypes))
+	executedGroupSet := make(map[int64]struct{}, len(groupIDs))
 	skippedIDs := make([]int64, 0)
 
 	for _, gid := range groupIDs {
-		if s.tryAcquireGroupInFlight(gid) {
-			claimedIDs = append(claimedIDs, gid)
+		groupClaimed := false
+		for _, bt := range benchmarkTypes {
+			normBT := NormalizeIQBenchmarkType(bt)
+			key := iqInFlightKey{groupID: gid, benchmarkType: normBT}
+			if s.tryAcquireInFlight(key) {
+				claimedTasks = append(claimedTasks, key)
+				groupClaimed = true
+			}
+		}
+		if groupClaimed {
+			executedGroupSet[gid] = struct{}{}
 		} else {
 			skippedIDs = append(skippedIDs, gid)
 		}
 	}
 
-	if len(claimedIDs) == 0 {
+	if len(claimedTasks) == 0 {
 		return &IQDetectionRunBatchResult{
 			RequestedGroups:       len(groupIDs),
 			ExecutedGroups:        0,
@@ -614,18 +756,19 @@ func (s *IQDetectionService) executeGroupBatch(
 		}, nil
 	}
 
-	results := make([]IQDetectionRun, len(claimedIDs))
+	results := make([]IQDetectionRun, len(claimedTasks))
 	var eg errgroup.Group
 	eg.SetLimit(IQDetectionMaxConcurrentGroups)
 
-	for idx, gid := range claimedIDs {
-		i, groupID := idx, gid
+	for idx, taskKey := range claimedTasks {
+		i, tk := idx, taskKey
 		eg.Go(func() error {
-			defer s.releaseGroupInFlight(groupID)
-			run := s.probeSingleGroup(ctx, groupID, model, effort, testsPerGroup, triggerType)
+			defer s.releaseInFlight(tk)
+			effectiveRounds := EffectiveTestsPerGroupForBenchmark(tk.benchmarkType, testsPerGroup)
+			run := s.probeSingleGroup(ctx, tk.groupID, tk.benchmarkType, model, effort, effectiveRounds, triggerType)
 			if s.repo != nil {
 				if createErr := s.repo.CreateRun(ctx, &run); createErr == nil {
-					_ = s.repo.PruneGroupRuns(ctx, groupID, IQDetectionMaxRetentionPerGroup)
+					_ = s.repo.PruneGroupRuns(ctx, tk.groupID, IQDetectionMaxRetentionPerGroup)
 				}
 			}
 			results[i] = run
@@ -637,7 +780,7 @@ func (s *IQDetectionService) executeGroupBatch(
 
 	return &IQDetectionRunBatchResult{
 		RequestedGroups:       len(groupIDs),
-		ExecutedGroups:        len(results),
+		ExecutedGroups:        len(executedGroupSet),
 		SkippedInFlightGroups: skippedIDs,
 		Runs:                  results,
 	}, nil
@@ -646,17 +789,23 @@ func (s *IQDetectionService) executeGroupBatch(
 func (s *IQDetectionService) probeSingleGroup(
 	ctx context.Context,
 	groupID int64,
+	benchmarkType string,
 	model string,
 	effort string,
 	testsPerGroup int,
 	triggerType string,
 ) IQDetectionRun {
+	benchmarkType = NormalizeIQBenchmarkType(benchmarkType)
+	testsPerGroup = EffectiveTestsPerGroupForBenchmark(benchmarkType, testsPerGroup)
+	prompt := IQDetectionPromptForBenchmark(benchmarkType)
+
 	startedAt := time.Now()
 	run := IQDetectionRun{
 		GroupID:         groupID,
 		GroupName:       fmt.Sprintf("#%d", groupID),
 		Platform:        PlatformOpenAI,
 		TriggerType:     triggerType,
+		BenchmarkType:   benchmarkType,
 		RequestedModel:  model,
 		ReasoningEffort: effort,
 		TestsCount:      testsPerGroup,
@@ -721,6 +870,7 @@ func (s *IQDetectionService) probeSingleGroup(
 	var (
 		gradedCount        int
 		correctCount       int
+		totalScore         int
 		totalInputTokens   int
 		totalOutputTokens  int
 		totalReasonTokens  int
@@ -731,11 +881,16 @@ func (s *IQDetectionService) probeSingleGroup(
 		firstErrorMsg      string
 	)
 
+	probeTimeout := IQDetectionSingleProbeTimeout
+	if benchmarkType == IQBenchmarkPelicanSVG {
+		probeTimeout = IQDetectionPelicanSingleProbeTimeout
+	}
+
 	for i := 0; i < testsPerGroup; i++ {
 		account := eligible[i%len(eligible)]
 		sampleStart := time.Now()
-		probeCtx, cancel := context.WithTimeout(ctx, IQDetectionSingleProbeTimeout)
-		probeRes, probeErr := s.prober.ProbeAccount(probeCtx, &account, model, effort, IQDetectionCandyPrompt)
+		probeCtx, cancel := context.WithTimeout(ctx, probeTimeout)
+		probeRes, probeErr := s.prober.ProbeAccount(probeCtx, &account, model, effort, prompt)
 		cancel()
 		latencyMs := int(time.Since(sampleStart).Milliseconds())
 		if latencyMs < 1 {
@@ -765,9 +920,36 @@ func (s *IQDetectionService) probeSingleGroup(
 		sample.OutputTokens = probeRes.OutputTokens
 		sample.ReasoningTokens = probeRes.ReasoningTokens
 		sample.ResponseModel = probeRes.ResponseModel
-		sample.AnswerText = strings.TrimSpace(probeRes.AnswerText)
-		sample.OK = MatchStandaloneNumber(sample.AnswerText, IQDetectionCandyExpectedAnswer)
+		rawAnswer := strings.TrimSpace(probeRes.AnswerText)
 		sample.TPS = computeSampleTPS(sample.OutputTokens, sample.ReasoningTokens, sample.LatencyMs)
+
+		if benchmarkType == IQBenchmarkPelicanSVG {
+			eval, artifactHTML := EvaluatePelicanSVG(rawAnswer)
+			sample.Score = eval.Score
+			sample.PelicanEval = &eval
+			sample.ArtifactHTML = artifactHTML
+			sample.OK = eval.Score >= IQPelicanPassScore && eval.HasSVG && eval.HasAnimation && eval.OfflineCompliant
+			if artifactHTML != "" {
+				// 避免在 AnswerText 与 ArtifactHTML 中重复保存几十 KB 的 HTML 源码
+				sample.AnswerText = formatPelicanAnswerSummary(eval)
+			} else {
+				sample.AnswerText = truncateRunes(rawAnswer, 2000)
+			}
+			totalScore += eval.Score
+			if firstAnswerPreview == "" {
+				firstAnswerPreview = formatPelicanAnswerSummary(eval)
+			}
+		} else {
+			sample.AnswerText = rawAnswer
+			sample.OK = MatchStandaloneNumber(sample.AnswerText, IQDetectionCandyExpectedAnswer)
+			if sample.OK {
+				sample.Score = 100
+				totalScore += 100
+			}
+			if firstAnswerPreview == "" && sample.AnswerText != "" {
+				firstAnswerPreview = truncateRunes(sample.AnswerText, IQDetectionMaxAnswerPreviewRune)
+			}
+		}
 
 		gradedCount++
 		if sample.OK {
@@ -782,9 +964,6 @@ func (s *IQDetectionService) probeSingleGroup(
 		if firstResponseModel == "" && sample.ResponseModel != "" {
 			firstResponseModel = sample.ResponseModel
 		}
-		if firstAnswerPreview == "" && sample.AnswerText != "" {
-			firstAnswerPreview = truncateRunes(sample.AnswerText, IQDetectionMaxAnswerPreviewRune)
-		}
 
 		samples = append(samples, sample)
 	}
@@ -792,11 +971,11 @@ func (s *IQDetectionService) probeSingleGroup(
 	run.Samples = samples
 	run.GradedCount = gradedCount
 	run.CorrectCount = correctCount
-	run.Verdict = EvaluateIQDetectionVerdict(gradedCount, correctCount)
 	run.ResponseModel = firstResponseModel
 	run.AnswerPreview = firstAnswerPreview
 
 	if gradedCount > 0 {
+		run.AvgScore = math.Round((float64(totalScore)/float64(gradedCount))*10) / 10
 		run.AvgInputTokens = int(math.Round(float64(totalInputTokens) / float64(gradedCount)))
 		run.AvgOutputTokens = int(math.Round(float64(totalOutputTokens) / float64(gradedCount)))
 		run.AvgReasoningTokens = int(math.Round(float64(totalReasonTokens) / float64(gradedCount)))
@@ -805,6 +984,13 @@ func (s *IQDetectionService) probeSingleGroup(
 	} else {
 		run.ErrorMessage = firstErrorMsg
 	}
+
+	if benchmarkType == IQBenchmarkPelicanSVG {
+		run.Verdict = EvaluatePelicanVerdict(gradedCount, correctCount, run.AvgScore)
+	} else {
+		run.Verdict = EvaluateIQDetectionVerdict(gradedCount, correctCount)
+	}
+
 	if run.ErrorMessage == "" && firstErrorMsg != "" && gradedCount < testsPerGroup {
 		run.ErrorMessage = fmt.Sprintf("部分样本请求异常（%d/%d 失败）：%s", testsPerGroup-gradedCount, testsPerGroup, firstErrorMsg)
 	}
@@ -812,6 +998,23 @@ func (s *IQDetectionService) probeSingleGroup(
 	run.CompletedAt = time.Now()
 	run.CreatedAt = run.CompletedAt
 	return run
+}
+
+func formatPelicanAnswerSummary(eval IQDetectionPelicanEval) string {
+	animState := "无动画"
+	if eval.HasAnimation {
+		animState = fmt.Sprintf("%d 组动画", eval.AnimationDriverCount)
+	}
+	wheelState := "未检出双轮"
+	if eval.WheelPairDetected {
+		wheelState = "双轮已检出"
+	}
+	summary := fmt.Sprintf("结构评分 %d/100 · %d 图元 · %d 曲线 · %s · %s",
+		eval.Score, eval.PrimitiveCount, eval.CurveCommandCount, animState, wheelState)
+	if !eval.OfflineCompliant {
+		summary += " · 含外链"
+	}
+	return summary
 }
 
 // listEligibleGroupAccounts 筛选分组下满足平台、OAuth-only、Privacy 与模型映射约束的可调度账号，
@@ -854,25 +1057,29 @@ func (s *IQDetectionService) listEligibleGroupAccounts(ctx context.Context, grou
 	return eligible, nil
 }
 
-func (s *IQDetectionService) tryAcquireGroupInFlight(groupID int64) bool {
+func (s *IQDetectionService) tryAcquireInFlight(key iqInFlightKey) bool {
 	s.inFlightMu.Lock()
 	defer s.inFlightMu.Unlock()
-	if _, exists := s.inFlight[groupID]; exists {
+	if _, exists := s.inFlight[key]; exists {
 		return false
 	}
-	s.inFlight[groupID] = struct{}{}
+	s.inFlight[key] = struct{}{}
 	return true
 }
 
-func (s *IQDetectionService) releaseGroupInFlight(groupID int64) {
+func (s *IQDetectionService) releaseInFlight(key iqInFlightKey) {
 	s.inFlightMu.Lock()
 	defer s.inFlightMu.Unlock()
-	delete(s.inFlight, groupID)
+	delete(s.inFlight, key)
 }
 
 func (s *IQDetectionService) isGroupInFlight(groupID int64) bool {
 	s.inFlightMu.Lock()
 	defer s.inFlightMu.Unlock()
-	_, exists := s.inFlight[groupID]
-	return exists
+	for key := range s.inFlight {
+		if key.groupID == groupID {
+			return true
+		}
+	}
+	return false
 }

@@ -156,7 +156,9 @@ export default defineConfig(({ mode }) => {
       proxy: {
         '/api': {
           target: backendUrl,
-          changeOrigin: true
+          changeOrigin: true,
+          timeout: 900_000,
+          proxyTimeout: 900_000
         },
         '/v1': {
           target: backendUrl,

@@ -10,7 +10,7 @@ import type {
   IQDetectionRunNowInput
 } from './types'
 
-const RUN_NOW_TIMEOUT_MS = 180_000
+const RUN_NOW_TIMEOUT_MS = 900_000
 const GROUP_CATALOG_PAGE_SIZE = 1000
 
 export async function getIQDetectionConfig(signal?: AbortSignal): Promise<IQDetectionConfig> {
@@ -47,6 +47,9 @@ export async function listIQDetectionRuns(
   }
   if (params.verdict) {
     cleanParams.verdict = params.verdict
+  }
+  if (params.benchmark_type) {
+    cleanParams.benchmark_type = params.benchmark_type
   }
   const { data } = await apiClient.get<PaginatedResponse<IQDetectionRun>>(
     '/admin/iq-detection/runs',

@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"unicode"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
@@ -71,6 +72,16 @@ func (p *OpenAIIQDetectionProber) ProbeAccount(
 		return nil, errors.New("account is nil")
 	}
 	if account.IsSyntheticUITest() {
+		if prompt == IQDetectionPelicanPrompt || strings.Contains(prompt, "鹈鹕") {
+			return &IQDetectionProbeResult{
+				Protocol:        "synthetic",
+				InputTokens:     96,
+				OutputTokens:    2480,
+				ReasoningTokens: 1120,
+				ResponseModel:   model,
+				AnswerText:      syntheticPelicanSVGArtifactHTML,
+			}, nil
+		}
 		return &IQDetectionProbeResult{
 			Protocol:        "synthetic",
 			InputTokens:     168,
@@ -425,24 +436,46 @@ func formatIQProbeHTTPError(source string, statusCode int, body []byte) error {
 	return fmt.Errorf("%s HTTP %d: %s", source, statusCode, msg)
 }
 
-// parseResponsesIQStream 解析 OpenAI / Codex Responses SSE 流（兼容单帧 JSON 响应回退）。
-func parseResponsesIQStream(body io.Reader, fallbackModel string) (*IQDetectionProbeResult, error) {
-	rawBytes, err := io.ReadAll(body)
-	if err != nil {
-		return nil, fmt.Errorf("read responses stream: %w", err)
+func peekFirstNonSpaceByte(br *bufio.Reader, source string) (byte, error) {
+	for {
+		b, err := br.ReadByte()
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return 0, fmt.Errorf("empty response from %s", source)
+			}
+			return 0, err
+		}
+		if !unicode.IsSpace(rune(b)) {
+			if unreadErr := br.UnreadByte(); unreadErr != nil {
+				return 0, unreadErr
+			}
+			return b, nil
+		}
 	}
-	trimmed := bytes.TrimSpace(rawBytes)
-	if len(trimmed) == 0 {
-		return nil, errors.New("empty response from Responses API")
+}
+
+// parseResponsesIQStream 流式逐行解析 OpenAI / Codex Responses SSE 流（收到 response.completed 立即返回，不阻塞等待连接 EOF；同时兼容单帧 JSON 响应回退）。
+func parseResponsesIQStream(body io.Reader, fallbackModel string) (*IQDetectionProbeResult, error) {
+	br := bufio.NewReaderSize(body, 64*1024)
+	firstByte, err := peekFirstNonSpaceByte(br, "Responses API")
+	if err != nil {
+		if strings.HasPrefix(err.Error(), "empty response") {
+			return nil, err
+		}
+		return nil, fmt.Errorf("read responses stream: %w", err)
 	}
 
 	// 兼容部分中转站忽略 stream=true 直接返回单包 JSON response 对象。
-	if trimmed[0] == '{' {
-		return parseUnaryResponsesJSON(trimmed, fallbackModel)
+	if firstByte == '{' {
+		rawBytes, readErr := io.ReadAll(br)
+		if readErr != nil {
+			return nil, fmt.Errorf("read responses stream: %w", readErr)
+		}
+		return parseUnaryResponsesJSON(bytes.TrimSpace(rawBytes), fallbackModel)
 	}
 
-	scanner := bufio.NewScanner(bytes.NewReader(rawBytes))
-	scanner.Buffer(make([]byte, 0, 64*1024), 4*1024*1024)
+	scanner := bufio.NewScanner(br)
+	scanner.Buffer(make([]byte, 0, 64*1024), 8*1024*1024)
 
 	var (
 		deltas          []string
@@ -468,6 +501,7 @@ func parseResponsesIQStream(body io.Reader, fallbackModel string) (*IQDetectionP
 		}
 
 		eventType := gjson.Get(jsonStr, "type").String()
+		stopStream := false
 		switch eventType {
 		case "response.created", "response.in_progress":
 			if m := strings.TrimSpace(gjson.Get(jsonStr, "response.model").String()); m != "" {
@@ -483,6 +517,7 @@ func parseResponsesIQStream(body io.Reader, fallbackModel string) (*IQDetectionP
 			}
 		case "response.completed", "response.done":
 			seenCompleted = true
+			stopStream = true
 			if m := strings.TrimSpace(gjson.Get(jsonStr, "response.model").String()); m != "" {
 				responseModel = m
 			}
@@ -515,9 +550,14 @@ func parseResponsesIQStream(body io.Reader, fallbackModel string) (*IQDetectionP
 			}
 			return nil, errors.New(errMsg)
 		}
+		if stopStream {
+			break
+		}
 	}
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("scan responses stream: %w", err)
+	if !seenCompleted {
+		if err := scanner.Err(); err != nil {
+			return nil, fmt.Errorf("read responses stream: %w", err)
+		}
 	}
 
 	answer := strings.Join(deltas, "")
@@ -601,23 +641,27 @@ func extractResponsesOutputText(output gjson.Result) string {
 	return strings.Join(parts, "")
 }
 
-// parseChatCompletionsIQStream 解析 /v1/chat/completions SSE 流（兼容单包 JSON 响应回退）。
+// parseChatCompletionsIQStream 流式逐行解析 /v1/chat/completions SSE 流（收到 [DONE] 立即返回；兼容单包 JSON 响应回退）。
 func parseChatCompletionsIQStream(body io.Reader, fallbackModel string) (*IQDetectionProbeResult, error) {
-	rawBytes, err := io.ReadAll(body)
+	br := bufio.NewReaderSize(body, 64*1024)
+	firstByte, err := peekFirstNonSpaceByte(br, "Chat Completions API")
 	if err != nil {
+		if strings.HasPrefix(err.Error(), "empty response") {
+			return nil, err
+		}
 		return nil, fmt.Errorf("read chat completions stream: %w", err)
 	}
-	trimmed := bytes.TrimSpace(rawBytes)
-	if len(trimmed) == 0 {
-		return nil, errors.New("empty response from Chat Completions API")
+
+	if firstByte == '{' {
+		rawBytes, readErr := io.ReadAll(br)
+		if readErr != nil {
+			return nil, fmt.Errorf("read chat completions stream: %w", readErr)
+		}
+		return parseUnaryChatCompletionsJSON(bytes.TrimSpace(rawBytes), fallbackModel)
 	}
 
-	if trimmed[0] == '{' {
-		return parseUnaryChatCompletionsJSON(trimmed, fallbackModel)
-	}
-
-	scanner := bufio.NewScanner(bytes.NewReader(rawBytes))
-	scanner.Buffer(make([]byte, 0, 64*1024), 4*1024*1024)
+	scanner := bufio.NewScanner(br)
+	scanner.Buffer(make([]byte, 0, 64*1024), 8*1024*1024)
 
 	var (
 		deltas          []string
@@ -626,6 +670,7 @@ func parseChatCompletionsIQStream(body io.Reader, fallbackModel string) (*IQDete
 		outputTokens    int
 		reasoningTokens int
 		seenChunk       bool
+		seenDone        bool
 	)
 
 	for scanner.Scan() {
@@ -635,6 +680,7 @@ func parseChatCompletionsIQStream(body io.Reader, fallbackModel string) (*IQDete
 		}
 		jsonStr := sseDataPrefix.ReplaceAllString(line, "")
 		if jsonStr == "[DONE]" {
+			seenDone = true
 			break
 		}
 		if !gjson.Valid(jsonStr) {
@@ -674,8 +720,10 @@ func parseChatCompletionsIQStream(body io.Reader, fallbackModel string) (*IQDete
 			}
 		}
 	}
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("scan chat completions stream: %w", err)
+	if !seenDone {
+		if err := scanner.Err(); err != nil {
+			return nil, fmt.Errorf("read chat completions stream: %w", err)
+		}
 	}
 	if !seenChunk {
 		return nil, errors.New("invalid Chat Completions stream: no JSON chunks received")

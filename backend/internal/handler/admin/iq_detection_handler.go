@@ -108,11 +108,13 @@ func (h *IQDetectionHandler) ListRuns(c *gin.Context) {
 	}
 
 	verdict := strings.TrimSpace(c.Query("verdict"))
+	benchmarkType := strings.TrimSpace(c.Query("benchmark_type"))
 	items, total, err := h.svc.ListRuns(c.Request.Context(), service.IQDetectionRunFilter{
-		GroupID:  groupID,
-		Verdict:  verdict,
-		Page:     page,
-		PageSize: pageSize,
+		GroupID:       groupID,
+		Verdict:       verdict,
+		BenchmarkType: benchmarkType,
+		Page:          page,
+		PageSize:      pageSize,
 	})
 	if err != nil {
 		if errors.Is(err, service.ErrIQDetectionInvalidConfig) {
