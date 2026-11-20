@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -326,4 +328,40 @@ func TestIQDetectionHandler_ConfigOverviewRunsAndRunNow(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	router.ServeHTTP(rec, req)
 	require.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestIQDetectionHandler_ServePelicanSandboxOverridesNonceCSP(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h := NewIQDetectionHandler(nil)
+
+	r := gin.New()
+	r.Use(middleware.SecurityHeaders(config.CSPConfig{
+		Enabled: true,
+		Policy:  config.DefaultCSPPolicy,
+	}, nil))
+	r.GET("/api/v1/iq-detection-sandbox", h.ServePelicanSandbox)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/iq-detection-sandbox", nil)
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Contains(t, rec.Header().Get("Content-Type"), "text/html")
+	require.Equal(t, "SAMEORIGIN", rec.Header().Get("X-Frame-Options"))
+	require.Equal(t, "no-referrer", rec.Header().Get("Referrer-Policy"))
+	require.Equal(t, "nosniff", rec.Header().Get("X-Content-Type-Options"))
+
+	csp := rec.Header().Get("Content-Security-Policy")
+	require.Contains(t, csp, "sandbox allow-scripts")
+	require.NotContains(t, csp, "allow-same-origin")
+	require.Contains(t, csp, "default-src 'none'")
+	require.Contains(t, csp, "script-src 'unsafe-inline'")
+	require.Contains(t, csp, "style-src 'unsafe-inline'")
+	require.Contains(t, csp, "frame-ancestors 'self'")
+	require.NotContains(t, csp, "'nonce-")
+
+	body := rec.Body.String()
+	require.Contains(t, body, "iq-pelican-sandbox-ready")
+	require.Contains(t, body, "iq-pelican-sandbox-render")
+	require.Contains(t, body, "window.self === window.top")
 }

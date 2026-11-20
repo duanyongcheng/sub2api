@@ -163,7 +163,7 @@
               {{ t('iqDetection.pelican.sandboxNotice') }}
             </span>
             <button
-              v-if="activePelicanSrcdoc && stageMode === 'preview'"
+              v-if="activePelicanHtml && stageMode === 'preview'"
               type="button"
               class="btn btn-secondary btn-sm !h-7 !px-2.5 text-xs"
               @click="replayTick += 1"
@@ -184,15 +184,15 @@
         </div>
 
         <!-- Stage Canvas or Source Code -->
-        <div v-if="stageMode === 'preview'" class="relative h-[360px] w-full bg-surface-3 sm:h-[420px]">
-          <iframe
-            v-if="activePelicanSrcdoc"
-            :key="`${run.id}-${activePelicanSample.run_index}-${replayTick}`"
-            :srcdoc="activePelicanSrcdoc"
+        <div
+          v-if="stageMode === 'preview'"
+          class="relative aspect-[16/10] min-h-[280px] max-h-[520px] w-full overflow-hidden bg-surface-3"
+        >
+          <IQDetectionPelicanStage
+            v-if="activePelicanHtml"
+            :html="activePelicanHtml"
             :title="`${run.group_name} #${activePelicanSample.run_index} Pelican SVG`"
-            sandbox="allow-scripts"
-            referrerpolicy="no-referrer"
-            class="h-full w-full border-0"
+            :replay-key="`${run.id}-${activePelicanSample.run_index}-${replayTick}`"
           />
           <div
             v-else
@@ -458,7 +458,7 @@ import BaseDialog from '@/components/common/BaseDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { useAppStore } from '@/stores/app'
 import type { IQDetectionRun, IQDetectionSample } from './types'
-import { buildSandboxedPelicanSrcdoc } from './sandboxHtml'
+import IQDetectionPelicanStage from './IQDetectionPelicanStage.vue'
 import {
   benchmarkBadgeClasses,
   formatDateTime,
@@ -517,11 +517,7 @@ const activePelicanSample = computed<IQDetectionSample | null>(() => {
   )
 })
 
-const activePelicanSrcdoc = computed(() =>
-  activePelicanSample.value?.artifact_html
-    ? buildSandboxedPelicanSrcdoc(activePelicanSample.value.artifact_html)
-    : ''
-)
+const activePelicanHtml = computed(() => activePelicanSample.value?.artifact_html?.trim() ?? '')
 
 function pelicanSampleBadgeClasses(score: number, ok: boolean): string {
   if (ok) {

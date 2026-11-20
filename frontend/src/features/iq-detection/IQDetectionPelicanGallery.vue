@@ -95,15 +95,12 @@
         </div>
 
         <!-- Live sandboxed SVG stage -->
-        <div class="relative h-52 w-full overflow-hidden bg-surface-3">
-          <iframe
-            v-if="item.srcdoc"
-            :key="`${item.run.id}-${replayCounter[item.run.id] ?? 0}`"
-            :srcdoc="item.srcdoc"
+        <div class="relative aspect-[16/10] w-full max-h-[340px] overflow-hidden bg-surface-3">
+          <IQDetectionPelicanStage
+            v-if="item.html"
+            :html="item.html"
             :title="`${item.run.group_name} Pelican SVG`"
-            sandbox="allow-scripts"
-            referrerpolicy="no-referrer"
-            class="h-full w-full border-0"
+            :replay-key="`${item.run.id}-${replayCounter[item.run.id] ?? 0}`"
           />
           <div
             v-else
@@ -165,7 +162,7 @@
 
             <div class="inline-flex items-center gap-1.5">
               <button
-                v-if="item.srcdoc"
+                v-if="item.html"
                 type="button"
                 class="btn btn-secondary btn-sm !h-7 !px-2 text-[11px]"
                 @click="replayAnimation(item.run.id)"
@@ -195,7 +192,8 @@ import { computed, reactive } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'
 import type { IQDetectionPelicanEval, IQDetectionRun } from './types'
-import { buildSandboxedPelicanSrcdoc, pickPrimaryPelicanSample } from './sandboxHtml'
+import { pickPrimaryPelicanSample } from './sandboxHtml'
+import IQDetectionPelicanStage from './IQDetectionPelicanStage.vue'
 import {
   formatDateTime,
   formatLatencyMs,
@@ -224,7 +222,7 @@ const replayCounter = reactive<Record<number, number>>({})
 
 interface GalleryCard {
   run: IQDetectionRun
-  srcdoc: string
+  html: string
   score: number
   eval: IQDetectionPelicanEval | null
 }
@@ -232,12 +230,12 @@ interface GalleryCard {
 const galleryCards = computed<GalleryCard[]>(() =>
   props.runs.map((run) => {
     const sample = pickPrimaryPelicanSample(run)
-    const html = sample?.artifact_html ?? ''
+    const html = sample?.artifact_html?.trim() ?? ''
     const evalData = sample?.pelican_eval ?? null
     const score = evalData?.score ?? run.avg_score ?? sample?.score ?? 0
     return {
       run,
-      srcdoc: html ? buildSandboxedPelicanSrcdoc(html) : '',
+      html,
       score,
       eval: evalData
     }

@@ -22,6 +22,11 @@ func RegisterAdminRoutes(
 ) {
 	// 插件 UI 使用短时能力 URL，仅提供经过安装校验的静态资源。
 	v1.GET("/plugin-ui/:token/*path", h.Admin.Plugin.ServeUIAsset)
+	// 鹈鹕 SVG 动画隔离沙箱承载页：静态空白壳通过独立 HTTP CSP 避免 srcdoc 继承主站 nonce CSP，
+	// 强制 sandbox allow-scripts + default-src 'none'，无任何数据访问或同源权限。
+	if h != nil && h.Admin != nil && h.Admin.IQDetection != nil {
+		v1.GET("/iq-detection-sandbox", h.Admin.IQDetection.ServePelicanSandbox)
+	}
 
 	admin := v1.Group("/admin")
 	admin.Use(gin.HandlerFunc(adminAuth))

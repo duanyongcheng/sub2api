@@ -13,7 +13,13 @@ import type {
 } from '../types'
 import IQDetectionView from '../IQDetectionView.vue'
 import IQDetectionSettingsPanel from '../IQDetectionSettingsPanel.vue'
-import { buildSandboxedPelicanSrcdoc, PELICAN_SANDBOX_CSP } from '../sandboxHtml'
+import {
+  buildSandboxedPelicanSrcdoc,
+  getPelicanSandboxUrl,
+  PELICAN_SANDBOX_CSP,
+  PELICAN_SANDBOX_READY_EVENT,
+  PELICAN_SANDBOX_RENDER_EVENT
+} from '../sandboxHtml'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const read = (path: string) => readFileSync(resolve(here, path), 'utf8')
@@ -575,15 +581,24 @@ describe('Pelican SVG benchmark sandbox, gallery, and manual override', () => {
     })
   })
 
-  it('injects strict offline CSP and strips base tags in sandboxed srcdoc', () => {
+  it('injects strict offline CSP, late-cascade stage styles, viewport fitter, and strips base tags', () => {
     const srcdoc = buildSandboxedPelicanSrcdoc(
-      '<!DOCTYPE html><html><head><base href="https://evil.test/"><title>T</title></head><body><svg viewBox="0 0 100 100"></svg></body></html>'
+      '<!DOCTYPE html><html><head><base href="https://evil.test/"><title>T</title><style>svg{width:100%;height:auto;}</style></head><body><svg viewBox="0 0 100 100"></svg></body></html>'
     )
     expect(srcdoc).toContain(PELICAN_SANDBOX_CSP)
     expect(srcdoc).not.toContain('<base')
+    expect(srcdoc).toContain('data-iq-stage')
+    expect(srcdoc).toContain('data-iq-stage-fit')
+    // Guard stage styles and fit script must be injected AFTER model <style> and before </head>
+    const modelStylePos = srcdoc.indexOf('svg{width:100%;height:auto;}')
+    const guardStylePos = srcdoc.indexOf('data-iq-stage>')
+    const headClosePos = srcdoc.indexOf('</head>')
+    expect(modelStylePos).toBeGreaterThan(-1)
+    expect(guardStylePos).toBeGreaterThan(modelStylePos)
+    expect(guardStylePos).toBeLessThan(headClosePos)
   })
 
-  it('renders isolated sandboxed Pelican gallery, opens detail preview/source, and supports quick benchmark override', async () => {
+  it('renders isolated sandboxed Pelican gallery via dedicated sandbox URL, delivers HTML over postMessage, opens detail preview/source, and supports quick benchmark override', async () => {
     const wrapper = mount(IQDetectionView, {
       global: {
         stubs: {
@@ -600,17 +615,46 @@ describe('Pelican SVG benchmark sandbox, gallery, and manual override', () => {
     expect(gallery.text()).toContain('3 组动画')
     expect(gallery.text()).toContain('双轮 ✓')
 
-    // Strictly verify sandbox has allow-scripts ONLY and NEVER allow-same-origin
+    // Strictly verify sandbox has allow-scripts ONLY, NEVER allow-same-origin, and loads dedicated
+    // sandbox host URL instead of srcdoc (avoiding parent nonce-CSP inheritance blocking inline scripts)
     const iframe = gallery.get('iframe')
     expect(iframe.attributes('sandbox')).toBe('allow-scripts')
     expect(iframe.attributes('sandbox')).not.toContain('allow-same-origin')
-    expect(iframe.attributes('srcdoc')).toContain(PELICAN_SANDBOX_CSP)
+    expect(iframe.attributes('referrerpolicy')).toBe('no-referrer')
+    expect(iframe.attributes('src')).toBe(getPelicanSandboxUrl())
+    expect(iframe.attributes('srcdoc')).toBeUndefined()
+
+    // Simulate sandbox host ready handshake -> parent posts compiled offline HTML exactly once
+    const mockContentWindow = { postMessage: vi.fn() }
+    Object.defineProperty(iframe.element, 'contentWindow', {
+      configurable: true,
+      value: mockContentWindow
+    })
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        data: { type: PELICAN_SANDBOX_READY_EVENT },
+        source: mockContentWindow as unknown as MessageEventSource
+      })
+    )
+    expect(mockContentWindow.postMessage).toHaveBeenCalledTimes(1)
+    const [postedPayload, targetOrigin] = mockContentWindow.postMessage.mock.calls[0]
+    expect(targetOrigin).toBe('*')
+    expect(postedPayload.type).toBe(PELICAN_SANDBOX_RENDER_EVENT)
+    expect(postedPayload.html).toContain(PELICAN_SANDBOX_CSP)
+    expect(postedPayload.html).toContain('data-iq-stage-fit')
+    expect(postedPayload.html).not.toContain('<base')
+
+    // Subsequent iframe load event does not double-deliver
+    await iframe.trigger('load')
+    expect(mockContentWindow.postMessage).toHaveBeenCalledTimes(1)
 
     // Inspect gallery item -> detail stage preview & source toggle
     await wrapper.get('[data-testid="iq-pelican-inspect-10"]').trigger('click')
     await flushPromises()
     const stage = wrapper.get('[data-testid="iq-pelican-detail-stage"]')
     expect(stage.get('iframe').attributes('sandbox')).toBe('allow-scripts')
+    expect(stage.get('iframe').attributes('src')).toBe(getPelicanSandboxUrl())
+    expect(stage.get('iframe').attributes('srcdoc')).toBeUndefined()
     await wrapper.get('[data-testid="iq-pelican-mode-source"]').trigger('click')
     expect(wrapper.get('[data-testid="iq-pelican-source-code"]').text()).toContain('<svg viewBox="0 0 800 500">')
 
