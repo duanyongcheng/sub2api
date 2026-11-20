@@ -1,6 +1,15 @@
-import type { IQDetectionIntervalMinutes, IQDetectionVerdict } from './types'
+import type {
+  IQDetectionBenchmarkType,
+  IQDetectionIntervalMinutes,
+  IQDetectionVerdict
+} from './types'
 
 export type DisplayVerdict = IQDetectionVerdict | 'untested' | 'inFlight'
+
+export const IQ_DETECTION_BENCHMARK_OPTIONS: readonly IQDetectionBenchmarkType[] = [
+  'candy_logic',
+  'pelican_svg'
+]
 
 export const IQ_DETECTION_INTERVAL_OPTIONS: readonly IQDetectionIntervalMinutes[] = [
   30,
@@ -9,6 +18,42 @@ export const IQ_DETECTION_INTERVAL_OPTIONS: readonly IQDetectionIntervalMinutes[
   720,
   1440
 ]
+
+export function normalizeBenchmarkType(raw?: string | null): IQDetectionBenchmarkType {
+  return raw === 'pelican_svg' ? 'pelican_svg' : 'candy_logic'
+}
+
+export function resolveConfigBenchmarkTypes(cfg?: {
+  benchmark_types?: readonly string[] | null
+  benchmark_type?: string | null
+} | null): IQDetectionBenchmarkType[] {
+  if (cfg?.benchmark_types && cfg.benchmark_types.length > 0) {
+    const selected = new Set<IQDetectionBenchmarkType>()
+    for (const raw of cfg.benchmark_types) {
+      if (raw === 'candy_logic' || raw === 'pelican_svg') {
+        selected.add(raw)
+      }
+    }
+    const ordered = IQ_DETECTION_BENCHMARK_OPTIONS.filter((b) => selected.has(b))
+    if (ordered.length > 0) {
+      return ordered
+    }
+  }
+  return [normalizeBenchmarkType(cfg?.benchmark_type)]
+}
+
+export function benchmarkBadgeClasses(type: IQDetectionBenchmarkType): string {
+  if (type === 'pelican_svg') {
+    return 'bg-primary-50 text-primary-700 ring-1 ring-inset ring-primary-500/25'
+  }
+  return 'bg-surface-3 text-ink-2 ring-1 ring-inset ring-edge-strong'
+}
+
+export function scoreTextClasses(score: number): string {
+  if (score >= 70) return 'text-emerald-700 dark:text-emerald-300'
+  if (score >= 45) return 'text-amber-700 dark:text-amber-300'
+  return 'text-rose-700 dark:text-rose-300'
+}
 
 export function isValidIntervalMinutes(val: unknown): val is IQDetectionIntervalMinutes {
   return (
@@ -36,17 +81,17 @@ export function resolveConfigIntervalMinutes(cfg: {
 export function verdictBadgeClasses(verdict: DisplayVerdict): string {
   switch (verdict) {
     case 'normal':
-      return 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-600/20 dark:bg-emerald-900/25 dark:text-emerald-300 dark:ring-emerald-500/30'
+      return 'bg-emerald-500/10 text-emerald-700 ring-1 ring-inset ring-emerald-600/20 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-400/25'
     case 'warning':
-      return 'bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-600/20 dark:bg-amber-900/25 dark:text-amber-300 dark:ring-amber-500/30'
+      return 'bg-amber-500/10 text-amber-700 ring-1 ring-inset ring-amber-600/25 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-400/25'
     case 'degraded':
-      return 'bg-rose-50 text-rose-700 ring-1 ring-inset ring-rose-600/20 dark:bg-rose-900/25 dark:text-rose-300 dark:ring-rose-500/30'
+      return 'bg-rose-500/10 text-rose-700 ring-1 ring-inset ring-rose-600/20 dark:bg-rose-500/15 dark:text-rose-300 dark:ring-rose-400/25'
     case 'error':
-      return 'bg-red-50 text-red-700 ring-1 ring-inset ring-red-600/20 dark:bg-red-900/25 dark:text-red-300 dark:ring-red-500/30'
+      return 'bg-red-500/10 text-red-700 ring-1 ring-inset ring-red-600/20 dark:bg-red-500/15 dark:text-red-300 dark:ring-red-400/25'
     case 'inFlight':
-      return 'bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600/20 dark:bg-blue-900/25 dark:text-blue-300 dark:ring-blue-500/30'
+      return 'bg-primary-50 text-primary-700 ring-1 ring-inset ring-primary-500/25'
     default:
-      return 'bg-gray-100 text-gray-600 ring-1 ring-inset ring-gray-500/15 dark:bg-dark-700 dark:text-gray-300 dark:ring-dark-600'
+      return 'bg-surface-3 text-ink-2 ring-1 ring-inset ring-edge-strong'
   }
 }
 
@@ -61,9 +106,9 @@ export function verdictDotClasses(verdict: DisplayVerdict): string {
     case 'error':
       return 'bg-red-500'
     case 'inFlight':
-      return 'bg-blue-500 animate-pulse'
+      return 'bg-primary-500 animate-pulse'
     default:
-      return 'bg-gray-400 dark:bg-gray-500'
+      return 'bg-ink-3'
   }
 }
 

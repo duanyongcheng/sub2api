@@ -28,8 +28,10 @@ func (r *iqDetectionRepository) GetConfig(ctx context.Context) (*service.IQDetec
 		updatedBy sql.NullInt64
 	)
 	err := r.db.QueryRowContext(ctx, `
-		SELECT version, enabled, interval_minutes, COALESCE(group_ids, '{}'),
-		       model, reasoning_effort, tests_per_group,
+		SELECT version, enabled, interval_minutes,
+		       COALESCE(benchmark_type, 'candy_logic'),
+		       COALESCE(benchmark_types, ARRAY[COALESCE(benchmark_type, 'candy_logic')]::TEXT[]),
+		       COALESCE(group_ids, '{}'), model, reasoning_effort, tests_per_group,
 		       last_scheduled_at, updated_at, updated_by
 		FROM iq_detection_config
 		WHERE id = 1`,
@@ -37,6 +39,8 @@ func (r *iqDetectionRepository) GetConfig(ctx context.Context) (*service.IQDetec
 		&cfg.Version,
 		&cfg.Enabled,
 		&cfg.IntervalMinutes,
+		&cfg.BenchmarkType,
+		pq.Array(&cfg.BenchmarkTypes),
 		pq.Array(&cfg.GroupIDs),
 		&cfg.Model,
 		&cfg.ReasoningEffort,
@@ -65,7 +69,10 @@ func (r *iqDetectionRepository) GetConfig(ctx context.Context) (*service.IQDetec
 		uid := updatedBy.Int64
 		cfg.UpdatedBy = &uid
 	}
-	cfg.BuiltinPrompt = service.IQDetectionCandyPrompt
+	cfg.BenchmarkTypes = service.EffectiveIQBenchmarkTypes(&cfg)
+	cfg.BenchmarkType = cfg.BenchmarkTypes[0]
+	cfg.BuiltinPrompt = service.IQDetectionPromptForBenchmark(cfg.BenchmarkType)
+	cfg.BuiltinPrompts = service.BuiltinIQDetectionPrompts()
 	return &cfg, nil
 }
 
@@ -77,6 +84,8 @@ func (r *iqDetectionRepository) UpdateConfig(
 	if cfg.GroupIDs == nil {
 		cfg.GroupIDs = []int64{}
 	}
+	cfg.BenchmarkTypes = service.EffectiveIQBenchmarkTypes(&cfg)
+	cfg.BenchmarkType = cfg.BenchmarkTypes[0]
 
 	var (
 		updated   service.IQDetectionConfig
@@ -89,19 +98,29 @@ func (r *iqDetectionRepository) UpdateConfig(
 		    enabled = $1,
 		    interval_minutes = $2,
 		    interval_hours = $3,
-		    group_ids = $4,
-		    model = $5,
-		    reasoning_effort = $6,
-		    tests_per_group = $7,
-		    updated_by = $8,
+		    benchmark_type = $4,
+		    benchmark_types = $5,
+		    group_ids = $6,
+		    model = $7,
+		    reasoning_effort = $8,
+		    tests_per_group = $9,
+		    last_scheduled_at = CASE
+		        WHEN COALESCE(benchmark_types, ARRAY[COALESCE(benchmark_type, 'candy_logic')]::TEXT[]) IS DISTINCT FROM $5::text[] THEN NULL
+		        ELSE last_scheduled_at
+		    END,
+		    updated_by = $10,
 		    updated_at = NOW()
-		WHERE id = 1 AND version = $9
-		RETURNING version, enabled, interval_minutes, COALESCE(group_ids, '{}'),
-		          model, reasoning_effort, tests_per_group,
+		WHERE id = 1 AND version = $11
+		RETURNING version, enabled, interval_minutes,
+		          COALESCE(benchmark_type, 'candy_logic'),
+		          COALESCE(benchmark_types, ARRAY[COALESCE(benchmark_type, 'candy_logic')]::TEXT[]),
+		          COALESCE(group_ids, '{}'), model, reasoning_effort, tests_per_group,
 		          last_scheduled_at, updated_at, updated_by`,
 		cfg.Enabled,
 		cfg.IntervalMinutes,
 		cfg.IntervalMinutes/60,
+		cfg.BenchmarkType,
+		pq.Array(cfg.BenchmarkTypes),
 		pq.Array(cfg.GroupIDs),
 		cfg.Model,
 		cfg.ReasoningEffort,
@@ -112,6 +131,8 @@ func (r *iqDetectionRepository) UpdateConfig(
 		&updated.Version,
 		&updated.Enabled,
 		&updated.IntervalMinutes,
+		&updated.BenchmarkType,
+		pq.Array(&updated.BenchmarkTypes),
 		pq.Array(&updated.GroupIDs),
 		&updated.Model,
 		&updated.ReasoningEffort,
@@ -137,7 +158,10 @@ func (r *iqDetectionRepository) UpdateConfig(
 		uid := updatedBy.Int64
 		updated.UpdatedBy = &uid
 	}
-	updated.BuiltinPrompt = service.IQDetectionCandyPrompt
+	updated.BenchmarkTypes = service.EffectiveIQBenchmarkTypes(&updated)
+	updated.BenchmarkType = updated.BenchmarkTypes[0]
+	updated.BuiltinPrompt = service.IQDetectionPromptForBenchmark(updated.BenchmarkType)
+	updated.BuiltinPrompts = service.BuiltinIQDetectionPrompts()
 	return &updated, nil
 }
 
@@ -160,14 +184,18 @@ func (r *iqDetectionRepository) ClaimScheduledWindow(
 		      last_scheduled_at IS NULL
 		      OR last_scheduled_at + (interval_minutes * INTERVAL '1 minute') <= $1
 		  )
-		RETURNING version, enabled, interval_minutes, COALESCE(group_ids, '{}'),
-		          model, reasoning_effort, tests_per_group,
+		RETURNING version, enabled, interval_minutes,
+		          COALESCE(benchmark_type, 'candy_logic'),
+		          COALESCE(benchmark_types, ARRAY[COALESCE(benchmark_type, 'candy_logic')]::TEXT[]),
+		          COALESCE(group_ids, '{}'), model, reasoning_effort, tests_per_group,
 		          last_scheduled_at, updated_at, updated_by`,
 		now.UTC(),
 	).Scan(
 		&cfg.Version,
 		&cfg.Enabled,
 		&cfg.IntervalMinutes,
+		&cfg.BenchmarkType,
+		pq.Array(&cfg.BenchmarkTypes),
 		pq.Array(&cfg.GroupIDs),
 		&cfg.Model,
 		&cfg.ReasoningEffort,
@@ -193,7 +221,10 @@ func (r *iqDetectionRepository) ClaimScheduledWindow(
 		uid := updatedBy.Int64
 		cfg.UpdatedBy = &uid
 	}
-	cfg.BuiltinPrompt = service.IQDetectionCandyPrompt
+	cfg.BenchmarkTypes = service.EffectiveIQBenchmarkTypes(&cfg)
+	cfg.BenchmarkType = cfg.BenchmarkTypes[0]
+	cfg.BuiltinPrompt = service.IQDetectionPromptForBenchmark(cfg.BenchmarkType)
+	cfg.BuiltinPrompts = service.BuiltinIQDetectionPrompts()
 	return &cfg, true, nil
 }
 
@@ -209,35 +240,38 @@ func (r *iqDetectionRepository) CreateRun(ctx context.Context, run *service.IQDe
 	if err != nil {
 		return fmt.Errorf("marshal iq detection samples: %w", err)
 	}
+	run.BenchmarkType = service.NormalizeIQBenchmarkType(run.BenchmarkType)
 
 	err = r.db.QueryRowContext(ctx, `
 		INSERT INTO iq_detection_runs (
-			group_id, group_name, platform, trigger_type,
+			group_id, group_name, platform, trigger_type, benchmark_type,
 			requested_model, reasoning_effort,
-			tests_count, graded_count, correct_count, verdict,
+			tests_count, graded_count, correct_count, avg_score, verdict,
 			avg_input_tokens, avg_output_tokens, avg_reasoning_tokens,
 			avg_latency_ms, avg_tps, response_model,
 			answer_preview, error_message, samples,
 			started_at, completed_at
 		) VALUES (
-			$1, $2, $3, $4,
-			$5, $6,
-			$7, $8, $9, $10,
-			$11, $12, $13,
-			$14, $15, $16,
-			$17, $18, $19,
-			$20, $21
+			$1, $2, $3, $4, $5,
+			$6, $7,
+			$8, $9, $10, $11, $12,
+			$13, $14, $15,
+			$16, $17, $18,
+			$19, $20, $21,
+			$22, $23
 		)
 		RETURNING id, created_at`,
 		run.GroupID,
 		run.GroupName,
 		run.Platform,
 		run.TriggerType,
+		run.BenchmarkType,
 		run.RequestedModel,
 		run.ReasoningEffort,
 		run.TestsCount,
 		run.GradedCount,
 		run.CorrectCount,
+		run.AvgScore,
 		run.Verdict,
 		run.AvgInputTokens,
 		run.AvgOutputTokens,
@@ -268,9 +302,9 @@ func (r *iqDetectionRepository) GetLatestRunsByGroupIDs(
 
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT DISTINCT ON (group_id)
-			id, group_id, group_name, platform, trigger_type,
+			id, group_id, group_name, platform, trigger_type, COALESCE(benchmark_type, 'candy_logic'),
 			requested_model, reasoning_effort,
-			tests_count, graded_count, correct_count, verdict,
+			tests_count, graded_count, correct_count, avg_score, verdict,
 			avg_input_tokens, avg_output_tokens, avg_reasoning_tokens,
 			avg_latency_ms, avg_tps, response_model,
 			answer_preview, error_message, COALESCE(samples, '[]'::jsonb),
@@ -298,6 +332,50 @@ func (r *iqDetectionRepository) GetLatestRunsByGroupIDs(
 	return result, nil
 }
 
+func (r *iqDetectionRepository) GetLatestRunsByGroupAndBenchmark(
+	ctx context.Context,
+	groupIDs []int64,
+) (map[int64]map[string]*service.IQDetectionRun, error) {
+	result := make(map[int64]map[string]*service.IQDetectionRun, len(groupIDs))
+	if len(groupIDs) == 0 {
+		return result, nil
+	}
+
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT DISTINCT ON (group_id, COALESCE(benchmark_type, 'candy_logic'))
+			id, group_id, group_name, platform, trigger_type, COALESCE(benchmark_type, 'candy_logic'),
+			requested_model, reasoning_effort,
+			tests_count, graded_count, correct_count, avg_score, verdict,
+			avg_input_tokens, avg_output_tokens, avg_reasoning_tokens,
+			avg_latency_ms, avg_tps, response_model,
+			answer_preview, error_message, COALESCE(samples, '[]'::jsonb),
+			started_at, completed_at, created_at
+		FROM iq_detection_runs
+		WHERE group_id = ANY($1)
+		ORDER BY group_id, COALESCE(benchmark_type, 'candy_logic'), created_at DESC, id DESC`,
+		pq.Array(groupIDs),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("query latest iq detection runs by benchmark: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	for rows.Next() {
+		run, scanErr := scanIQDetectionRunRow(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		if result[run.GroupID] == nil {
+			result[run.GroupID] = make(map[string]*service.IQDetectionRun, 2)
+		}
+		result[run.GroupID][run.BenchmarkType] = &run
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate latest iq detection runs by benchmark: %w", err)
+	}
+	return result, nil
+}
+
 func (r *iqDetectionRepository) ListRuns(
 	ctx context.Context,
 	filter service.IQDetectionRunFilter,
@@ -317,9 +395,11 @@ func (r *iqDetectionRepository) ListRuns(
 		SELECT COUNT(*)
 		FROM iq_detection_runs
 		WHERE ($1::bigint = 0 OR group_id = $1)
-		  AND ($2::text = '' OR verdict = $2)`,
+		  AND ($2::text = '' OR verdict = $2)
+		  AND ($3::text = '' OR COALESCE(benchmark_type, 'candy_logic') = $3)`,
 		filter.GroupID,
 		filter.Verdict,
+		filter.BenchmarkType,
 	).Scan(&total)
 	if err != nil {
 		return nil, 0, fmt.Errorf("count iq detection runs: %w", err)
@@ -330,9 +410,9 @@ func (r *iqDetectionRepository) ListRuns(
 
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT
-			id, group_id, group_name, platform, trigger_type,
+			id, group_id, group_name, platform, trigger_type, COALESCE(benchmark_type, 'candy_logic'),
 			requested_model, reasoning_effort,
-			tests_count, graded_count, correct_count, verdict,
+			tests_count, graded_count, correct_count, avg_score, verdict,
 			avg_input_tokens, avg_output_tokens, avg_reasoning_tokens,
 			avg_latency_ms, avg_tps, response_model,
 			answer_preview, error_message, COALESCE(samples, '[]'::jsonb),
@@ -340,10 +420,12 @@ func (r *iqDetectionRepository) ListRuns(
 		FROM iq_detection_runs
 		WHERE ($1::bigint = 0 OR group_id = $1)
 		  AND ($2::text = '' OR verdict = $2)
+		  AND ($3::text = '' OR COALESCE(benchmark_type, 'candy_logic') = $3)
 		ORDER BY created_at DESC, id DESC
-		LIMIT $3 OFFSET $4`,
+		LIMIT $4 OFFSET $5`,
 		filter.GroupID,
 		filter.Verdict,
+		filter.BenchmarkType,
 		pageSize,
 		offset,
 	)
@@ -372,13 +454,18 @@ func (r *iqDetectionRepository) PruneGroupRuns(ctx context.Context, groupID int6
 	}
 	_, err := r.db.ExecContext(ctx, `
 		DELETE FROM iq_detection_runs
-		WHERE group_id = $1
-		  AND id NOT IN (
-		      SELECT id FROM iq_detection_runs
-		      WHERE group_id = $1
-		      ORDER BY created_at DESC, id DESC
-		      LIMIT $2
-		  )`,
+		WHERE id IN (
+		    SELECT id FROM (
+		        SELECT id,
+		               ROW_NUMBER() OVER (
+		                   PARTITION BY COALESCE(benchmark_type, 'candy_logic')
+		                   ORDER BY created_at DESC, id DESC
+		               ) AS rn
+		        FROM iq_detection_runs
+		        WHERE group_id = $1
+		    ) ranked
+		    WHERE ranked.rn > $2
+		)`,
 		groupID,
 		keepLatest,
 	)
@@ -399,11 +486,13 @@ func scanIQDetectionRunRow(rows *sql.Rows) (service.IQDetectionRun, error) {
 		&run.GroupName,
 		&run.Platform,
 		&run.TriggerType,
+		&run.BenchmarkType,
 		&run.RequestedModel,
 		&run.ReasoningEffort,
 		&run.TestsCount,
 		&run.GradedCount,
 		&run.CorrectCount,
+		&run.AvgScore,
 		&run.Verdict,
 		&run.AvgInputTokens,
 		&run.AvgOutputTokens,
@@ -421,6 +510,7 @@ func scanIQDetectionRunRow(rows *sql.Rows) (service.IQDetectionRun, error) {
 	if err != nil {
 		return run, fmt.Errorf("scan iq detection run: %w", err)
 	}
+	run.BenchmarkType = service.NormalizeIQBenchmarkType(run.BenchmarkType)
 	if len(rawSamples) > 0 {
 		_ = json.Unmarshal(rawSamples, &run.Samples)
 	}

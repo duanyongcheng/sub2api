@@ -10,7 +10,7 @@ import (
 
 const (
 	iqDetectionRunnerTickInterval  = 1 * time.Minute
-	iqDetectionRunnerPatrolTimeout = 15 * time.Minute
+	iqDetectionRunnerPatrolTimeout = 30 * time.Minute
 )
 
 // IQDetectionRunner 后台周期扫描 iq_detection_config，当 enabled=true 且距离上次巡检已满 interval_minutes 时自动触发抽检。

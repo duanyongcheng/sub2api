@@ -13,6 +13,7 @@ import type {
 } from '../types'
 import IQDetectionView from '../IQDetectionView.vue'
 import IQDetectionSettingsPanel from '../IQDetectionSettingsPanel.vue'
+import { buildSandboxedPelicanSrcdoc, PELICAN_SANDBOX_CSP } from '../sandboxHtml'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const read = (path: string) => readFileSync(resolve(here, path), 'utf8')
@@ -242,10 +243,13 @@ describe('IQDetectionView', () => {
     expect(wrapper.text()).toContain('智商正常')
     expect(wrapper.text()).not.toContain('518n-2')
 
-    // Trigger single group probe
+    // Trigger single group probe (explicitly sends selected benchmark_type)
     await wrapper.get('[data-testid="iq-run-group-10"]').trigger('click')
     await flushPromises()
-    expect(apiMocks.runIQDetectionNow).toHaveBeenCalledWith({ group_ids: [10] })
+    expect(apiMocks.runIQDetectionNow).toHaveBeenCalledWith({
+      group_ids: [10],
+      benchmark_type: 'candy_logic'
+    })
     expect(storeMocks.showSuccess).toHaveBeenCalled()
 
     // Open detail modal and verify reasoning_tokens telemetry is shown without truncation badge
@@ -256,10 +260,60 @@ describe('IQDetectionView', () => {
     expect(detailText).toContain('答对 (21)')
     expect(detailText).not.toContain('518n-2')
 
-    // Trigger run-all
+    // Trigger run-all (explicitly sends selected benchmark_type)
     await wrapper.get('[data-testid="iq-run-all-btn"]').trigger('click')
     await flushPromises()
-    expect(apiMocks.runIQDetectionNow).toHaveBeenLastCalledWith({})
+    expect(apiMocks.runIQDetectionNow).toHaveBeenLastCalledWith({
+      benchmark_type: 'candy_logic'
+    })
+  })
+
+  it('surfaces benchmark mismatch bar, shows empty Pelican gallery, and runs pelican_svg explicitly when configured', async () => {
+    apiMocks.getIQDetectionOverview.mockResolvedValue({
+      ...sampleOverview(),
+      config: {
+        ...sampleConfig(),
+        enabled: true,
+        interval_minutes: 30,
+        benchmark_type: 'pelican_svg'
+      },
+      groups: [
+        {
+          ...sampleOverview().groups[0],
+          latest_run: {
+            ...sampleRun(),
+            trigger_type: 'scheduled',
+            benchmark_type: 'candy_logic'
+          }
+        }
+      ]
+    })
+    apiMocks.listIQDetectionRuns.mockResolvedValue({
+      items: [],
+      total: 0,
+      page: 1,
+      page_size: 20,
+      pages: 0
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    // Syncs manual benchmark select to configured pelican_svg automatically
+    const benchSelect = wrapper.get('[data-testid="iq-run-benchmark-select"]')
+    expect(benchSelect.attributes('data-value')).toBe('pelican_svg')
+    expect(benchSelect.text()).toContain('鹈鹕 SVG 动画')
+
+    // Surfaces mismatch triage bar & empty Pelican gallery stage
+    expect(wrapper.find('[data-testid="iq-benchmark-mismatch-bar"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="iq-pelican-empty"]').exists()).toBe(true)
+
+    // Clicking sync CTA sends benchmark_type: 'pelican_svg' explicitly
+    await wrapper.get('[data-testid="iq-sync-benchmark-run-btn"]').trigger('click')
+    await flushPromises()
+    expect(apiMocks.runIQDetectionNow).toHaveBeenCalledWith({
+      benchmark_type: 'pelican_svg'
+    })
   })
 
   it('shows empty state CTA and switches to settings when no groups are configured', async () => {
@@ -397,5 +451,265 @@ describe('IQDetectionSettingsPanel', () => {
 
     expect(apiMocks.updateIQDetectionConfig).toHaveBeenCalledTimes(2)
     expect((apiMocks.updateIQDetectionConfig.mock.calls[1][0] as IQDetectionConfig).interval_minutes).toBe(60)
+  })
+
+  it('supports enabling both benchmarks simultaneously and narrowing to pelican_svg with fixed 1x/group note', async () => {
+    const wrapper = mount(IQDetectionSettingsPanel, {
+      props: {
+        initialConfig: {
+          ...sampleConfig(),
+          benchmark_type: 'candy_logic',
+          benchmark_types: ['candy_logic'],
+          tests_per_group: 3,
+          builtin_prompts: {
+            candy_logic: '黑袋摸糖题原文',
+            pelican_svg: '创建一个html，内容是SVG绘制一个鹈鹕骑自行车的2D动画，不要联网，不要参考其他文件。'
+          }
+        }
+      }
+    })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('固定 1 轮/组')
+
+    // Click pelican_svg -> enables BOTH candy_logic + pelican_svg simultaneously
+    await wrapper.get('[data-testid="iq-benchmark-opt-pelican_svg"]').trigger('click')
+    expect(wrapper.text()).toContain('结构与动画综合打分')
+
+    await wrapper.get('[data-testid="iq-save-config-btn"]').trigger('click')
+    await flushPromises()
+
+    expect(apiMocks.updateIQDetectionConfig).toHaveBeenCalledTimes(1)
+    const dualSubmitted = apiMocks.updateIQDetectionConfig.mock.calls[0][0] as IQDetectionConfig
+    expect(dualSubmitted.benchmark_types).toEqual(['candy_logic', 'pelican_svg'])
+    expect(dualSubmitted.benchmark_type).toBe('candy_logic')
+
+    // Uncheck candy_logic -> narrows to pelican_svg only and displays fixed 1x/group note
+    await wrapper.get('[data-testid="iq-benchmark-opt-candy_logic"]').trigger('click')
+    expect(wrapper.text()).toContain('固定执行 1 轮 / 组')
+
+    await wrapper.get('[data-testid="iq-save-config-btn"]').trigger('click')
+    await flushPromises()
+
+    expect(apiMocks.updateIQDetectionConfig).toHaveBeenCalledTimes(2)
+    const pelicanOnly = apiMocks.updateIQDetectionConfig.mock.calls[1][0] as IQDetectionConfig
+    expect(pelicanOnly.benchmark_types).toEqual(['pelican_svg'])
+    expect(pelicanOnly.benchmark_type).toBe('pelican_svg')
+  })
+})
+
+describe('Pelican SVG benchmark sandbox, gallery, and manual override', () => {
+  const samplePelicanRun = (): IQDetectionRun => ({
+    ...sampleRun(),
+    id: 950,
+    benchmark_type: 'pelican_svg',
+    avg_score: 92,
+    verdict: 'normal',
+    answer_preview: '结构评分 92/100 · 40 图元 · 18 曲线 · 3 组动画 · 双轮已检出',
+    samples: [
+      {
+        run_index: 1,
+        account_id: 77,
+        account_name: 'codex-team-01',
+        account_type: 'oauth',
+        protocol: 'codex_oauth_responses',
+        ok: true,
+        graded: true,
+        score: 92,
+        input_tokens: 90,
+        output_tokens: 2400,
+        reasoning_tokens: 1100,
+        latency_ms: 18500,
+        tps: 129.7,
+        response_model: 'gpt-5.4-2026',
+        answer_text: '结构评分 92/100 · 40 图元 · 18 曲线 · 3 组动画 · 双轮已检出',
+        artifact_html:
+          '<!DOCTYPE html><html><head><base href="https://evil.example/"><title>Pelican</title></head><body><svg viewBox="0 0 800 500"><circle cx="240" cy="340" r="60"/><circle cx="520" cy="340" r="60"/></svg></body></html>',
+        pelican_eval: {
+          score: 92,
+          has_complete_html: true,
+          has_svg: true,
+          has_view_box: true,
+          offline_compliant: true,
+          primitive_count: 40,
+          path_count: 16,
+          curve_command_count: 18,
+          group_count: 7,
+          unique_color_count: 8,
+          has_animation: true,
+          animation_driver_count: 3,
+          wheel_pair_detected: true,
+          semantic_parts_detected: ['beak_pouch', 'bike_frame', 'pedal_crank', 'pelican', 'wing_body']
+        }
+      }
+    ]
+  })
+
+  beforeEach(() => {
+    Object.values(apiMocks).forEach((fn) => fn.mockReset())
+    Object.values(storeMocks).forEach((fn) => fn.mockReset())
+    routerMocks.query = {}
+
+    const pelicanRun = samplePelicanRun()
+    apiMocks.getIQDetectionOverview.mockResolvedValue({
+      ...sampleOverview(),
+      groups: [
+        {
+          ...sampleOverview().groups[0],
+          latest_run: pelicanRun
+        }
+      ]
+    })
+    apiMocks.listIQDetectionRuns.mockResolvedValue({
+      items: [pelicanRun],
+      total: 1,
+      page: 1,
+      page_size: 20,
+      pages: 1
+    })
+    apiMocks.runIQDetectionNow.mockResolvedValue({
+      requested_groups: 1,
+      executed_groups: 1,
+      skipped_in_flight_groups: [],
+      runs: [pelicanRun]
+    })
+  })
+
+  it('injects strict offline CSP and strips base tags in sandboxed srcdoc', () => {
+    const srcdoc = buildSandboxedPelicanSrcdoc(
+      '<!DOCTYPE html><html><head><base href="https://evil.test/"><title>T</title></head><body><svg viewBox="0 0 100 100"></svg></body></html>'
+    )
+    expect(srcdoc).toContain(PELICAN_SANDBOX_CSP)
+    expect(srcdoc).not.toContain('<base')
+  })
+
+  it('renders isolated sandboxed Pelican gallery, opens detail preview/source, and supports quick benchmark override', async () => {
+    const wrapper = mount(IQDetectionView, {
+      global: {
+        stubs: {
+          AppLayout: AppLayoutStub,
+          BaseDialog: BaseDialogStub
+        }
+      }
+    })
+    await flushPromises()
+
+    const gallery = wrapper.get('[data-testid="iq-pelican-gallery"]')
+    expect(gallery.text()).toContain('92 分')
+    expect(gallery.text()).toContain('40 图元')
+    expect(gallery.text()).toContain('3 组动画')
+    expect(gallery.text()).toContain('双轮 ✓')
+
+    // Strictly verify sandbox has allow-scripts ONLY and NEVER allow-same-origin
+    const iframe = gallery.get('iframe')
+    expect(iframe.attributes('sandbox')).toBe('allow-scripts')
+    expect(iframe.attributes('sandbox')).not.toContain('allow-same-origin')
+    expect(iframe.attributes('srcdoc')).toContain(PELICAN_SANDBOX_CSP)
+
+    // Inspect gallery item -> detail stage preview & source toggle
+    await wrapper.get('[data-testid="iq-pelican-inspect-10"]').trigger('click')
+    await flushPromises()
+    const stage = wrapper.get('[data-testid="iq-pelican-detail-stage"]')
+    expect(stage.get('iframe').attributes('sandbox')).toBe('allow-scripts')
+    await wrapper.get('[data-testid="iq-pelican-mode-source"]').trigger('click')
+    expect(wrapper.get('[data-testid="iq-pelican-source-code"]').text()).toContain('<svg viewBox="0 0 800 500">')
+
+    // Override manual benchmark selector to pelican_svg via custom Select popover and trigger run-all
+    const benchSelect = wrapper.get('[data-testid="iq-run-benchmark-select"]')
+    await benchSelect.get('.select-trigger').trigger('click')
+    await flushPromises()
+    const pelicanOpt = document.body.querySelector<HTMLElement>(
+      '.select-dropdown-portal [data-option-value="pelican_svg"]'
+    )
+    expect(pelicanOpt).not.toBeNull()
+    pelicanOpt!.click()
+    await flushPromises()
+    expect(benchSelect.attributes('data-value')).toBe('pelican_svg')
+
+    await wrapper.get('[data-testid="iq-run-all-btn"]').trigger('click')
+    await flushPromises()
+    expect(apiMocks.runIQDetectionNow).toHaveBeenCalledWith({ benchmark_type: 'pelican_svg' })
+    wrapper.unmount()
+  })
+
+  it('renders side-by-side Candy + Pelican cells + gallery and dispatches benchmark_types when both are enabled', async () => {
+    const candyRun: IQDetectionRun = {
+      ...sampleRun(),
+      id: 960,
+      benchmark_type: 'candy_logic',
+      tests_count: 2,
+      graded_count: 2,
+      correct_count: 2
+    }
+    const pelicanRun = samplePelicanRun()
+
+    apiMocks.getIQDetectionOverview.mockResolvedValue({
+      ...sampleOverview(),
+      config: {
+        ...sampleConfig(),
+        tests_per_group: 2,
+        benchmark_type: 'candy_logic',
+        benchmark_types: ['candy_logic', 'pelican_svg']
+      },
+      groups: [
+        {
+          ...sampleOverview().groups[0],
+          // Even when candy_logic completed after pelican_svg (latest_run = candy_logic),
+          // latest_runs_by_benchmark preserves both for side-by-side display & Pelican gallery.
+          latest_run: candyRun,
+          latest_runs_by_benchmark: {
+            candy_logic: candyRun,
+            pelican_svg: pelicanRun
+          }
+        }
+      ]
+    })
+
+    const wrapper = mount(IQDetectionView, {
+      global: {
+        stubs: {
+          AppLayout: AppLayoutStub,
+          BaseDialog: BaseDialogStub
+        }
+      }
+    })
+    await flushPromises()
+
+    // Top bar pills show Candy (2 轮/组) and Pelican (1 轮/组), and manual select defaults to 'both'
+    expect(wrapper.text()).toContain('2 轮/组')
+    expect(wrapper.text()).toContain('1 轮/组')
+    const benchSelect = wrapper.get('[data-testid="iq-run-benchmark-select"]')
+    expect(benchSelect.attributes('data-value')).toBe('both')
+    expect(benchSelect.text()).toContain('双题型同步抽检')
+
+    // Side-by-side table cells render both Candy accuracy (2/2) and Pelican score (92 分)
+    expect(wrapper.get('[data-testid="iq-group-candy-detail-10"]').text()).toContain('2/2')
+    expect(wrapper.get('[data-testid="iq-group-pelican-detail-10"]').text()).toContain('92 分')
+    // Pelican gallery renders from latest_runs_by_benchmark.pelican_svg even though latest_run is candy_logic
+    expect(wrapper.get('[data-testid="iq-pelican-gallery"]').text()).toContain('92 分')
+
+    // Custom history filter Select triggers reload and reveals reset button
+    const verdictSelect = wrapper.get('[data-testid="iq-history-verdict-filter"]')
+    await verdictSelect.get('.select-trigger').trigger('click')
+    await flushPromises()
+    const warnOpt = document.body.querySelector<HTMLElement>(
+      '.select-dropdown-portal [data-option-value="warning"]'
+    )
+    expect(warnOpt).not.toBeNull()
+    warnOpt!.click()
+    await flushPromises()
+    expect(apiMocks.listIQDetectionRuns).toHaveBeenLastCalledWith(
+      expect.objectContaining({ verdict: 'warning' }),
+      expect.anything()
+    )
+    expect(wrapper.find('[data-testid="iq-history-reset-filters"]').exists()).toBe(true)
+
+    // Clicking Run All in dual mode sends benchmark_types: ['candy_logic', 'pelican_svg']
+    await wrapper.get('[data-testid="iq-run-all-btn"]').trigger('click')
+    await flushPromises()
+    expect(apiMocks.runIQDetectionNow).toHaveBeenCalledWith({
+      benchmark_types: ['candy_logic', 'pelican_svg']
+    })
+    wrapper.unmount()
   })
 })

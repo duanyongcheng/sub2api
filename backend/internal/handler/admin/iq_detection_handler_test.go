@@ -59,6 +59,22 @@ func (r *handlerIQRepoStub) GetLatestRunsByGroupIDs(_ context.Context, _ []int64
 	return out, nil
 }
 
+func (r *handlerIQRepoStub) GetLatestRunsByGroupAndBenchmark(_ context.Context, _ []int64) (map[int64]map[string]*service.IQDetectionRun, error) {
+	out := make(map[int64]map[string]*service.IQDetectionRun)
+	for i := range r.runs {
+		gid := r.runs[i].GroupID
+		bt := service.NormalizeIQBenchmarkType(r.runs[i].BenchmarkType)
+		if out[gid] == nil {
+			out[gid] = make(map[string]*service.IQDetectionRun)
+		}
+		if _, ok := out[gid][bt]; !ok {
+			cp := r.runs[i]
+			out[gid][bt] = &cp
+		}
+	}
+	return out, nil
+}
+
 func (r *handlerIQRepoStub) ListRuns(_ context.Context, _ service.IQDetectionRunFilter) ([]service.IQDetectionRun, int64, error) {
 	return r.runs, int64(len(r.runs)), nil
 }
@@ -269,6 +285,45 @@ func TestIQDetectionHandler_ConfigOverviewRunsAndRunNow(t *testing.T) {
 	// Invalid verdict query -> 400
 	rec = httptest.NewRecorder()
 	req = httptest.NewRequest(http.MethodGet, "/api/v1/admin/iq-detection/runs?verdict=unknown_status", nil)
+	router.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+
+	// Invalid benchmark_type query -> 400
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/admin/iq-detection/runs?benchmark_type=invalid_type", nil)
+	router.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+
+	// PUT /config with pelican_svg -> 200
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPut, "/api/v1/admin/iq-detection/config", bytes.NewBufferString(`{
+		"version": 4,
+		"enabled": false,
+		"interval_minutes": 720,
+		"benchmark_type": "pelican_svg",
+		"group_ids": [11],
+		"model": "gpt-5.4",
+		"reasoning_effort": "medium",
+		"tests_per_group": 1
+	}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Contains(t, rec.Body.String(), `"benchmark_type":"pelican_svg"`)
+
+	// PUT /config with invalid benchmark_type -> 400
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPut, "/api/v1/admin/iq-detection/config", bytes.NewBufferString(`{
+		"version": 5,
+		"enabled": false,
+		"interval_minutes": 720,
+		"benchmark_type": "unknown",
+		"group_ids": [11],
+		"model": "gpt-5.4",
+		"reasoning_effort": "medium",
+		"tests_per_group": 1
+	}`))
+	req.Header.Set("Content-Type", "application/json")
 	router.ServeHTTP(rec, req)
 	require.Equal(t, http.StatusBadRequest, rec.Code)
 }

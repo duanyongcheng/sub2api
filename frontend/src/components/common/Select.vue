@@ -1,5 +1,5 @@
 <template>
-  <div class="relative" ref="containerRef">
+  <div class="relative" ref="containerRef" :data-value="String(modelValue ?? '')">
     <button
       ref="triggerRef"
       type="button"
@@ -12,6 +12,7 @@
       :aria-describedby="ariaDescribedby"
       :class="[
         'select-trigger',
+        size === 'sm' && 'select-trigger-sm',
         isOpen && 'select-trigger-open',
         error && 'select-trigger-error',
         disabled && 'select-trigger-disabled'
@@ -34,13 +35,13 @@
         @mousedown.stop
         @keydown.enter.stop.prevent="clearSelection"
       >
-        <Icon name="x" size="sm" />
+        <Icon name="x" :size="size === 'sm' ? 'xs' : 'sm'" />
       </span>
       <span class="select-icon">
         <Icon
           name="chevronDown"
-          size="md"
-          :class="['transition-transform duration-200', isOpen && 'rotate-180']"
+          :size="size === 'sm' ? 'xs' : 'md'"
+          :class="['transition-transform duration-150 motion-reduce:transition-none', size === 'sm' && 'h-3.5 w-3.5', isOpen && 'rotate-180']"
         />
       </span>
     </button>
@@ -52,7 +53,7 @@
           v-if="isOpen"
           ref="dropdownRef"
           class="select-dropdown-portal"
-          :class="[instanceId]"
+          :class="[instanceId, size === 'sm' && 'select-dropdown-sm']"
           :style="dropdownStyle"
           role="listbox"
           tabindex="-1"
@@ -62,7 +63,7 @@
         >
           <!-- Search input -->
           <div v-if="isSearchable" class="select-search">
-            <Icon name="search" size="sm" class="text-gray-400" />
+            <Icon name="search" :size="size === 'sm' ? 'xs' : 'sm'" class="text-ink-3" />
             <input
               ref="searchInputRef"
               v-model="searchQuery"
@@ -80,6 +81,7 @@
               v-for="(option, index) in filteredOptions"
               :key="`${typeof getOptionValue(option)}:${String(getOptionValue(option) ?? '')}`"
               role="option"
+              :data-option-value="String(getOptionValue(option) ?? '')"
               :aria-selected="isSelected(option)"
               :aria-disabled="isOptionDisabled(option)"
               @click.stop="!isOptionDisabled(option) && selectOption(option)"
@@ -96,16 +98,16 @@
                 <Icon
                   v-if="option._creatable"
                   name="search"
-                  size="sm"
-                  class="flex-shrink-0 text-gray-400"
+                  :size="size === 'sm' ? 'xs' : 'sm'"
+                  class="flex-shrink-0 text-ink-3"
                 />
-                <span class="select-option-label" :class="option._creatable && 'italic text-gray-500 dark:text-dark-300'">{{ getOptionLabel(option) }}</span>
+                <span class="select-option-label" :class="option._creatable && 'italic text-ink-2'">{{ getOptionLabel(option) }}</span>
                 <Icon
                   v-if="isSelected(option)"
                   name="check"
-                  size="sm"
-                  class="text-primary-500"
-                  :stroke-width="2"
+                  :size="size === 'sm' ? 'xs' : 'sm'"
+                  class="shrink-0 text-primary-600 dark:text-primary-400"
+                  :stroke-width="2.2"
                 />
               </slot>
             </div>
@@ -159,6 +161,10 @@ interface Props {
   remote?: boolean
   /** 远程搜索模式下的加载态：options 为空时下拉显示 loading 文案 */
   loading?: boolean
+  /** 触发器与弹层尺寸：md 为标准表单，sm 为紧凑工具栏（32px） */
+  size?: 'sm' | 'md'
+  /** 弹层水平对齐基准：left（默认）或 right（适合贴近视口右侧的工具栏筛选器） */
+  align?: 'left' | 'right'
 }
 
 interface Emits {
@@ -177,7 +183,9 @@ const props = withDefaults(defineProps<Props>(), {
   valueKey: 'value',
   labelKey: 'label',
   remote: false,
-  loading: false
+  loading: false,
+  size: 'md',
+  align: 'left'
 })
 
 const emit = defineEmits<Emits>()
@@ -216,20 +224,32 @@ const dropdownStyle = computed(() => {
   if (!triggerRect.value) return {}
 
   const rect = triggerRect.value
-  const viewportRight = Math.max(dropdownViewportPadding, window.innerWidth - dropdownViewportPadding)
-  const left = Math.min(
-    Math.max(dropdownViewportPadding, rect.left),
-    viewportRight
-  )
-  const availableWidth = Math.max(0, viewportRight - left)
-  const preferredMinWidth = Math.max(dropdownMinimumWidth, rect.width)
-  const minWidth = Math.min(preferredMinWidth, availableWidth)
+  const minW = props.size === 'sm' ? 164 : dropdownMinimumWidth
   const style: Record<string, string> = {
     position: 'fixed',
-    left: `${left}px`,
-    minWidth: `${minWidth}px`,
-    maxWidth: `${availableWidth}px`,
     zIndex: '100000020'
+  }
+
+  if (props.align === 'right') {
+    const rightOffset = Math.max(dropdownViewportPadding, window.innerWidth - rect.right)
+    const availableWidth = Math.max(0, window.innerWidth - rightOffset - dropdownViewportPadding)
+    const preferredMinWidth = Math.max(minW, rect.width)
+    const minWidth = Math.min(preferredMinWidth, availableWidth)
+    style.right = `${rightOffset}px`
+    style.minWidth = `${minWidth}px`
+    style.maxWidth = `${availableWidth}px`
+  } else {
+    const viewportRight = Math.max(dropdownViewportPadding, window.innerWidth - dropdownViewportPadding)
+    const left = Math.min(
+      Math.max(dropdownViewportPadding, rect.left),
+      viewportRight
+    )
+    const availableWidth = Math.max(0, viewportRight - left)
+    const preferredMinWidth = Math.max(minW, rect.width)
+    const minWidth = Math.min(preferredMinWidth, availableWidth)
+    style.left = `${left}px`
+    style.minWidth = `${minWidth}px`
+    style.maxWidth = `${availableWidth}px`
   }
 
   if (dropdownPosition.value === 'top') {
@@ -524,14 +544,24 @@ onUnmounted(() => {
   @apply bg-surface;
   @apply border border-edge-strong;
   @apply text-ink;
-  @apply transition-all duration-200;
+  @apply transition-colors duration-150;
   @apply focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/30;
   @apply hover:border-primary-500/50;
   @apply cursor-pointer;
 }
 
+.select-trigger-sm {
+  @apply h-8 gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium shadow-xs;
+  @apply hover:bg-surface-2;
+  @apply focus:ring-[3px] focus:ring-primary-500/15;
+}
+
 .select-trigger-open {
   @apply border-primary-500 ring-2 ring-primary-500/30;
+}
+
+.select-trigger-sm.select-trigger-open {
+  @apply border-primary-500 ring-[3px] ring-primary-500/15;
 }
 
 .select-trigger-error {
@@ -547,59 +577,87 @@ onUnmounted(() => {
 }
 
 .select-icon {
-  @apply flex-shrink-0 text-gray-400 dark:text-dark-400;
+  @apply flex-shrink-0 text-ink-3;
 }
 
 .select-clear {
   @apply flex flex-shrink-0 cursor-pointer items-center justify-center;
-  @apply rounded text-gray-400 transition-colors;
-  @apply hover:text-gray-600 dark:hover:text-gray-200;
+  @apply rounded text-ink-3 transition-colors;
+  @apply hover:text-ink;
 }
 </style>
 
 <style>
 .select-dropdown-portal {
   @apply w-max min-w-[200px];
-  @apply bg-white dark:bg-dark-800;
+  @apply bg-surface;
   @apply rounded-xl;
-  @apply border border-gray-200 dark:border-dark-700;
-  @apply shadow-lg shadow-black/10 dark:shadow-black/30;
+  @apply border border-edge;
+  @apply shadow-lg shadow-black/10 dark:shadow-black/40;
   @apply overflow-hidden;
   pointer-events: auto !important;
 }
 
+.select-dropdown-portal.select-dropdown-sm {
+  @apply min-w-[164px] rounded-field ring-1 ring-black/[0.04] dark:ring-white/[0.06];
+}
+
 .select-dropdown-portal .select-search {
   @apply flex items-center gap-2 px-3 py-2;
-  @apply border-b border-gray-100 dark:border-dark-700;
+  @apply border-b border-edge;
+}
+
+.select-dropdown-portal.select-dropdown-sm .select-search {
+  @apply px-2.5 py-1.5;
 }
 
 .select-dropdown-portal .select-search-input {
   @apply flex-1 bg-transparent text-sm;
-  @apply text-gray-900 dark:text-gray-100;
-  @apply placeholder:text-gray-400 dark:placeholder:text-dark-400;
+  @apply text-ink;
+  @apply placeholder:text-ink-3;
   @apply focus:outline-none;
+}
+
+.select-dropdown-portal.select-dropdown-sm .select-search-input {
+  @apply text-xs;
 }
 
 .select-dropdown-portal .select-options {
   @apply max-h-80 overflow-y-auto py-1 outline-none;
 }
 
+.select-dropdown-portal.select-dropdown-sm .select-options {
+  @apply space-y-0.5 p-1;
+}
+
 .select-dropdown-portal .select-option {
   @apply flex items-center justify-between gap-2;
   @apply px-4 py-2.5 text-sm;
-  @apply text-gray-700 dark:text-gray-300;
+  @apply text-ink-2;
   @apply cursor-pointer transition-colors duration-150;
-  @apply hover:bg-gray-50 dark:hover:bg-dark-700;
+  @apply hover:bg-surface-2 hover:text-ink;
   pointer-events: auto !important;
 }
 
+.select-dropdown-portal.select-dropdown-sm .select-option {
+  @apply rounded-md px-2.5 py-1.5 text-xs font-medium;
+}
+
 .select-dropdown-portal .select-option-selected {
-  @apply bg-primary-50 dark:bg-primary-900/20;
+  @apply bg-primary-50 dark:bg-primary-950/40;
   @apply text-primary-700 dark:text-primary-300;
 }
 
+.select-dropdown-portal .select-option-selected:hover {
+  @apply bg-primary-50 dark:bg-primary-950/50 text-primary-700 dark:text-primary-300;
+}
+
 .select-dropdown-portal .select-option-focused {
-  @apply bg-gray-100 dark:bg-dark-700;
+  @apply bg-surface-2 text-ink;
+}
+
+.select-dropdown-portal .select-option-selected.select-option-focused {
+  @apply bg-primary-50 dark:bg-primary-950/50 text-primary-700 dark:text-primary-300;
 }
 
 .select-dropdown-portal .select-option-disabled {
@@ -608,13 +666,13 @@ onUnmounted(() => {
 
 .select-dropdown-portal .select-option-group {
   @apply cursor-default select-none;
-  @apply bg-gray-50 dark:bg-dark-900;
+  @apply bg-surface-2;
   @apply text-[11px] font-bold uppercase tracking-wider;
-  @apply text-gray-500 dark:text-gray-400;
+  @apply text-ink-3;
 }
 
 .select-dropdown-portal .select-option-group:hover {
-  @apply bg-gray-50 dark:bg-dark-900;
+  @apply bg-surface-2;
 }
 
 .select-dropdown-portal .select-option-label {
@@ -623,17 +681,28 @@ onUnmounted(() => {
 
 .select-dropdown-portal .select-empty {
   @apply px-4 py-8 text-center text-sm;
-  @apply text-gray-500 dark:text-dark-400;
+  @apply text-ink-3;
+}
+
+.select-dropdown-portal.select-dropdown-sm .select-empty {
+  @apply px-3 py-5 text-xs;
 }
 
 .select-dropdown-enter-active,
 .select-dropdown-leave-active {
-  transition: all 0.2s ease;
+  transition: opacity 0.14s cubic-bezier(0.16, 1, 0.3, 1), transform 0.14s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .select-dropdown-enter-from,
 .select-dropdown-leave-to {
   opacity: 0;
-  transform: translateY(-8px);
+  transform: translateY(-4px) scale(0.985);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .select-dropdown-enter-active,
+  .select-dropdown-leave-active {
+    transition: none;
+  }
 }
 </style>
