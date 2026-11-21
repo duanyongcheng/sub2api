@@ -320,8 +320,11 @@ func TestIQDetectionPublic_RunDTOAllowList(t *testing.T) {
 		"avg_latency_ms", "avg_tps", "started_at", "completed_at", "artifacts",
 	}, keys)
 
-	artifacts := fields["artifacts"].([]any)
-	artifactFields := artifacts[0].(map[string]any)
+	artifacts, ok := fields["artifacts"].([]any)
+	require.True(t, ok)
+	require.Len(t, artifacts, 1)
+	artifactFields, ok := artifacts[0].(map[string]any)
+	require.True(t, ok)
 	artifactKeys := make([]string, 0, len(artifactFields))
 	for k := range artifactFields {
 		artifactKeys = append(artifactKeys, k)

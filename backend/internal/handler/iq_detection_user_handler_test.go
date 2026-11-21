@@ -160,7 +160,9 @@ func TestIQDetectionUserHandler_DisabledGuard(t *testing.T) {
 
 	rec, body := doIQUserRequest(r, "/api/v1/iq-detection/visibility")
 	require.Equal(t, http.StatusOK, rec.Code)
-	require.Equal(t, false, body["data"].(map[string]any)["enabled"])
+	data, ok := body["data"].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, false, data["enabled"])
 
 	for _, path := range []string{"/api/v1/iq-detection/overview", "/api/v1/iq-detection/runs", "/api/v1/iq-detection/runs?group_id=10"} {
 		rec, body = doIQUserRequest(r, path)
