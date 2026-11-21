@@ -540,6 +540,21 @@ export const routes: RouteRecordRaw[] = [
     }
   },
   {
+    // Read-only end-user view of IQ detection. The page itself renders a calm
+    // "not public" state when the admin switch `user_visible` is off (backend
+    // answers 403 IQ_DETECTION_NOT_PUBLIC); it never exposes run/settings.
+    path: '/iq-detection',
+    name: 'UserIQDetection',
+    component: () => import('@/features/iq-detection/user/IQDetectionPublicView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Model IQ checks',
+      titleKey: 'iqDetection.public.title',
+      descriptionKey: 'iqDetection.public.description'
+    }
+  },
+  {
     path: '/admin/subscriptions',
     name: 'AdminSubscriptions',
     component: () => import('@/views/admin/SubscriptionsView.vue'),

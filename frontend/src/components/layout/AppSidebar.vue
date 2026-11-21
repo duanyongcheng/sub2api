@@ -201,6 +201,7 @@ import { sanitizeUrl } from '@/utils/url'
 import { FeatureFlags, makeSidebarFlag } from '@/utils/featureFlags'
 import { resolveSiteBillingMode } from '@/utils/siteBillingMode'
 import { useBatchImageAccess } from '@/composables/useBatchImageAccess'
+import { useIQDetectionVisibility } from '@/features/iq-detection/user/useIQDetectionVisibility'
 
 /**
  * Navigation model
@@ -286,6 +287,7 @@ const onboardingStore = useOnboardingStore()
 const adminSettingsStore = useAdminSettingsStore()
 const subscriptionStore = useSubscriptionStore()
 const { canUseBatchImage, refreshBatchImageAccess } = useBatchImageAccess()
+const { iqDetectionPublic, refreshIQDetectionVisibility } = useIQDetectionVisibility()
 
 const sidebarCollapsed = computed(() => appStore.sidebarCollapsed)
 const mobileOpen = computed(() => appStore.mobileOpen)
@@ -446,6 +448,9 @@ const flagMCP = makeSidebarFlag(FeatureFlags.mcp)
 const flagOpsMonitoring = () => adminSettingsStore.opsMonitoringEnabled
 const flagAdminPayment = () => adminSettingsStore.paymentEnabled
 const flagBatchImageAccess = () => canUseBatchImage.value
+// Strict: unknown (not yet fetched / failed) counts as hidden because the
+// admin switch defaults to OFF; `featureFlag` treats undefined as visible.
+const flagIQDetectionPublic = () => iqDetectionPublic.value === true
 
 // ---- Self nav -------------------------------------------------------------
 // 用户侧 12 项按业务语义分为四组：工作 / 服务 / 账务 / 账户。
@@ -483,6 +488,8 @@ function buildSelfGroups(withDashboard: boolean): NavGroup[] {
       featureFlag: flagAvailableChannels
     },
     { path: '/monitor', label: t('nav.channelStatus'), icon: SignalIcon, featureFlag: flagChannelMonitor },
+    // Read-only IQ detection results; hidden unless the admin made them public.
+    { path: '/iq-detection', label: t('iqDetection.public.title'), icon: BrainIcon, featureFlag: flagIQDetectionPublic },
     {
       path: '/subscriptions',
       label: t('nav.mySubscriptions'),
@@ -772,6 +779,7 @@ watch(
 
 onMounted(() => {
   void refreshBatchImageAccess()
+  void refreshIQDetectionVisibility()
   if (isAdmin.value) {
     adminSettingsStore.fetch()
   }

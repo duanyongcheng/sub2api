@@ -61,6 +61,7 @@ var (
 type IQDetectionConfig struct {
 	Version         int64             `json:"version"`
 	Enabled         bool              `json:"enabled"`
+	UserVisible     bool              `json:"user_visible"`
 	IntervalMinutes int               `json:"interval_minutes"`
 	BenchmarkType   string            `json:"benchmark_type"`
 	BenchmarkTypes  []string          `json:"benchmark_types"`
@@ -158,7 +159,9 @@ type IQDetectionOverview struct {
 
 // IQDetectionRunFilter 抽检历史分页过滤参数。
 type IQDetectionRunFilter struct {
-	GroupID       int64
+	GroupID int64
+	// GroupIDs 非 nil 时将结果限制在该分组集合内（用户侧只读视图的可见分组范围）；nil 表示不限制（管理端）。
+	GroupIDs      []int64
 	Verdict       string
 	BenchmarkType string
 	Page          int

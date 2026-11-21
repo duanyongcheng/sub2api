@@ -194,7 +194,11 @@ export default {
     methodologyBullet3: '真实网关身份对齐：Codex OAuth 自动携带配对请求头与指令，单纯诊断不扣费、不触发熔断。',
     pelicanMethodologyBullet1: '结构与动画综合打分（0-100 分）：解析 HTML/SVG 闭合完整性、纯离线合规、图元数、贝塞尔曲线、动画驱动数与双车轮几何结构。',
     pelicanMethodologyBullet2: '严格隔离沙箱实时画廊：无同源权限且强制断网 CSP 的 iframe 沙箱并排播放各分组画作，直观识别降智退化。',
-    pelicanMethodologyBullet3: '无副作用纯诊断：鹈鹕题单次约输出 2000-6000 tokens，推荐用于手动深度复核或低频巡检。'
+    pelicanMethodologyBullet3: '无副作用纯诊断：鹈鹕题单次约输出 2000-6000 tokens，推荐用于手动深度复核或低频巡检。',
+    userVisibleSectionTitle: '对用户公开',
+    userVisibleSectionHint: '开启后，用户可在侧边栏打开只读的「模型智商检测」页面，仅显示其可用分组的结论、趋势与鹈鹕画作；不包含账号、错误详情、Token 用量和原始回答。默认关闭。',
+    userVisibleLabel: '对用户公开检测结果',
+    userVisibleOpenLink: '打开用户页面'
   },
   detail: {
     title: '抽检批次样本明细 — {group}',
@@ -221,6 +225,81 @@ export default {
     pelicanFailBadge: '退化 ({score}分)',
     errorBadge: '异常',
     emptyAnswer: '（无文本输出）'
+  },
+  public: {
+    title: '模型智商检测',
+    description: '你可用分组的模型推理质量抽检结果（只读）。',
+    about: {
+      title: '关于这些检测',
+      intro: '系统会定期向你可用的分组发送固定的测试题，检查上游模型是否保持应有的推理能力。结果由后台自动抽检产生，本页仅供查看。',
+      model: '检测模型',
+      effort: '推理强度',
+      cadence: '检测频率',
+      lastScheduled: '最近一轮计划检测',
+      never: '尚未执行',
+      everyMinutes: '每 {n} 分钟',
+      everyHours: '每 {n} 小时',
+      legendLabel: '结论说明'
+    },
+    benchmarks: {
+      candy_logic: {
+        name: '逻辑推理题',
+        body: '一道有唯一正确答案的多条件推理题。答对说明模型能完整完成多步推理；只答对部分或答错，可能意味着推理能力下降。'
+      },
+      pelican_svg: {
+        name: '鹈鹕 SVG 动画',
+        body: '要求模型只用代码画出“鹈鹕骑自行车”的 SVG 动画，按构图细节、动画效果和是否完全离线打 0–100 分。分数明显下降通常意味着模型能力退化。'
+      }
+    },
+    legend: {
+      normal: '结果符合预期',
+      warning: '部分未达标，可能有波动',
+      degraded: '多数未达标，疑似能力下降',
+      error: '本次检测请求失败，无法评估'
+    },
+    groups: {
+      title: '你的分组',
+      subtitle: '仅显示你当前可以使用、且已纳入检测的分组。',
+      health: '综合结论',
+      awaitingFirst: '该分组还没有检测记录，下一轮检测完成后会显示结果。'
+    },
+    result: {
+      correct: '答对 {correct}/{total}',
+      score: '{score} 分'
+    },
+    trend: {
+      older: '较早',
+      latest: '最新',
+      count: '最近 {n} 次',
+      loading: '正在加载历史记录',
+      error: '历史记录暂时无法加载',
+      empty: '暂无记录',
+      aria: '{benchmark}最近 {n} 次检测：{summary}'
+    },
+    gallery: {
+      title: '鹈鹕动画作品',
+      subtitle: '各分组最近一次检测生成的作品，在隔离沙箱中播放。',
+      sandboxNotice: '隔离沙箱播放',
+      empty: '还没有可展示的作品，下一轮检测完成后会出现在这里。',
+      noArtifact: '本次检测没有生成可显示的作品',
+      frameTitle: '{group} 的鹈鹕 SVG 动画',
+      replay: '重播',
+      replayAria: '重播 {group} 的动画',
+      externalChip: '引用了外部资源'
+    },
+    states: {
+      loading: '正在加载检测结果',
+      refresh: '刷新',
+      retry: '重试',
+      errorTitle: '检测结果加载失败',
+      errorBody: '请稍后重试。',
+      staleNotice: '刷新失败，当前显示的是上一次加载的结果。',
+      disabledTitle: '检测结果暂未公开',
+      disabledBody: '管理员目前没有向用户开放此页面。开放后，你可以在侧边栏找到它。',
+      backToDashboard: '返回工作台',
+      emptyTitle: '暂无可显示的分组',
+      emptyBody: '你当前可用的分组都还没有纳入智商检测。'
+    }
   },
   messages: {
     runCompleted: '已完成 {executed} 个分组的智商抽检',

@@ -127,7 +127,19 @@ func (r *iqDetectionRepoMemoryStub) ListRuns(_ context.Context, filter IQDetecti
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	filtered := make([]IQDetectionRun, 0, len(r.runs))
+	var scope map[int64]struct{}
+	if filter.GroupIDs != nil {
+		scope = make(map[int64]struct{}, len(filter.GroupIDs))
+		for _, gid := range filter.GroupIDs {
+			scope[gid] = struct{}{}
+		}
+	}
 	for _, run := range r.runs {
+		if scope != nil {
+			if _, ok := scope[run.GroupID]; !ok {
+				continue
+			}
+		}
 		if filter.GroupID > 0 && run.GroupID != filter.GroupID {
 			continue
 		}

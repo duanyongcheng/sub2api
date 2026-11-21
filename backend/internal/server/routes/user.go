@@ -161,5 +161,16 @@ func RegisterUserRoutes(
 			monitorV2.GET("/errors", h.ChannelMonitorV2.Errors)
 			monitorV2.GET("/users", h.ChannelMonitorV2.Users)
 		}
+
+		// 智商检测（用户只读视图）：受管理员「对用户可见」开关约束，仅展示用户可用分组；
+		// 注意与 /iq-detection-sandbox（沙箱承载页）区分，此处为 /iq-detection/* 子路径。
+		if h.IQDetectionUser != nil {
+			iqDetection := authenticated.Group("/iq-detection")
+			{
+				iqDetection.GET("/visibility", h.IQDetectionUser.GetVisibility)
+				iqDetection.GET("/overview", panelRateLimiter.Heavy(), h.IQDetectionUser.GetOverview)
+				iqDetection.GET("/runs", panelRateLimiter.Heavy(), h.IQDetectionUser.ListRuns)
+			}
+		}
 	}
 }
