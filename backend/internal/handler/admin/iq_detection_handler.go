@@ -87,14 +87,26 @@ func (h *IQDetectionHandler) GetConfig(c *gin.Context) {
 func (h *IQDetectionHandler) UpdateConfig(c *gin.Context) {
 	var req struct {
 		service.IQDetectionConfig
-		IntervalMinutesPtr  *int `json:"interval_minutes"`
-		LegacyIntervalHours *int `json:"interval_hours"`
+		IntervalMinutesPtr  *int  `json:"interval_minutes"`
+		LegacyIntervalHours *int  `json:"interval_hours"`
+		UserVisiblePtr      *bool `json:"user_visible"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "invalid iq detection config payload")
 		return
 	}
 	input := req.IQDetectionConfig
+	if req.UserVisiblePtr != nil {
+		input.UserVisible = *req.UserVisiblePtr
+	} else {
+		// 旧版前端未携带 user_visible 时保持当前值；若期间被他人修改，乐观锁 version 校验会返回 409。
+		current, err := h.svc.GetConfig(c.Request.Context())
+		if err != nil {
+			response.ErrorFrom(c, err)
+			return
+		}
+		input.UserVisible = current.UserVisible
+	}
 	switch {
 	case req.IntervalMinutesPtr != nil:
 		if *req.IntervalMinutesPtr <= 0 {

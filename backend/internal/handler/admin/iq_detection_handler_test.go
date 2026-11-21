@@ -365,3 +365,49 @@ func TestIQDetectionHandler_ServePelicanSandboxOverridesNonceCSP(t *testing.T) {
 	require.Contains(t, body, "iq-pelican-sandbox-render")
 	require.Contains(t, body, "window.self === window.top")
 }
+
+func TestIQDetectionHandler_UserVisibleConfigRoundTrip(t *testing.T) {
+	router, repo := setupIQDetectionTestRouter()
+
+	put := func(body string) *httptest.ResponseRecorder {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPut, "/api/v1/admin/iq-detection/config", bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+		router.ServeHTTP(rec, req)
+		return rec
+	}
+
+	// 默认关闭，GET 返回 user_visible:false
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/admin/iq-detection/config", nil))
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Contains(t, rec.Body.String(), `"user_visible":false`)
+
+	// 显式开启
+	rec = put(`{"version": 1, "user_visible": true, "group_ids": [11]}`)
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Contains(t, rec.Body.String(), `"user_visible":true`)
+	require.True(t, repo.cfg.UserVisible)
+
+	// 省略 user_visible → 保持当前值（true）
+	rec = put(`{"version": 2, "enabled": true, "group_ids": [11]}`)
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Contains(t, rec.Body.String(), `"user_visible":true`)
+	require.True(t, repo.cfg.UserVisible)
+
+	// 显式关闭
+	rec = put(`{"version": 3, "user_visible": false, "group_ids": [11]}`)
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Contains(t, rec.Body.String(), `"user_visible":false`)
+	require.False(t, repo.cfg.UserVisible)
+
+	// 乐观锁语义不变：过期 version → 409，且不改变 user_visible
+	rec = put(`{"version": 1, "user_visible": true, "group_ids": [11]}`)
+	require.Equal(t, http.StatusConflict, rec.Code)
+	require.False(t, repo.cfg.UserVisible)
+
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/admin/iq-detection/config", nil))
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Contains(t, rec.Body.String(), `"user_visible":false`)
+}

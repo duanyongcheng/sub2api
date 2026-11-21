@@ -194,7 +194,11 @@ export default {
     methodologyBullet3: 'Authentic gateway parity: Codex OAuth probes send paired headers and instructions without billing or circuit-breaker side effects.',
     pelicanMethodologyBullet1: 'Structural & animation scoring (0-100): evaluates HTML/SVG completeness, offline compliance, primitive richness, Bezier curves, animation drivers, and wheel geometry.',
     pelicanMethodologyBullet2: 'Isolated live gallery preview: renders each group output inside an offline sandboxed iframe without same-origin access.',
-    pelicanMethodologyBullet3: 'Non-destructive diagnostics: Pelican SVG outputs typically consume 2000-6000 tokens; recommended for manual deep checks or low-frequency patrols.'
+    pelicanMethodologyBullet3: 'Non-destructive diagnostics: Pelican SVG outputs typically consume 2000-6000 tokens; recommended for manual deep checks or low-frequency patrols.',
+    userVisibleSectionTitle: 'Visible to users',
+    userVisibleSectionHint: 'When on, signed-in users get a read-only “Model IQ checks” page in their sidebar showing verdicts, trends and Pelican artwork for the groups they can use. Accounts, error details, token usage and raw answers are never shown. Off by default.',
+    userVisibleLabel: 'Show IQ detection results to users',
+    userVisibleOpenLink: 'Open user page'
   },
   detail: {
     title: 'Probe Sample Details — {group}',
@@ -221,6 +225,81 @@ export default {
     pelicanFailBadge: 'Degraded ({score})',
     errorBadge: 'Error',
     emptyAnswer: '(Empty text output)'
+  },
+  public: {
+    title: 'Model IQ checks',
+    description: 'Read-only reasoning-quality spot checks for the groups you can use.',
+    about: {
+      title: 'About these checks',
+      intro: 'We regularly send fixed test prompts to the groups you can use to confirm that upstream models keep their expected reasoning ability. Results come from automatic background checks; this page is view-only.',
+      model: 'Test model',
+      effort: 'Reasoning effort',
+      cadence: 'Frequency',
+      lastScheduled: 'Last scheduled round',
+      never: 'Not run yet',
+      everyMinutes: 'Every {n} min',
+      everyHours: 'Every {n} h',
+      legendLabel: 'What the verdicts mean'
+    },
+    benchmarks: {
+      candy_logic: {
+        name: 'Logic puzzle',
+        body: 'A multi-constraint reasoning puzzle with a single correct answer. Solving it shows the model can finish multi-step reasoning; partial or wrong answers can signal weaker reasoning.'
+      },
+      pelican_svg: {
+        name: 'Pelican SVG animation',
+        body: 'The model draws an animated “pelican riding a bicycle” using code only. It is scored 0–100 on composition detail, animation and staying fully offline. A clear drop in score usually means the model has degraded.'
+      }
+    },
+    legend: {
+      normal: 'as expected',
+      warning: 'some checks missed; may be fluctuating',
+      degraded: 'most checks missed; likely degraded',
+      error: 'the check request failed; no assessment'
+    },
+    groups: {
+      title: 'Your groups',
+      subtitle: 'Only groups you can currently use and that are being checked are shown.',
+      health: 'Overall verdict',
+      awaitingFirst: 'No checks for this group yet. Results appear after the next round completes.'
+    },
+    result: {
+      correct: '{correct}/{total} correct',
+      score: '{score} pts'
+    },
+    trend: {
+      older: 'Older',
+      latest: 'Latest',
+      count: 'Last {n}',
+      loading: 'Loading history',
+      error: 'History is unavailable right now',
+      empty: 'No records',
+      aria: '{benchmark}, last {n} checks: {summary}'
+    },
+    gallery: {
+      title: 'Pelican artwork',
+      subtitle: 'The latest artwork from each group, played in an isolated sandbox.',
+      sandboxNotice: 'Isolated sandbox',
+      empty: 'No artwork yet. It will appear here after the next check completes.',
+      noArtifact: 'This check produced no artwork to display',
+      frameTitle: 'Pelican SVG animation for {group}',
+      replay: 'Replay',
+      replayAria: 'Replay the animation for {group}',
+      externalChip: 'references external resources'
+    },
+    states: {
+      loading: 'Loading check results',
+      refresh: 'Refresh',
+      retry: 'Retry',
+      errorTitle: 'Could not load check results',
+      errorBody: 'Please try again in a moment.',
+      staleNotice: 'Refresh failed. Showing the results from the previous load.',
+      disabledTitle: 'Check results are not public',
+      disabledBody: 'The administrator has not opened this page to users. Once it is opened, you will find it in the sidebar.',
+      backToDashboard: 'Back to dashboard',
+      emptyTitle: 'No groups to show',
+      emptyBody: 'None of the groups you can use are included in IQ checks yet.'
+    }
   },
   messages: {
     runCompleted: 'Completed IQ detection for {executed} groups',

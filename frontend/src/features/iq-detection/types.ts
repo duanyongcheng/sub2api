@@ -32,6 +32,8 @@ export interface IQDetectionConfig {
   model: string
   reasoning_effort: IQDetectionEffort
   tests_per_group: number
+  /** When true, signed-in users can open the read-only /iq-detection page. Defaults to false. */
+  user_visible?: boolean
   last_scheduled_at: string | null
   updated_at: string
   updated_by: number | null

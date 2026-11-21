@@ -409,7 +409,44 @@
             </div>
           </div>
 
-          <!-- 4. Built-in Benchmark Methodology & Prompt Preview -->
+          <!-- 4. Read-only user page visibility -->
+          <div
+            class="overflow-hidden rounded-card border border-edge bg-surface shadow-xs"
+            data-testid="iq-user-visible-section"
+          >
+            <div class="flex items-center justify-between gap-4 bg-surface-2 px-4 py-3 sm:px-5">
+              <div class="min-w-0">
+                <h3 id="iq-user-visible-title" class="text-[13.5px] font-semibold text-ink">
+                  {{ t('iqDetection.settings.userVisibleSectionTitle') }}
+                </h3>
+                <p class="mt-0.5 max-w-[72ch] text-xs leading-relaxed text-ink-2">
+                  {{ t('iqDetection.settings.userVisibleSectionHint') }}
+                </p>
+              </div>
+              <Toggle
+                v-model="userVisibleModel"
+                data-testid="iq-user-visible-toggle"
+                :aria-label="t('iqDetection.settings.userVisibleLabel')"
+              />
+            </div>
+
+            <div
+              v-if="savedUserVisible"
+              class="flex flex-wrap items-center justify-between gap-3 border-t border-edge px-4 py-2.5 sm:px-5"
+            >
+              <code class="font-mono text-xs text-ink-2">/iq-detection</code>
+              <router-link
+                to="/iq-detection"
+                data-testid="iq-user-visible-link"
+                class="btn btn-secondary btn-sm shrink-0"
+              >
+                {{ t('iqDetection.settings.userVisibleOpenLink') }}
+                <Icon name="arrowRight" size="xs" />
+              </router-link>
+            </div>
+          </div>
+
+          <!-- 5. Built-in Benchmark Methodology & Prompt Preview -->
           <div class="overflow-hidden rounded-card border border-edge bg-surface shadow-xs">
             <div class="flex flex-wrap items-center justify-between gap-2 border-b border-edge bg-surface-2 px-4 py-3 sm:px-5">
               <h3 class="flex items-center gap-2 text-[13.5px] font-semibold text-ink">
@@ -500,6 +537,7 @@ import {
   resolveConfigBenchmarkTypes,
   resolveConfigIntervalMinutes
 } from './verdictMeta'
+import { setIQDetectionVisibility } from './user/useIQDetectionVisibility'
 
 const MODEL_PRESETS = ['gpt-5.4', 'gpt-5.5', 'gpt-5.6-sol', 'gpt-6', 'gpt-6.1-sol'] as const
 const EFFORT_OPTIONS: readonly IQDetectionEffort[] = ['low', 'medium', 'high', 'xhigh', 'max']
@@ -531,6 +569,7 @@ const showPromptPreview = ref(false)
 const groupSearch = ref('')
 
 const savedSnapshot = ref<string>('')
+const savedUserVisible = ref(false)
 const draft = ref<IQDetectionConfig | null>(null)
 const openaiGroups = ref<AdminGroup[]>([])
 const previewBenchmark = ref<IQDetectionBenchmarkType>('candy_logic')
@@ -552,7 +591,8 @@ function serializeComparable(cfg: IQDetectionConfig): string {
     group_ids: [...cfg.group_ids].sort((a, b) => a - b),
     model: cfg.model.trim(),
     reasoning_effort: cfg.reasoning_effort,
-    tests_per_group: cfg.tests_per_group
+    tests_per_group: cfg.tests_per_group,
+    user_visible: cfg.user_visible === true
   })
 }
 
@@ -563,9 +603,11 @@ function applyServerConfig(cfg: IQDetectionConfig) {
     interval_minutes: resolveConfigIntervalMinutes(cfg),
     benchmark_types: benchTypes,
     benchmark_type: benchTypes[0],
-    group_ids: Array.isArray(cfg.group_ids) ? [...cfg.group_ids] : []
+    group_ids: Array.isArray(cfg.group_ids) ? [...cfg.group_ids] : [],
+    user_visible: cfg.user_visible === true
   }
   draft.value = cloned
+  savedUserVisible.value = cloned.user_visible === true
   previewBenchmark.value = benchTypes[benchTypes.length - 1] ?? 'candy_logic'
   savedSnapshot.value = serializeComparable(cloned)
 }
@@ -573,6 +615,14 @@ function applyServerConfig(cfg: IQDetectionConfig) {
 const enabledBenchmarks = computed<IQDetectionBenchmarkType[]>(() =>
   resolveConfigBenchmarkTypes(draft.value)
 )
+
+/** `user_visible` is optional on older payloads; the switch always reads a boolean. */
+const userVisibleModel = computed<boolean>({
+  get: () => draft.value?.user_visible === true,
+  set: (value) => {
+    if (draft.value) draft.value.user_visible = value
+  }
+})
 
 const isCandyEnabled = computed(() => enabledBenchmarks.value.includes('candy_logic'))
 
@@ -701,6 +751,7 @@ async function persistDraft(): Promise<IQDetectionConfig | null> {
   try {
     const updated = await updateIQDetectionConfig(draft.value)
     applyServerConfig(updated)
+    setIQDetectionVisibility(updated.user_visible === true)
     appStore.showSuccess(t('iqDetection.settings.savedSuccess'))
     return updated
   } catch (err) {

@@ -32,7 +32,7 @@ func (r *iqDetectionRepository) GetConfig(ctx context.Context) (*service.IQDetec
 		       COALESCE(benchmark_type, 'candy_logic'),
 		       COALESCE(benchmark_types, ARRAY[COALESCE(benchmark_type, 'candy_logic')]::TEXT[]),
 		       COALESCE(group_ids, '{}'), model, reasoning_effort, tests_per_group,
-		       last_scheduled_at, updated_at, updated_by
+		       last_scheduled_at, updated_at, updated_by, user_visible
 		FROM iq_detection_config
 		WHERE id = 1`,
 	).Scan(
@@ -48,6 +48,7 @@ func (r *iqDetectionRepository) GetConfig(ctx context.Context) (*service.IQDetec
 		&lastSched,
 		&cfg.UpdatedAt,
 		&updatedBy,
+		&cfg.UserVisible,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		_, _ = r.db.ExecContext(ctx, `INSERT INTO iq_detection_config (id) VALUES (1) ON CONFLICT (id) DO NOTHING`)
@@ -109,13 +110,14 @@ func (r *iqDetectionRepository) UpdateConfig(
 		        ELSE last_scheduled_at
 		    END,
 		    updated_by = $10,
+		    user_visible = $12,
 		    updated_at = NOW()
 		WHERE id = 1 AND version = $11
 		RETURNING version, enabled, interval_minutes,
 		          COALESCE(benchmark_type, 'candy_logic'),
 		          COALESCE(benchmark_types, ARRAY[COALESCE(benchmark_type, 'candy_logic')]::TEXT[]),
 		          COALESCE(group_ids, '{}'), model, reasoning_effort, tests_per_group,
-		          last_scheduled_at, updated_at, updated_by`,
+		          last_scheduled_at, updated_at, updated_by, user_visible`,
 		cfg.Enabled,
 		cfg.IntervalMinutes,
 		cfg.IntervalMinutes/60,
@@ -127,6 +129,7 @@ func (r *iqDetectionRepository) UpdateConfig(
 		cfg.TestsPerGroup,
 		cfg.UpdatedBy,
 		expectedVersion,
+		cfg.UserVisible,
 	).Scan(
 		&updated.Version,
 		&updated.Enabled,
@@ -140,6 +143,7 @@ func (r *iqDetectionRepository) UpdateConfig(
 		&lastSched,
 		&updated.UpdatedAt,
 		&updatedBy,
+		&updated.UserVisible,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, service.ErrIQDetectionConfigConflict
@@ -188,7 +192,7 @@ func (r *iqDetectionRepository) ClaimScheduledWindow(
 		          COALESCE(benchmark_type, 'candy_logic'),
 		          COALESCE(benchmark_types, ARRAY[COALESCE(benchmark_type, 'candy_logic')]::TEXT[]),
 		          COALESCE(group_ids, '{}'), model, reasoning_effort, tests_per_group,
-		          last_scheduled_at, updated_at, updated_by`,
+		          last_scheduled_at, updated_at, updated_by, user_visible`,
 		now.UTC(),
 	).Scan(
 		&cfg.Version,
@@ -203,6 +207,7 @@ func (r *iqDetectionRepository) ClaimScheduledWindow(
 		&lastSched,
 		&cfg.UpdatedAt,
 		&updatedBy,
+		&cfg.UserVisible,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, false, nil
@@ -390,16 +395,27 @@ func (r *iqDetectionRepository) ListRuns(
 	}
 	offset := (page - 1) * pageSize
 
+	// GroupIDs == nil 表示不限制分组（管理端）；非 nil（含空切片）表示仅返回该集合内的分组记录。
+	var groupScope any
+	if filter.GroupIDs != nil {
+		if len(filter.GroupIDs) == 0 {
+			return []service.IQDetectionRun{}, 0, nil
+		}
+		groupScope = pq.Array(filter.GroupIDs)
+	}
+
 	var total int64
 	err := r.db.QueryRowContext(ctx, `
 		SELECT COUNT(*)
 		FROM iq_detection_runs
 		WHERE ($1::bigint = 0 OR group_id = $1)
 		  AND ($2::text = '' OR verdict = $2)
-		  AND ($3::text = '' OR COALESCE(benchmark_type, 'candy_logic') = $3)`,
+		  AND ($3::text = '' OR COALESCE(benchmark_type, 'candy_logic') = $3)
+		  AND ($4::bigint[] IS NULL OR group_id = ANY($4))`,
 		filter.GroupID,
 		filter.Verdict,
 		filter.BenchmarkType,
+		groupScope,
 	).Scan(&total)
 	if err != nil {
 		return nil, 0, fmt.Errorf("count iq detection runs: %w", err)
@@ -421,11 +437,13 @@ func (r *iqDetectionRepository) ListRuns(
 		WHERE ($1::bigint = 0 OR group_id = $1)
 		  AND ($2::text = '' OR verdict = $2)
 		  AND ($3::text = '' OR COALESCE(benchmark_type, 'candy_logic') = $3)
+		  AND ($4::bigint[] IS NULL OR group_id = ANY($4))
 		ORDER BY created_at DESC, id DESC
-		LIMIT $4 OFFSET $5`,
+		LIMIT $5 OFFSET $6`,
 		filter.GroupID,
 		filter.Verdict,
 		filter.BenchmarkType,
+		groupScope,
 		pageSize,
 		offset,
 	)
